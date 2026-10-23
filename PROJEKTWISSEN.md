@@ -84,7 +84,9 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 - iOS: Schritt „Erzeugtes Projekt bestätigen" – Sprachdateien eingebunden?
   Gerätefamilie nur iPad? Falls cordova-ios die `.lproj`-Dateien nicht als
   Sprachvarianten einträgt, braucht es einen kleinen Hook.
-- Android: deutscher App-Name in `values-de`.
+- Android: deutscher App-Name in `values-de`. **Nie `cordova clean android` vor einer
+  Prüfung:** es löscht alle `<resource-file>`-Kopien (cleanFileResources). Englischer
+  Grundname steht bei cordova-android 15 in `values/cdv_strings.xml`.
 
 ## Offen
 
