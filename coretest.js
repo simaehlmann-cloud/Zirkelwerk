@@ -21,7 +21,7 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   bestLabelDir, fmtLen, fmtDeg, fmtNum, parseNum, History, applyEntry, revertEntry,
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
   compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
-  textFlip, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
+  textFlip, GEO_KINDS, GEO_TASKS, geoStart, geoSolution, geoSolutionSteps, checkGeoTask, sanitizeInst, normAng, diagnose, taskProgress, labSolutionSteps, mapObject, BODY_KINDS, BODY_DEFAULTS, bodyValid, bodyNet, foldNet, bodyFaces, bodyMeasures, netDrawing, obliqueDrawing, bodySheetObjects, clozeSteps, intersectionsAdded, linkForResult, resultCodes, summarizeResults, taskKey, encodeObjs, decodeObjs, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
   PdfCanvas, pdfRuns, pdfTextWidth, pdfWrap, pdfLayout, pdfCompose, pdfColor, pdfEsc, pdfBytes, PDF_PT, PDF_M, PDF_PAD };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
@@ -204,7 +204,7 @@ const phoneUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWeb
 d = K.detectScale({ ua: phoneUA, maxTouch: 5, sw: 393, sh: 852, dpr: 3 });
 ok(d.device === 'iphone' && d.sure && near(d.ppm, 460 / 3 / 25.4), 'iPhone 15 erkannt (460 ppi, 3×)');
 d = K.detectScale({ ua: phoneUA, maxTouch: 5, sw: 667, sh: 375, dpr: 2 });
-ok(d.sure && near(d.ppm, 163 / 25.4), 'iPhone SE (quer) erkannt');
+ok(!d.sure && near(d.ppm, 163 / 25.4), 'iPhone SE (quer): Maß stimmt, aber unsicher (Anzeigezoom möglich)');
 ok(near(K.detectScale({ ua: phoneUA, sw: 414, sh: 896, dpr: 2 }).ppm, 163 / 25.4) && near(K.detectScale({ ua: phoneUA, sw: 414, sh: 896, dpr: 3 }).ppm, 458 / 3 / 25.4), 'iPhone XR und XS Max am dpr unterschieden');
 ok(near(K.detectScale({ ua: phoneUA, sw: 360, sh: 780, dpr: 3 }).ppm, 476 / 3 / 25.4), 'iPhone mini erkannt');
 d = K.detectScale({ ua: phoneUA, sw: 500, sh: 1000, dpr: 3 });
@@ -469,6 +469,159 @@ ok(near(ba.x1, 10) && ba.x0 > 9 && Math.abs(ba.y0) < 3.1 && Math.abs(ba.y1) < 3.
 const bb2 = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -Math.PI * 0.75, sweep: Math.PI * 0.5 }]);
 ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: höchster Punkt erfasst', bb2);
 
+/* ---------- Fehlerdiagnose und gestufte Hilfen ---------- */
+{
+  const P = (x, y, label) => ({ id: 'p' + label, type: 'point', x, y, label, ld: 7, c: '#3b3f45' });
+  const S = (a, b, extra) => Object.assign({ type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: '#3b3f45', w: 0.5, al: 1 }, extra || {});
+  const tri = (A, B, C, more) => [P(A.x, A.y, 'A'), P(B.x, B.y, 'B'), P(C.x, C.y, 'C'), S(A, B), S(B, C), S(A, C)].concat(more || []).map((o, i) => Object.assign({ id: 'o' + i }, o));
+  const polar = (A, len, deg) => ({ x: A.x + len * Math.cos(-deg * DEGR), y: A.y + len * Math.sin(-deg * DEGR) });
+  var DEGR = Math.PI / 180;
+  const A0 = { x: 0, y: 0 }, B0 = { x: 60, y: 0 };
+  /* SWS c = 6, b = 4,5, α = 50 – Schüler trägt 130° an (falsche Skala) */
+  const t1 = { kind: 'sws', given: { c: 60, b: 45, alpha: 50 } };
+  const r1 = K.checkTask(t1, tri(A0, B0, polar(A0, 45, 130)));
+  ok(r1.issues.some(i => i.key === 'alpha' && i.why === 'scale'), 'Diagnose: falsche Gradskala erkannt', r1.issues);
+  /* Winkel am falschen Eckpunkt (bei B statt bei A) */
+  const Cb = polar(B0, 45, 130);
+  const r2 = K.checkTask(t1, tri(A0, B0, Cb));
+  ok(r2.issues.some(i => i.key === 'alpha' && i.why === 'vertex' && i.at === 'B'), 'Diagnose: Winkel am falschen Eckpunkt', r2.issues);
+  /* SSS mit vertauschten Seiten a und b */
+  const t3 = { kind: 'sss', given: { c: 60, b: 50, a: 40 } };
+  const sol = K.solveTriangle('sss', { c: 60, b: 40, a: 50 }).sols[0];
+  const r3 = K.checkTask(t3, tri(A0, B0, sol.C));
+  ok(r3.issues.some(i => i.key === 'b' && i.why === 'swap' && i.other === 'a'), 'Diagnose: a und b vertauscht', r3.issues);
+  /* Bogen um A mit richtigem Radius, aber C daneben gesetzt */
+  const solOk = K.solveTriangle('sss', t3.given).sols[0];
+  const arcA = { type: 'arc', cx: 0, cy: 0, r: 50, a0: -1.5, sweep: 1, c: '#1f5fbf', w: 0.5, al: 1 };
+  const Coff = { x: solOk.C.x + 2.5, y: solOk.C.y - 1 };
+  const r4 = K.checkTask(t3, tri(A0, B0, Coff, [arcA]));
+  ok(r4.issues.some(i => i.key === 'b' && i.why === 'offarc' && i.at === 'A'), 'Diagnose: C liegt neben dem Kreisbogen', r4.issues);
+  /* Zirkel falsch eingestellt (5,3 statt 5 cm), C sauber auf dem Bogen */
+  const solR = K.solveTriangle('sss', { c: 60, b: 53, a: 40 }).sols[0];
+  const r5 = K.checkTask(t3, tri(A0, B0, solR.C, [Object.assign({}, arcA, { r: 53 })]));
+  ok(r5.issues.some(i => i.key === 'b' && i.why === 'radius' && Math.abs(i.r - 53) < 1e-9), 'Diagnose: Zirkel falsch eingestellt', r5.issues);
+  /* Um 1 cm verzählt */
+  const r6 = K.checkTask({ kind: 'sws', given: { c: 60, b: 45, alpha: 50 } }, tri(A0, { x: 70, y: 0 }, polar(A0, 45, 50)));
+  ok(r6.issues.some(i => i.key === 'c' && i.why === 'cm'), 'Diagnose: um 1 cm verzählt', r6.issues);
+  /* Knapp daneben */
+  const r7 = K.checkTask(t1, tri(A0, B0, polar(A0, 47.5, 50)));
+  ok(r7.issues.some(i => i.key === 'b' && i.why === 'close'), 'Diagnose: knapp daneben', r7.issues);
+  ok(K.checkTask(t1, tri(A0, B0, polar(A0, 45, 50))).ok, 'Diagnose stört richtige Lösung nicht');
+
+  /* Fortschritt: Musterlösung gedreht und gespiegelt, schrittweise */
+  const T = I18N.de;
+  for (const kind of ['sss', 'sws', 'wsw', 'ssw']) {
+    const g = { sss: { c: 60, b: 50, a: 40 }, sws: { c: 60, b: 45, alpha: 50 }, wsw: { c: 60, alpha: 50, beta: 60 }, ssw: { c: 50, a: 60, alpha: 50 } }[kind];
+    const ss = K.labSolutionSteps(kind, g, 'de', T);
+    for (const [rot, flip] of [[0.7, 1], [2.9, -1]]) {
+      const c = Math.cos(rot), s2 = Math.sin(rot), map = p => ({ x: 20 + p.x * c - p.y * flip * s2, y: -5 + p.x * s2 + p.y * flip * c });
+      let allOk = true, lastNext = -1;
+      for (let n = 0; n <= ss.steps.length; n++) {
+        const ids = new Set(ss.steps.slice(0, n).flatMap(st => st.ids));
+        const student = ss.objects.filter(o => ids.has(o.id)).map(o => K.mapObject(o, map, rot, flip)).filter(Boolean);
+        const pr = K.taskProgress({ kind, given: g }, student, 'de', T);
+        const want = n === ss.steps.length ? -1 : n;
+        if (pr.next !== want) { allOk = false; lastNext = [n, pr.next]; break; }
+        if (want >= 0 && !pr.ghost.length && n > 0) { allOk = false; lastNext = ['ghost', n]; break; }
+      }
+      ok(allOk, 'Hilfe: nächster Schritt richtig erkannt (' + kind + (flip < 0 ? ', gespiegelt' : '') + ')', lastNext);
+    }
+  }
+  {
+    /* Gespiegelter Bogen: Anfangs- und Endpunkt liegen dort, wo die Abbildung sie hinschickt */
+    const arc = { type: 'arc', cx: 10, cy: 5, r: 20, a0: 0.4, sweep: 1.1 }, rot = 0.8, flip = -1;
+    const c = Math.cos(rot), s2 = Math.sin(rot), map = p => ({ x: p.x * c - p.y * flip * s2, y: p.x * s2 + p.y * flip * c });
+    const m = K.mapObject(arc, map, rot, flip), end = (o, a) => ({ x: o.cx + o.r * Math.cos(a), y: o.cy + o.r * Math.sin(a) });
+    const e0 = map(end(arc, arc.a0)), e1 = map(end(arc, arc.a0 + arc.sweep)), f0 = end(m, m.a0), f1 = end(m, m.a0 + m.sweep);
+    ok(near(e0.x, f0.x, 1e-9) && near(e0.y, f0.y, 1e-9) && near(e1.x, f1.x, 1e-9) && near(e1.y, f1.y, 1e-9), 'Hilfe: gespiegelter Bogen liegt richtig');
+  }
+  const pr0 = K.taskProgress(t1, [], 'de', T);
+  ok(pr0.next === 0 && /Strecke AB/.test(pr0.steps[0].text), 'Hilfe: leeres Blatt → erster Schritt ist die Strecke AB', pr0.steps[0].text);
+  /* Geisterbild liegt dort, wo der Schüler weiterzeichnen muss */
+  const ssS = K.labSolutionSteps('sss', t3.given, 'de', T);
+  const st1 = ssS.objects.filter(o => new Set(ssS.steps[0].ids).has(o.id)).map(o => K.mapObject(o, p => ({ x: p.x + 100, y: p.y + 50 }), 0, 1));
+  const pg = K.taskProgress(t3, st1, 'de', T);
+  ok(pg.next === 1 && pg.ghost.length === 1 && pg.ghost[0].type === 'arc' && near(pg.ghost[0].cx, 100) && near(pg.ghost[0].cy, 50) && near(pg.ghost[0].r, 50), 'Hilfe: Geisterbild des nächsten Schritts verschoben mit', pg.ghost);
+}
+
+/* ---------- Befunde der unabhängigen Durchsicht ---------- */
+{
+  const b64 = o => K.b64uEncode(K.utf8Bytes(JSON.stringify(o)));
+  let threw = false, r;
+  try { r = K.parseLink('zirkelwerk://s?v=1&d=' + b64({ n: 'x', o: [['length', 1, 2], ['constructor'], [1.5, 1], [-1, 2], [0, 1, 2]] })); } catch (e) { threw = true; }
+  ok(!threw && r.ok && r.raw.objects.length === 1, 'Link: Typ als Text/Bruch/negativ wird verworfen, nicht abgestürzt', r);
+  const circ = { name: 'k', objects: [{ id: 'a', type: 'point', x: 0, y: 0, label: 'M', ld: 7, c: '#3b3f45' }, { id: 'c', type: 'arc', cx: 0, cy: 0, r: 30, a0: 0, sweep: K.TAU, c: '#1f5fbf', w: 0.5, al: 1 }] };
+  const rc = K.sanitizeDoc(K.parseLink(K.linkForSheet(circ)).raw, 'n', 1);
+  ok(rc.objects[1].sweep === K.TAU && /Kreis um M/.test(K.describe(rc.objects, 'de', I18N.de)[1].text), 'Link: Vollkreis bleibt Vollkreis', rc.objects[1].sweep);
+  const plain = 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50';
+  ok(K.parseLink('  ' + encodeURIComponent(plain) + ' ').url === plain && K.parseLink(plain).url === plain, 'Link: Kennung aus bereinigter Adresse (Doppel-Scan sicher)');
+  const inj = K.describe([{ id: 'p', type: 'point', x: 0, y: 0, label: '{l}', ld: 7 }, { id: 's', type: 'segment', x1: 0, y1: 0, x2: 54, y2: 0, w: 0.5, al: 1 }], 'de', I18N.de);
+  ok(inj.every(st => !/5,4 cm aus/.test(st.text)) && inj.some(st => st.text.includes('{l}')), 'Beschreibung: Punktname „{l}" löst keinen Platzhalter aus', inj.map(x => x.text));
+  const ww = K.pdfWrap('W'.repeat(60) + ' und noch mehr Text', 50, 3.6);
+  ok(ww.every(l => K.pdfTextWidth(l, 3.6) <= 50 + 1e-9), 'PDF: überlanges Wort mitten im Absatz wird getrennt', ww);
+  const ins = K.sanitizeInst({ ruler: { on: true, x: 0, y: 0, rot: -1745.3 }, geo: {}, compass: { ang: 1e5 } });
+  ok(near(Math.cos(ins.ruler.rot), Math.cos(-1745.3), 1e-9) && near(Math.sin(ins.ruler.rot), Math.sin(-1745.3), 1e-9) && Math.abs(ins.ruler.rot) <= Math.PI && Math.abs(ins.compass.ang) <= Math.PI, 'Gerätewinkel werden normalisiert statt abgeschnitten', ins.ruler.rot);
+}
+
+/* ---------- Grundkonstruktionen ---------- */
+{
+  let seed = 11; const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const withIds = (l, p) => l.map((o, i) => Object.assign({ id: p + i }, o));
+  for (const kind of K.GEO_KINDS) {
+    for (let n = 0; n < 5; n++) {
+      const g = K.GEO_TASKS[kind].random(rng);
+      if (!K.sanitizeTask({ kind, given: g })) { ok(false, 'Grundkonstruktion: Zufallsfigur gültig (' + kind + ')', g); break; }
+      const start = withIds(K.geoStart(kind, g), 'g'), sol = withIds(K.geoSolution(kind, g), 's');
+      const all = start.concat(sol);
+      const r = K.checkTask({ kind, given: g }, all);
+      if (!r.ok) { ok(false, 'Grundkonstruktion: Musterlösung besteht (' + kind + ')', r.issues); break; }
+      if (K.checkTask({ kind, given: g }, start).ok) { ok(false, 'Grundkonstruktion: leere Lösung fällt durch (' + kind + ')'); break; }
+      /* Über Speichern und Link: Ausgangsfigur bleibt markiert, Aufgabe heil */
+      const dd = K.sanitizeDoc({ format: 'zirkelwerk', v: 1, task: { kind, given: g }, objects: all }, 'q', 1);
+      if (!dd.task || dd.objects.filter(o => o.m && o.m.giv).length !== start.length || !K.checkTask(dd.task, dd.objects).ok) { ok(false, 'Grundkonstruktion: Laden erhält Ausgangsfigur (' + kind + ')'); break; }
+      const pl = K.parseLink(K.linkForTask({ kind, given: g }));
+      if (!pl.ok || JSON.stringify(Object.keys(pl.task.given)) !== JSON.stringify(K.GEO_TASKS[kind].keys)) { ok(false, 'Grundkonstruktion: Link hin und zurück (' + kind + ')', pl); break; }
+      /* Fortschritt: Schritt für Schritt */
+      const ss = K.geoSolutionSteps(kind, g, 'de', I18N.de);
+      let good = true;
+      for (let k = 0; k <= ss.steps.length && good; k++) {
+        const ids = new Set(ss.steps.slice(0, k).flatMap(st => st.ids));
+        const pr = K.taskProgress({ kind, given: g }, start.concat(ss.objects.filter(o => ids.has(o.id))), 'de', I18N.de);
+        if (pr.next !== (k === ss.steps.length ? -1 : k)) good = false;
+      }
+      if (!good) { ok(false, 'Grundkonstruktion: nächster Schritt richtig (' + kind + ')'); break; }
+      if (n === 4) ok(true, 'Grundkonstruktion ' + kind + ': 5 Zufallsfiguren – Lösung, Prüfung, Laden, Link, Hilfen');
+    }
+  }
+  /* Diagnosen */
+  const g = { ax: -30, ay: 0, bx: 30, by: 0 }, start = withIds(K.geoStart('msk', g), 'g');
+  const seg = (x1, y1, x2, y2, m) => ({ id: 'x' + Math.random(), type: 'segment', x1, y1, x2, y2, c: '#3b3f45', w: 0.5, al: 1, m });
+  const arc = (cx, cy, r) => ({ id: 'a' + Math.random(), type: 'arc', cx, cy, r, a0: -2, sweep: 1.5, c: '#1f5fbf', w: 0.5, al: 1 });
+  const ck = objs => K.checkTask({ kind: 'msk', given: g }, start.concat(objs));
+  ok(ck([seg(0, -30, 0, 30)]).ok && ck([seg(0, -30, 0, 30)]).notes.includes('g_noCompass'), 'Mittelsenkrechte mit Geodreieck: richtig, Hinweis auf Zirkel');
+  ok(ck([arc(-30, 0, 40), arc(30, 0, 40), seg(0, -30, 0, 30)]).notes.length === 0, 'Mittelsenkrechte mit Zirkel: kein Hinweis');
+  const off = ck([arc(-30, 0, 40), arc(30, 0, 45), seg(3, -30, 3, 30)]);
+  ok(!off.ok && off.issues[0].k === 'g_offset' && near(off.issues[0].d, 3, 1e-9) && off.issues[0].why === 'radii', 'Mittelsenkrechte daneben: verschiedene Radien erkannt', off.issues);
+  const ang = ck([seg(-3, -30, 3, 30)]);
+  ok(!ang.ok && ang.issues[0].k === 'g_angle' && ang.issues[0].dev > 5, 'Mittelsenkrechte schief: Winkelabweichung', ang.issues);
+  const small = ck([arc(-30, 0, 25), arc(30, 0, 25)]);
+  ok(small.issues[0].k === 'g_none' && small.issues[0].why === 'small', 'Mittelsenkrechte: zu kleine Bögen erkannt', small.issues);
+  const gw = { sx: 0, sy: 0, d1: 0, d2: -60 }, sw = withIds(K.geoStart('wh', gw), 'g');
+  const out = K.checkTask({ kind: 'wh', given: gw }, sw.concat([seg(0, 0, -40 * Math.cos(-30 * Math.PI / 180), -40 * Math.sin(-30 * Math.PI / 180))]));
+  ok(out.issues.some(i => i.k === 'g_outside'), 'Winkelhalbierende nach außen erkannt', out.issues);
+  const gl = { g1x: -60, g1y: 0, g2x: 60, g2y: 0, px: 10, py: -30 }, sl = withIds(K.geoStart('lot', gl), 'g');
+  ok(K.checkTask({ kind: 'lot', given: gl }, sl.concat([seg(10, -30, 10, -10)])).issues.some(i => i.k === 'g_short'), 'Lot zu kurz erkannt');
+  const gu = { ax: -40, ay: 30, bx: 50, by: 30, cx: -10, cy: -25 }, su = withIds(K.geoStart('umk', gu), 'g');
+  const U = K.GEO_TASKS.umk.circle(gu);
+  const cu = (dx, dr, sweep) => K.checkTask({ kind: 'umk', given: gu }, su.concat([{ id: 'k', type: 'arc', cx: U.c.x + dx, cy: U.c.y, r: U.r + dr, a0: 0, sweep, c: '#1e8a4c', w: 0.5, al: 1 }]));
+  ok(cu(0, 0, K.TAU).ok && cu(0, 0, 3).issues[0].k === 'g_partial' && cu(5, 0, K.TAU).issues[0].why === 'umkCenter' && cu(0, 4, K.TAU).issues[0].k === 'g_radius', 'Umkreis: ganz, Teilbogen, Mittelpunkt, Radius');
+  const gt = { ax: -30, ay: 20, bx: 30, by: 20, a: 30 }, st = withIds(K.geoStart('thal', gt), 'g');
+  const Cw = { x: 0, y: -15 };
+  const ct = K.checkTask({ kind: 'thal', given: gt }, st.concat([{ id: 'c', type: 'point', x: Cw.x, y: Cw.y, label: 'C' }, seg(-30, 20, 0, -15), seg(30, 20, 0, -15)]));
+  ok(ct.issues.some(i => i.key === 'gamma' && i.why === 'thales'), 'Thales: C nicht auf dem Thaleskreis erkannt', ct.issues);
+  ok(K.sanitizeTask({ kind: 'senk', given: { g1x: -60, g1y: 0, g2x: 60, g2y: 0, px: 0, py: 3 } }) === null, 'Senkrechte: P nicht auf g → ungültige Aufgabe');
+}
+
 /* ---------- QR-Code und Aufgaben-Links ---------- */
 {
   const mat = q => q.modules.map(r => r.map(c => (c ? 1 : 0)).join('')).join('\n');
@@ -525,6 +678,76 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   const evil = 'zirkelwerk://s?v=1&d=' + K.b64uEncode(K.utf8Bytes(JSON.stringify({ n: 'x', o: [[0, 1, 2, 'A', 7, 'javascript:alert(1)'], [3, ['a', 1]], [9, 1]] })));
   const pe = K.parseLink(evil), de2 = K.sanitizeDoc(pe.raw, 'e', 1);
   ok(pe.ok && de2.objects.length === 1 && de2.objects[0].c === '#3b3f45', 'Link: falsche Farbe, kaputte Striche und unbekannte Typen fallen weg', de2.objects);
+}
+
+/* ---------- Rückmeldung per QR ---------- */
+{
+  const task = { kind: 'sws', given: { c: 60, b: 45, alpha: 50 } };
+  const objs = K.labConstruction('sws', task.given).objects.map((o, i) => Object.assign({ id: 'o' + i }, o));
+  const res = K.checkTask(task, objs.slice(0, 3));
+  const codes = K.resultCodes(res);
+  ok(codes.length >= 1 && K.resultCodes(K.checkTask(task, objs)).length === 0, 'Rückmeldung: Befunde als Codes, richtige Lösung ohne', codes);
+  {
+    const A = { x: 0, y: 0 }, B = { x: 60, y: 0 }, C = { x: 45 * Math.cos(-130 * Math.PI / 180), y: 45 * Math.sin(-130 * Math.PI / 180) };
+    const P = (p, l) => ({ id: l, type: 'point', x: p.x, y: p.y, label: l }), S = (a, b, id) => ({ id, type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, w: 0.5, al: 1 });
+    const cs = K.resultCodes(K.checkTask(task, [P(A, 'A'), P(B, 'B'), P(C, 'C'), S(A, B, 's1'), S(B, C, 's2'), S(A, C, 's3')]));
+    ok(cs.includes('scale') && !cs.includes('angle'), 'Rückmeldung: Diagnose geht vor Befundart', cs);
+  }
+  const url = K.linkForResult({ task, name: 'Mia K.', ok: false, help: 2, codes, objects: objs }, true);
+  const pr = K.parseLink(url);
+  ok(pr.ok && pr.kind === 'result' && pr.res.name === 'Mia K.' && pr.res.help === 2 && !pr.res.ok && JSON.stringify(pr.res.codes) === JSON.stringify(codes) && pr.res.objects.length === objs.length, 'Rückmeldung: hin und zurück mit Zeichnung', pr.res);
+  ok(K.taskKey(pr.res.task) === K.taskKey(task) && K.taskKey(task) !== K.taskKey({ kind: 'sws', given: { c: 60, b: 45, alpha: 51 } }), 'Rückmeldung: gleiche Aufgabe, gleicher Schlüssel');
+  const noDraw = K.parseLink(K.linkForResult({ task, name: '', ok: true, help: 0, codes: [], objects: objs }, false));
+  ok(noDraw.ok && noDraw.res.objects.length === 0 && noDraw.res.ok, 'Rückmeldung ohne Zeichnung (kleiner Code)');
+  const b64 = o => K.b64uEncode(K.utf8Bytes(JSON.stringify(o)));
+  const evil = K.parseLink('zirkelwerk://r?v=1&d=' + b64({ t: task, n: 'x'.repeat(200), ok: 'ja', h: 99, w: ['<img>', 'scale', 5], o: 'kaputt' }));
+  ok(evil.ok && evil.res.name.length === 30 && evil.res.ok === false && evil.res.help === 4 && JSON.stringify(evil.res.codes) === '["scale"]' && evil.res.objects.length === 0, 'Rückmeldung: fremde Werte werden begrenzt und gefiltert', evil.res);
+  ok(K.parseLink('zirkelwerk://r?v=1&d=' + b64({ t: { kind: 'evil' }, n: 'x' })).ok === false, 'Rückmeldung ohne gültige Aufgabe abgelehnt');
+  const sum = K.summarizeResults([{ ok: true, help: 0, codes: [] }, { ok: false, help: 2, codes: ['scale', 'sides'] }, { ok: false, help: 3, codes: ['scale'] }]);
+  ok(sum.n === 3 && sum.ok === 1 && sum.help[2] === 1 && sum.codes[0][0] === 'scale' && sum.codes[0][1] === 2, 'Auswertung: Anzahl, richtig, häufigster Befund', sum);
+  const rows = K.encodeObjs(objs), back = K.decodeObjs(rows);
+  ok(back.length === objs.length && back.every((o, i) => o.type === objs[i].type), 'Objekte kodieren und dekodieren');
+}
+
+/* ---------- Körper und Netze ---------- */
+{
+  /* Volumen aus den gefalteten Flächen (Divergenzsatz) = Formel */
+  const volOf = F => {
+    const all = [].concat(...F), C = all.reduce((s, p) => ({ x: s.x + p.x / all.length, y: s.y + p.y / all.length, z: s.z + p.z / all.length }), { x: 0, y: 0, z: 0 });
+    let V = 0;
+    for (const f of F) for (let i = 1; i + 1 < f.length; i++) {
+      const a = f[0], b = f[i], c = f[i + 1];
+      const ax = a.x - C.x, ay = a.y - C.y, az = a.z - C.z, bx = b.x - C.x, by = b.y - C.y, bz = b.z - C.z, cx = c.x - C.x, cy = c.y - C.y, cz = c.z - C.z;
+      V += Math.abs(ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    }
+    return V;
+  };
+  const tabsWant = { cube: 7, cuboid: 7, prism3: 5, pyramid4: 4 };
+  for (const kind of K.BODY_KINDS) {
+    for (const g of [K.BODY_DEFAULTS[kind], kind === 'prism3' ? { a: 30, b: 45, c: 60, h: 25 } : Object.fromEntries(Object.keys(K.BODY_DEFAULTS[kind]).map((k, i) => [k, 23 + 9 * i]))]) {
+      const F = K.bodyFaces(kind, g), m = K.bodyMeasures(kind, g);
+      const zmin = Math.min(...[].concat(...F).map(p => p.z));
+      const tolV = kind === 'cylinder' ? 0.01 : 1e-6;
+      ok(Math.abs(volOf(F) - m.V) / m.V < tolV && Math.abs(zmin) < 1e-9, 'Körper ' + kind + ': gefaltet = Formel (V ' + Math.round(m.V) + ' mm³), steht auf z = 0', [volOf(F), m.V]);
+      if (kind !== 'cylinder') {
+        const nd = K.netDrawing(kind, g);
+        const tabs = nd.tabs.length / 3, folds = nd.edges.filter(e => e.fold).length;
+        ok(tabs === tabsWant[kind] && folds === (K.bodyNet(kind, g).faces.length - 1) + tabsWant[kind], 'Netz ' + kind + ': ' + tabs + ' Klebelaschen, Faltkanten gestrichelt', { tabs, folds });
+        /* Flaches Netz bei t = 0 liegt in der Ebene */
+        ok(K.foldNet(K.bodyNet(kind, g), 0).every(f => f.every(p => Math.abs(p.z) < 1e-12)), 'Netz ' + kind + ': bei t = 0 flach');
+      }
+    }
+  }
+  /* Schrägbild eines Würfels: 12 Kanten, davon 3 verdeckt; Tiefe unter 45°, halbe Länge */
+  const ob = K.obliqueDrawing('cube', { a: 40 });
+  ok(ob.length === 12 && ob.filter(e => e.hidden).length === 3, 'Schrägbild Würfel: 3 verdeckte Kanten', ob.filter(e => e.hidden).length);
+  const depth = ob.filter(e => Math.abs(Math.abs(e.b.x - e.a.x) - Math.abs(e.b.y - e.a.y)) < 1e-6 && Math.abs(e.b.x - e.a.x) > 1);
+  ok(depth.length === 4 && depth.every(e => Math.abs(Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) - 20) < 1e-6), 'Schrägbild: Tiefenkanten 45°, halbe Länge');
+  const cy = K.obliqueDrawing('cylinder', { r: 20, h: 50 });
+  ok(cy.some(e => e.hidden) && cy.filter(e => !e.hidden && Math.abs(e.a.x - e.b.x) < 1e-6 && Math.abs(Math.abs(e.a.y - e.b.y) - 50) < 1e-6).length === 2, 'Schrägbild Zylinder: hintere Bodenkante verdeckt, zwei Umrisslinien');
+  ok(!K.bodyValid('prism3', { a: 10, b: 10, c: 30, h: 20 }) && K.bodyValid('prism3', { a: 30, b: 40, c: 50, h: 20 }) && !K.bodyValid('cube', { a: 2 }), 'Körper: ungültige Maße abgelehnt');
+  const cn = K.netDrawing('cylinder', { r: 20, h: 50 });
+  ok(cn.circles.length === 2 && Math.abs(cn.edges[0].b.x - 2 * Math.PI * 20) < 1e-9, 'Netz Zylinder: Rechteck 2πr × h und zwei Kreise');
 }
 
 /* ---------- PDF ---------- */
@@ -632,6 +855,90 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
     ok(txt.includes('Trage in A an AB den Winkel α = 50° an.') && txt.includes('Planfigur') && txt.includes('Name:'), 'PDF: Text lesbar (auch α und °)', txt);
     fs.unlinkSync(f);
   } else console.log('  (qpdf/pdftotext nicht installiert – PDF-Gegenprobe übersprungen)');
+}
+
+/* ---------- Körper aufs Blatt, gestrichelte Strecken ---------- */
+{
+  const net = K.bodySheetObjects('cube', { a: 40 }, 'net');
+  const segs = net.filter(o => o.type === 'segment'), b = K.boundsOf(net);
+  ok(near(b.x0, 0) && near(b.y0, 0), 'Netz aufs Blatt: beginnt oben links bei (0|0)', b);
+  ok(segs.filter(o => o.d === 1).length === 12 && segs.filter(o => o.c === '#8a8f98' && !o.d).length === 7 * 3, 'Würfelnetz: 5 Falt- + 7 Laschenkanten gestrichelt, 7 Laschen grau', [segs.filter(o => o.d).length, segs.filter(o => o.c === '#8a8f98' && !o.d).length]);
+  const cyl = K.bodySheetObjects('cylinder', { r: 20, h: 50 }, 'net');
+  ok(cyl.filter(o => o.type === 'arc').length === 2 && cyl.every(o => o.type !== 'arc' || near(o.r, 20)), 'Zylindernetz: zwei Kreise mit r');
+  const obl = K.bodySheetObjects('cuboid', { a: 50, b: 30, c: 20 }, 'obl');
+  ok(obl.length === 12 && obl.filter(o => o.d).length === 3, 'Schrägbild Quader aufs Blatt: 12 Kanten, 3 gestrichelt');
+  /* Strichelung übersteht Speichern, Link und PDF */
+  const sd = K.sanitizeDoc({ format: 'zirkelwerk', v: 1, objects: obl.map((o, i) => Object.assign({ id: 'b' + i }, o)).concat([{ id: 'x', type: 'segment', x1: 0, y1: 0, x2: 1, y2: 1, d: 'ja' }]) }, 'z', 1);
+  ok(sd.objects.filter(o => o.d === 1).length === 3 && sd.objects[sd.objects.length - 1].d === undefined, 'Gestrichelt bleibt beim Laden; ungültiger Wert fällt weg');
+  const lk = K.parseLink(K.linkForSheet({ name: 'S', objects: sd.objects }));
+  ok(lk.ok && K.sanitizeDoc(lk.raw, 'q', 1).objects.filter(o => o.d === 1).length === 3, 'Gestrichelt übersteht den QR-Link');
+  const dsh = new K.PdfCanvas({ s: 1, ox: 0, oy: 0, px: 0, py: 0, H: 100 }, { gs: {} });
+  ctx.drawObjects(dsh, [sd.objects.find(o => o.d === 1), sd.objects.find(o => !o.d)], 4, null);
+  ok(/\[[\d. ]+\] 0 d /.test(dsh.out[0]) && !/ d /.test(dsh.out[1].replace(/ 0 d /, '')), 'PDF: gestrichelte Strecke mit Strichmuster, durchgezogene ohne', dsh.out);
+}
+
+/* ---------- Lückentext ---------- */
+{
+  const W = I18N.de.clozeWords.split(',');
+  const c = K.clozeSteps(['Zeichne die Strecke AB mit der Länge 6 cm.', 'Die Mittelsenkrechte schneidet AB im Mittelpunkt M.', 'Zeichne einen Kreisbogen um A und einen Kreisbogen um B.', 'Streckenzug bleibt.'], W, 'de');
+  ok(c.steps[0] === 'Zeichne die __________ AB mit der __________ 6 cm.', 'Lückentext: Fachwörter zu Lücken', c.steps[0]);
+  ok(c.steps[1] === 'Die __________ schneidet AB im __________ M.', 'Lückentext: „Mittelsenkrechte" bleibt ein Wort (nicht …Senkrechte)', c.steps[1]);
+  ok(c.steps[3] === 'Streckenzug bleibt.', 'Lückentext: nur ganze Wörter', c.steps[3]);
+  ok(JSON.stringify(c.bank) === JSON.stringify(['Kreisbogen (2×)', 'Länge', 'Mittelpunkt', 'Mittelsenkrechte', 'Strecke']), 'Wortspeicher alphabetisch mit Anzahl', c.bank);
+  const e = K.clozeSteps(['Draw the perpendicular bisector of AB.', 'Draw a circle with centre M.'], I18N.en.clozeWords.split(','), 'en');
+  ok(e.steps[0] === 'Draw the __________ of AB.' && e.bank.includes('perpendicular bisector'), 'Lückentext Englisch: Mehrwort-Begriff', e);
+  ok(K.clozeSteps(['Strecke (a+b)?'], ['Strecke', '(a+b)?'], 'de').steps[0] === '__________ __________', 'Lückentext: Sonderzeichen in Wörtern sicher');
+  ok(K.clozeSteps(['x'], [], 'de').bank.length === 0, 'Lückentext ohne Wortliste');
+  ok(K.clozeSteps(['Draw the perpendicular bisector.'], ['perpendicular', 'perpendicular bisector'], 'en').steps[0] === 'Draw the __________.', 'Lückentext: längster Begriff gewinnt, egal in welcher Reihenfolge die Liste steht');
+  /* Rückmelde-Link mit kaputter Zeichnung: Objekte werden bereinigt */
+  {
+    const tk = { kind: 'sws', given: { c: 60, b: 45, alpha: 50 } };
+    const evil = 'zirkelwerk://r?v=1&d=' + K.b64uEncode(K.utf8Bytes(JSON.stringify({ t: tk, n: 'X', ok: 1, h: 0, w: [], o: [[3], [0, 1, 2, 'A', 7, 'url(javascript:1)'], [1, 0, 0, 10, 10, '#123456']] })));
+    const pr = K.parseLink(evil);
+    ok(pr.ok && pr.kind === 'result' && pr.res.objects.length === 2 && pr.res.objects.every(o => /^#[0-9a-f]{6}$/.test(o.c)) && pr.res.objects.every(o => o.type !== 'stroke'), 'Rückmeldung: kaputte Objekte fallen weg, Farben geprüft', pr.res && pr.res.objects);
+  }
+}
+
+/* ---------- Leistung und Grenzen (Befunde der Durchsicht) ---------- */
+{
+  let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const mk = n => Array.from({ length: n }, (_, i) => i % 3 ? { id: 'g' + i, type: 'segment', x1: rnd() * 300, y1: rnd() * 200, x2: rnd() * 300, y2: rnd() * 200 }
+    : { id: 'g' + i, type: 'arc', cx: rnd() * 300, cy: rnd() * 200, r: 5 + rnd() * 50, a0: rnd() * 6, sweep: (rnd() - 0.3) * 6 });
+  const objs = mk(400);
+  const full = K.intersections(objs);
+  const old = K.intersections(objs.slice(0, 395)), inc = K.intersectionsAdded(old, objs.slice(395), objs);
+  const keyset = l => new Set(l.map(p => Math.round(p.x * 1000) + ',' + Math.round(p.y * 1000)));
+  const A = keyset(full), B = keyset(inc);
+  ok(full.length > 500 && A.size === B.size && [...A].every(k => B.has(k)), 'Schnittpunkte: schrittweise = vollständig neu gerechnet', [full.length, inc.length]);
+  /* Vorauswahl findet dasselbe wie Jeder-mit-jedem */
+  let brute = [];
+  for (let i = 0; i < 120; i++) for (let j = i + 1; j < 120; j++) {
+    const a = objs[i], b = objs[j];
+    const pts = a.type === 'segment' && b.type === 'segment' ? [K.segSeg(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2)].filter(Boolean)
+      : a.type === 'segment' ? K.segArc(a, b) : b.type === 'segment' ? K.segArc(b, a) : K.arcArc(a, b);
+    brute.push(...pts);
+  }
+  ok(K.intersections(objs.slice(0, 120)).length === K.dedupePoints(brute, 1e-4).length, 'Schnittpunkte: Vorauswahl verliert nichts');
+  ok(K.intersections(mk(1500)).length > 0, 'Schnittpunkte auch bei 1500 Linien (früher ab 800 gar keine)');
+  /* Gespeicherte große Blätter laden, Importe bleiben streng */
+  const huge = { format: 'zirkelwerk', v: 1, objects: Array.from({ length: 20010 }, (_, i) => ({ id: 'p' + i, type: 'point', x: i % 100, y: Math.floor(i / 100) })) };
+  let threw = false; try { K.sanitizeDoc(huge, 'h', 1); } catch (e) { threw = e.message === 'toolarge'; }
+  ok(threw && K.sanitizeDoc(huge, 'h', 1, { stored: true }).objects.length === 20000, 'Zu großes eigenes Blatt wird gekürzt geladen, Import abgelehnt');
+  const longStroke = { format: 'zirkelwerk', v: 1, objects: [{ id: 's', type: 'stroke', pts: Array.from({ length: 40010 }, (_, i) => i % 7), c: '#000000', w: 0.5, al: 1 }] };
+  ok(K.sanitizeDoc(longStroke, 's', 1).objects[0].pts.length === 40000, 'Überlanger Strich gekürzt statt verworfen');
+  /* Beschreibung: zufällig senkrechte Linealstrecke ist keine Senkrechte */
+  const A0 = { id: 'a', type: 'point', x: 0, y: 0, label: 'A' }, B0 = { id: 'b', type: 'point', x: 50, y: 0, label: 'B' }, C0 = { id: 'c', type: 'point', x: 200, y: -30, label: 'C' };
+  const sAB = { id: 's1', type: 'segment', x1: 0, y1: 0, x2: 50, y2: 0, m: { via: 'ruler' } };
+  const sCD = { id: 's2', type: 'segment', x1: 200, y1: -30, x2: 200, y2: 10, m: { via: 'ruler' } };
+  const t1 = K.describe([A0, B0, sAB, C0, sCD], 'de', I18N.de).map(x => x.text);
+  ok(!t1.some(x => /Senkrechte/.test(x)) && t1.some(x => /4 cm/.test(x)), 'Linealstrecke zufällig senkrecht: als Strecke mit Länge beschrieben', t1);
+  const t2 = K.describe([A0, B0, sAB, C0, Object.assign({}, sCD, { m: { via: 'geo' } })], 'de', I18N.de).map(x => x.text);
+  ok(t2.some(x => x === 'Zeichne die Senkrechte zu AB durch C.'), 'Am Geodreieck: Senkrechte erkannt', t2);
+  /* Beschreibung großer Blätter in vertretbarer Zeit */
+  const big = mk(4000).map((o, i) => Object.assign(o, { c: '#000000', w: 0.5, al: 1 }));
+  for (let i = 0; i < 1000; i++) big.push({ id: 'q' + i, type: 'point', x: rnd() * 300, y: rnd() * 200, label: '' });
+  const t0 = Date.now(); K.describe(big, 'de', I18N.de); const dt = Date.now() - t0;
+  ok(dt < 3000, 'Beschreibung von 5000 Objekten unter 3 s (Node)', dt);
 }
 
 /* ---------- Ausgabe ---------- */

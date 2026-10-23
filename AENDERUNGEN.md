@@ -1,5 +1,94 @@
 # Änderungen
 
+## 0.10.0 – Körper & Netze, Sprachförderung, zweite Prüfung (Oktober 2026)
+
+**Neu:**
+- **Körper & Netze** im Labor (Vollversion): Würfel, Quader, Dreiecksprisma, Pyramide,
+  Zylinder; Maße in cm; 3D-Vorschau zum Drehen mit dem Finger; Falten per Regler oder
+  Animation; Volumen und Oberfläche zum Aufklappen
+- **Netz aufs Blatt** mit Klebelaschen (Faltlinien gestrichelt) und **Netz als PDF** in
+  Originalgröße zum Basteln; **Schrägbild aufs Blatt** mit gestrichelten verdeckten Kanten
+- **Vorlesen**: ganze Konstruktionsbeschreibung oder jeder Schritt beim Abspielen (wo das
+  Gerät Sprachausgabe hat; die Wiedergabe wartet, bis ausgesprochen ist)
+- **Lückentext**: Beschreibung im PDF mit Lücken für die Fachwörter und Wortspeicher
+
+**Unabhängige Durchsicht – behoben:**
+- Speichern spätestens 5 s nach der ersten Änderung, auch beim Weiterzeichnen; im
+  Hintergrund schneller (Vorschaubild später), keine Mehrfachspeicherung
+- Langsam startender Speicher wird nachträglich übernommen statt die Sitzung zu verlieren
+- Sehr große Blätter: Grenze schon beim Zeichnen; gespeicherte Blätter werden notfalls
+  gekürzt geladen statt verworfen; Start weicht auf das nächste lesbare Blatt aus
+- Löschen des offenen Blatts kann es nicht mehr wiederbeleben
+- Große Blätter deutlich schneller (Laden 6×, Beschreibung 2,5×, Zeichnen nur sichtbarer
+  Teil); Schnittpunkte jetzt bis 5000 Linien und schrittweise
+- Beschreibung: zufällig senkrechte Linealstrecken werden nicht mehr als „Senkrechte"
+  beschrieben – nur, was am Geodreieck entstand
+- Abgaben: kaputte Zeichnungen in Rückmeldungen abgefangen; gleicher Name → Rückfrage
+  „Ersetzen" oder „Beide behalten"; Hinweis, dass Name und Ergebnis selbst gemeldet sind
+- iOS: Import zeigt .zirkelwerk-Dateien wieder an; ältere Android-WebViews: Import und Layout
+- Android 16: Zurück-Taste bleibt in der App (Opt-out vom neuen Zurück-System)
+- Stift mit Radierende radiert; dritter Finger stört das Zoomen nicht mehr; verlorene
+  Zeiger blockieren keine Gesten mehr
+- VoiceOver: Fokus wandert in Fenster und zurück, Zustände der Umschalter werden angesagt
+- Build: Prüfungen in eigenem Job, Signierdaten sicher als JSON, Privacy-Manifeste von
+  Plugins bleiben erhalten
+- Datenschutzerklärung: Vorlesen ergänzt
+
+## 0.9.0 – Wiedergabe als Video (Oktober 2026)
+
+- **Als Video** (Konstruktionsleiste, Vollversion): Die animierte Wiedergabe wird mit
+  den Schritten als Untertitel aufgenommen – MP4 (H.264), wo das Gerät es kann, sonst
+  WebM; normales oder doppeltes Tempo; Schlussbild ohne Geräte; Abbrechen jederzeit
+- Dateinamen nur noch aus ASCII (ä → ae, α → alpha): sonst speicherten manche Systeme
+  die Datei als „download"
+- Datenschutzerklärung: Video-Export ergänzt
+
+## 0.8.0 – Rückmeldung per QR und Abgaben (Oktober 2026)
+
+- **Rückmeldung (QR)** für Schülerinnen und Schüler: nach dem Prüfen oder im
+  Aufgabenmenü; enthält Aufgabe, Ergebnis, erkannte Fehler, genutzte Hilfestufe,
+  Vorname/Kürzel und – wenn der Code es zulässt – die eigene Zeichnung. Für alle frei.
+- **Abgaben** für die Lehrkraft (Vollversion, unter „Meine Blätter"): scannen mit der
+  Kamera-App; je Aufgabe Anzahl, richtig, Hilfestufen, häufigste Fehler und eine
+  Liste aller Abgaben; „Ansehen" öffnet die Zeichnung samt Aufgabe zum Nachprüfen;
+  erneutes Scannen derselben Person ersetzt die frühere Abgabe; Löschen je Aufgabe
+  oder alles
+- Kein Server, kein Konto: Abgaben liegen nur auf dem Gerät der Lehrkraft
+- Datenschutzerklärung: Rückmeldungen, Name/Kürzel und Abgaben beschrieben
+- Übersetzungen: Platzhalter in einem Durchgang (ein Blattname wie „{name}" bleibt Text)
+- Prüfkette: veraltete Gegenproben gelten als Fehler
+
+## 0.7.0 – Prüfung, Fehlerdiagnose, Hilfen, Grundkonstruktionen (Oktober 2026)
+
+**Unabhängige Code-Durchsicht – behoben:**
+- Speichern: verlorene Datenbankverbindung (iOS im Hintergrund) wird neu aufgebaut;
+  Schreibvorgänge laufen in einer echten Warteschlange; bleibender Warnhinweis
+  „Nicht gespeichert" in der Kopfleiste statt einmaliger Meldung; Speichern auch
+  beim Wechsel in den Hintergrund; dauerhafter Speicher wird angefragt
+- Langsam startende Datenbank: kein Mischbetrieb mehr aus Arbeitsspeicher und Datenbank
+- Manipulierte QR-Links lassen die App nicht mehr abstürzen; Vollkreise bleiben
+  Vollkreise; doppeltes Scannen auch bei umkodierten Links erkannt
+- Android: Start-Link wird nach dem Öffnen vergessen; Import zeigt wieder alle Dateien
+- Impressum und Datenschutz im App-Fenster (kein Seitenwechsel mehr)
+- Automatische Beschreibung bei großen Blättern bis zu 25-mal schneller
+- Punktnamen wie „{l}" verfälschen die Beschreibung nicht mehr
+- Gerätewinkel bleiben nach dem Neuladen erhalten; PDF-Umbruch langer Wörter
+- iPhone mit Anzeigezoom: Kalibrierung wird empfohlen
+- Offenes Blatt in der Liste antippen löscht nicht mehr den Rückgängig-Verlauf
+- VoiceOver: Werkzeuge, Farben und Strichstärken haben Namen
+- CI: parallele Läufe werden abgebrochen
+
+**Neu:**
+- **Fehlerdiagnose** beim Prüfen: falsche Gradskala, Winkel am falschen Eckpunkt,
+  vertauschte Seiten, C neben dem Kreisbogen, falsch eingestellter Zirkel, um 1 cm
+  verzählt, knapp daneben – jeweils mit Erklärung
+- **Gestufte Hilfen** (Glühbirne in der Aufgabenleiste): Denkanstoß → nächster
+  Schritt in Worten → nächster Schritt gestrichelt eingezeichnet → Lösung;
+  die höchste genutzte Stufe wird im Blatt vermerkt
+- **Grundkonstruktionen** im Labor: Mittelsenkrechte, Winkelhalbierende, Lot,
+  Senkrechte, Parallele, Umkreis, Inkreis, Thaleskreis – mit Zufallsfigur, Vorschau,
+  Vorführen, Selbst konstruieren, Prüfen mit Diagnose, Hilfen und QR-Code
+
 ## 0.6.0 – iPhone und Handy (Oktober 2026)
 
 - **Universal:** iPad und iPhone (iOS), Tablet und Handy (Android); Hoch- und Querformat

@@ -17,7 +17,7 @@ pruefe() {   # $1 Beschreibung, $2 Prüfskript, $3 Python-Ersetzung (Datei, alt,
   rm -rf "$ARBEIT/k"; mkdir "$ARBEIT/k"
   cp -R "$QUELLE"/. "$ARBEIT/k/"
   rm -rf "$ARBEIT/k/node_modules" "$ARBEIT/k/.git"
-  python3 - "$ARBEIT/k/$datei" "$alt" "$neu" <<'PY' || { echo "  ? $1: Ersetzung nicht anwendbar"; return; }
+  python3 - "$ARBEIT/k/$datei" "$alt" "$neu" <<'PY' || { echo "  ✗ VERALTET: $1 (Textstelle nicht mehr vorhanden)"; gesamt=$((gesamt + 1)); blind+=("$name (veraltet)"); return; }
 import sys
 p, a, b = sys.argv[1], sys.argv[2], sys.argv[3]
 s = open(p, encoding='utf-8').read()
@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.6.0"' 'version="0.6.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="600"' 'android-versionCode="601"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.6.0" "zirkelwerk-0.5.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.10.0"' 'version="0.10.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1000"' 'android-versionCode="1001"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.0" "zirkelwerk-0.9.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -88,14 +88,46 @@ pruefe "QR: Blöcke falsch verschränkt" coretest.js index.html "if (i !== short
 pruefe "QR: Maske nicht gewählt"     coretest.js index.html "if (p < bestP) { bestP = p; best = m; }" "if (m === 0) { bestP = p; best = m; }"
 pruefe "Link: neuere Version egal"   coretest.js index.html "if (v > LINK_V) return { ok: false, err: 'newer' };" ""
 pruefe "Link: Aufgabe ungeprüft"     coretest.js index.html "const task = sanitizeTask({ kind: q.k, given });" "const task = { kind: q.k, given };"
-pruefe "Link: Freihand zerstört"     coretest.js index.html "abs.push(i < 2 ? n : abs[i - 2] + n)" "abs.push(n)"
+pruefe "Link: Freihand zerstört"     coretest.js index.html "abs.push(k < 2 ? n : abs[k - 2] + n)" "abs.push(n)"
 pruefe "Link: Abgriff verloren"      coretest.js index.html "mm.rs = { t: 'taken', p: mm.rs.p.map(n => 'q' + n) };" ""
 pruefe "Link: Android-Kodierung"     coretest.js index.html "if (!/^zirkelwerk:/i.test(u) && /^zirkelwerk%3A/i.test(u))" "if (false)"
 pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/.test(raw.src)" "true"
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
-pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.6.0" "Stand 0.5.0"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.0" "Stand 0.9.0"
+pruefe "Diagnose: Skala übersehen"  coretest.js index.html "if (near(got, 180 - want, T) && Math.abs(want - 90) > 4) return { why: 'scale' };" ""
+pruefe "Diagnose: Tausch übersehen"  coretest.js index.html "if (near(got, g[o], T) && near(meas[o], want, T)) return { why: 'swap', other: o };" ""
+pruefe "Hilfe: Spiegelung ignoriert" coretest.js index.html "for (const flip of [1, -1])" "for (const flip of [1])"
+pruefe "Hilfe: Schenkelrichtung egal" coretest.js index.html "Math.abs(angDiff(dir, Math.atan2(e.y - s.y, e.x - s.x))) < 3 * DEG" "true"
+pruefe "Hilfe: Bogen falsch gespiegelt" coretest.js index.html "const a0 = flip > 0 ? o.a0 + rot : rot - o.a0;" "const a0 = o.a0 + rot;"
+pruefe "Link: Typindex ungeprüft"    coretest.js index.html "if (!Array.isArray(row) || !Number.isInteger(row[0]) || row[0] < 0 || row[0] >= QS_TYPES.length) return;" "if (!Array.isArray(row) || !QS_TYPES[row[0]]) return;"
+pruefe "Link: Vollkreis zerfällt"    coretest.js index.html "if (type === 'arc' && typeof o.sweep === 'number' && Math.abs(Math.abs(o.sweep) - TAU) < 1e-5) o.sweep = Math.sign(o.sweep) * TAU;" ""
+pruefe "Platzhalter mehrfach ersetzt" coretest.js index.html "return v ? s.replace(/\\{(\\w+)\\}/g, (m, n) => (n in v ? String(v[n]) : m)) : s;" "let r = s; if (v) for (const n of Object.keys(v)) r = r.split('{' + n + '}').join(v[n]); return r;"
+pruefe "PDF: Umbruch nur am Ende"    coretest.js index.html "lines.push(flush(line)); line = word;" "lines.push(line); line = word;"
+pruefe "Gerätewinkel abgeschnitten"  coretest.js index.html "d[k].rot = isNum(s.rot) && Math.abs(s.rot) < 1e6 ? angDiff(0, s.rot) : 0;" "d[k].rot = cleanNum(s.rot, -1e3, 1e3, 0);"
+pruefe "Geo: Toleranz zu weit"       coretest.js index.html "const good = cand.find(c => c.dAng <= GEO_TOL.angle && c.off <= GEO_TOL.off);" "const good = cand.find(c => c.dAng <= 10 && c.off <= 5);"
+pruefe "Geo: Halbgerade nach außen"  coretest.js index.html "if (Math.abs(angDiff(tg.ang, gdir(tg.p, far))) > Math.PI / 2) issues.push({ k: 'g_outside' });" ""
+pruefe "Geo: Lot zu kurz egal"       coretest.js index.html "if (tg.reach && distToSeg(tg.reach.x, tg.reach.y, good.o.x1, good.o.y1, good.o.x2, good.o.y2) > GEO_TOL.off) issues.push({ k: 'g_short' });" ""
+pruefe "Geo: Teilbogen als Kreis"    coretest.js index.html "if (Math.abs(good.a.sweep) < TAU - 0.35) issues.push({ k: 'g_partial' });" ""
+pruefe "Geo: Ausgangsfigur vergessen" coretest.js index.html "if (o.m && o.m.giv === true) clean.m = Object.assign(clean.m || {}, { giv: true });" ""
+pruefe "Geo: Senkrechte ohne P auf g" coretest.js index.html "lineDist(gp(g, 'p'), gp(g, 'g1'), gdir(gp(g, 'g1'), gp(g, 'g2'))) < 0.05," "true,"
+pruefe "Rückmeldung ohne Diagnose"   coretest.js index.html "return [...new Set(res.issues.map(i => i.why || i.k))].slice(0, RESULT_MAX_CODES);" "return [...new Set(res.issues.map(i => i.k))].slice(0, RESULT_MAX_CODES);"
+pruefe "Rückmeldung: Name unbegrenzt" coretest.js index.html "name: cleanStr(typeof p.n === 'string' ? p.n : '', 30).trim()" "name: cleanStr(typeof p.n === 'string' ? p.n : '', 300).trim()"
+pruefe "Auswertung falsch sortiert"  coretest.js index.html "codes: [...codes.entries()].sort((a, b) => b[1] - a[1] ||" "codes: [...codes.entries()].sort((a, b) => a[1] - b[1] ||"
+pruefe "Rückmeldung: Hilfe unbegrenzt" coretest.js index.html "help: Math.round(cleanNum(p.h, 0, 4, 0)), codes, objects } };" "help: p.h, codes, objects } };"
+pruefe "PDF: Strichelung fehlt"      coretest.js index.html "const dash = this.dash.length && this.dash.some(v => v > 0)" "const dash = false && this.dash.length"
+pruefe "Netz: Faltlinien durchgezogen" coretest.js index.html "nd.edges.forEach(e => seg(e.a, e.b, e.fold ? { d: 1, c: SOFT, w: 0.3 } : null));" "nd.edges.forEach(e => seg(e.a, e.b, null));"
+pruefe "Gestrichelt geht verloren"   coretest.js index.html "if (o.d === 1 || o.d === true) seg.d = 1;" ""
+pruefe "Lückentext: kurze Wörter zuerst" coretest.js index.html ".filter(Boolean))].sort((a, b) => b.length - a.length);" ".filter(Boolean))];"
+pruefe "Wortspeicher ohne Anzahl"    coretest.js index.html "e.n > 1 ? e.w + ' (' + e.n + '×)' : e.w" "e.w"
+pruefe "Zufällig senkrecht = Senkrechte" coretest.js index.html "if (through && o.m && o.m.via === 'geo') {" "if (through) {"
+pruefe "Vorauswahl verliert Paare"   coretest.js index.html "if (B.y0 > A.y1 || B.y1 < A.y0) continue;" "if (B.y0 > A.y0) continue;"
+pruefe "Schrittweise unvollständig"  coretest.js index.html "      if (B.x0 > A.x1 + E || B.x1 < A.x0 - E || B.y0 > A.y1 + E || B.y1 < A.y0 - E) continue;" "      if (B.x0 > A.x0) continue;"
+pruefe "Großes Blatt nicht ladbar"   coretest.js index.html "if (raw.objects.length > LIMITS.objects && !stored) throw new Error('toolarge');" "if (raw.objects.length > LIMITS.objects) throw new Error('toolarge');"
+pruefe "Langer Strich verworfen"     coretest.js index.html "const pts = [], nIn = Math.min(o.pts.length, LIMITS.strokePts);" "if (o.pts.length > LIMITS.strokePts) return null; const pts = [], nIn = o.pts.length;"
+pruefe "Beschreibung sieht spätere Linien" coretest.js index.html "      if (k >= i) continue;" ""
+pruefe "Abgabe ungeprüft übernommen" coretest.js index.html ".map((o, i) => { try { return sanitizeObject(o, 'r' + i); } catch (e) { return null; } }).filter(Boolean);" ";"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

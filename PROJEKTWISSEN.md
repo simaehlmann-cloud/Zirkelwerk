@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.6.0 (iPhone und Handy)
+# Zirkelwerk – Projektwissen, Stand 0.10.0 (Körper & Netze, Sprachförderung, Prüfung)
 
 ## Entscheidungen
 
@@ -109,6 +109,65 @@
 - Auf echten Geräten noch zu bestätigen: Kamera-App bietet „In Zirkelwerk öffnen" an
   (iOS); Android-Kamera/Google Lens öffnen eigene Schemata nicht immer.
 
+## Fehlerdiagnose und gestufte Hilfen (0.7.0)
+
+- `checkTask` ergänzt Befunde um `why` (aus `diagnose`): scale (180° − α), vertex,
+  swap, offarc, radius, cm, close; Texte `why_*`.
+- `taskProgress(task, objects)`: Musterlösung (`labSolutionSteps`) wird über A, B
+  (Drehung, Spiegelung nach bester Übereinstimmung) auf die Schülerzeichnung gelegt;
+  `stepDone` prüft je Lösungsschritt Strecken/Bögen/Punkte (Toleranz 2 mm, 3°).
+  Ergebnis: `next` (Schrittindex) und `ghost` (Objekte in Schülerkoordinaten).
+- Hilfe-Stufen: 1 Denkanstoß (`hint_<art>`), 2 nächster Schritt, 3 Geisterbild
+  (orange gestrichelt, bis zur nächsten Änderung), 4 Lösung. `doc.help` = höchste Stufe.
+
+## Grundkonstruktionen (0.7.0)
+
+- `GEO_KINDS` msk, wh, lot, senk, par, umk, ink, thal; `GEO_TASKS[kind]` mit keys,
+  valid, random, start (Ausgangsfigur, `m.giv`), solution (mit `m.say`), target bzw.
+  circle (Prüfziel). `checkGeoTask` → Befunde `g_*` mit Diagnose (radii, small, …),
+  Hinweis `g_noCompass` bei Geodreieck statt Zirkel.
+- `m.giv`: Ausgangsfigur – in der Beschreibung ein Schritt „Gegeben …", zählt nicht
+  als Schülerobjekt. `m.say`: fester Satz (`SAY_KEYS`), gleiche aufeinanderfolgende
+  Sätze bilden einen Schritt. Gerade g: `m.name`.
+- Aufgaben-Links: Koordinaten mit Vorzeichen (`zirkelwerk://a?…&k=msk&ax=…`).
+
+## Rückmeldung und Abgaben (0.8.0)
+
+- Link `zirkelwerk://r?v=1&d=<base64url>` mit `{t: Aufgabe, n: Name, ok, h: Hilfestufe,
+  w: Codes, o?: Zeichnung}`; `linkForResult(r, mitZeichnung)`, Zeichnung ohne
+  Plan-/Ausgangsfigur; passt sie nicht in den Code (M ≤ 22 / L ≤ 27), ohne Zeichnung.
+- Codes = `resultCodes(check)`: Diagnose (`why`) vor Befundart (`k`); Kurztexte `res_*`.
+- `parseLink` → kind 'result': Aufgabe per `sanitizeTask`, Name ≤ 30 Zeichen, Codes
+  gefiltert, Zeichnung per `decodeObjs` (später `sanitizeDoc` beim Ansehen).
+- Lehrkraft: Vollversion (`canCreateQr`). Ablage `localStorage['zw.results']`, höchstens
+  600 Einträge; Schlüssel je Aufgabe `taskKey(task)`; gleicher Name → ersetzt.
+  Auswertung `summarizeResults`. Schülername in `S.studentName`.
+- Einstieg: Prüfdialog und Aufgabenmenü („Rückmeldung (QR)"), Lehrkraft unter
+  „Meine Blätter → Abgaben"; eingehende Rückmeldung öffnet die Abgaben der Aufgabe.
+
+## Video (0.9.0)
+
+- `exportVideo`: Wiedergabe von vorn (`pbFirst`), Aufnahme-Leinwand = Zeichenflächen
+  (höchstens 1920 breit) + Untertitelband; `captureStream(30)` + `MediaRecorder`
+  (`videoMime`: mp4/avc1 bevorzugt, sonst webm). Bedienung gesperrt (`#recOverlay`,
+  Zurück-Taste/Esc = Abbrechen). Ende: Geräte weg, 1,8 s Schlussbild.
+- Auf echten Geräten prüfen: MediaRecorder/captureStream im WKWebView (iOS) bzw.
+  Android-WebView; sonst Meldung „nicht verfügbar". Große Videos gehen als Data-URL
+  ans Teilen-Plugin (Speicherbedarf beobachten).
+- `safeFileBase`: ASCII-Dateinamen (Umlaute/Griechisch umschreiben).
+
+## Robustheit (Durchsicht 0.7.0)
+
+- IndexedDB: `dbRun` mit einem Wiederholversuch nach verlorener Verbindung,
+  `onclose`; später Start (> 4 s) → Sitzung bleibt im Arbeitsspeicher.
+- `saveNow` ist eine Warteschlange (`saveQueue`); `setSaveProblem` zeigt ⚠ in der
+  Kopfleiste. Speichern auch bei visibilitychange/pagehide.
+- Rechtstexte: `openLegal` lädt die Seite per fetch in `#legalPanel`
+  (Rückfall: Seitenwechsel). Panels: zuletzt geöffnet liegt oben.
+- `describe`: Punktsuche über Raster, `segName` gemerkt (identische Ausgabe).
+- Build-Nummern bleiben aus der Version abgeleitet (Validator prüft); ein zweiter
+  Upload derselben Version braucht eine neue Versionsnummer.
+
 ## Geräte
 
 - Lineal 20 cm (passt auf jedes iPad bei 100 %), Skala an der Oberkante.
@@ -124,6 +183,50 @@
 - Einrasten (abschaltbar): Punkte, Schnittpunkte, Endpunkte, Zirkel-Einstich,
   Länge auf ganze mm, Drehung auf ganze Grad / 45° / parallel-senkrecht zu nahen Strecken,
   Lineal-Kante an einen oder zwei Punkte, Geodreieck-Nullpunkt auf Punkte.
+
+## Körper und Netze (0.10.0)
+
+- Kern: `bodyNet` (Netz mit Faltbaum), `foldNet(net, t)` (3D bei Faltgrad t), `bodyFaces`,
+  `bodyMeasures` (V, O), `netDrawing` (Kanten, Faltlinien, Klebelaschen aus Kantenpaaren),
+  `obliqueDrawing` (Kavalierperspektive 45°, ½, verdeckte Kanten), `bodySheetObjects`.
+- Körper: Würfel, Quader, Dreiecksprisma (Seiten a, b, c, Höhe h), quadratische Pyramide,
+  Zylinder (nicht faltbar; Netz = Rechteck 2πr × h + zwei Kreise).
+- Labor-Bereich „Körper & Netze": Eingabe in cm, 3D-Vorschau (Maler-Algorithmus,
+  Drehen mit dem Finger), Falt-Regler/Animation, V und O zum Aufklappen.
+- Strecken können gestrichelt sein (`d: 1`): Zeichnen, Speichern, QR-Link (Feld am Ende),
+  PDF (`setLineDash` → `d`-Operator).
+
+## Sprachförderung (0.10.0)
+
+- Vorlesen (Web Speech API, nur wo vorhanden – im Android-WebView meist nicht): ganze
+  Beschreibung („Vorlesen" in der Konstruktionsleiste) oder Schritt für Schritt beim
+  Abspielen (Lautsprecher-Knopf, `S.speakSteps`); die Wiedergabe wartet, bis ausgesprochen
+  ist; Punktnamen buchstabiert (`speechText`).
+- Lückentext im PDF: `clozeSteps(steps, words)`, Fachwörter je Sprache in `clozeWords`,
+  längste zuerst, nur ganze Wörter (ohne Lookbehind – iOS 15), Wortspeicher alphabetisch
+  mit Anzahl.
+
+## Prüfung 0.10.0 (zweite unabhängige Durchsicht)
+
+- Speichern: höchstens 5 s Verzug; Hintergrund ohne Vorschaubild, Läufe zusammengefasst;
+  Listener einmal; Löschen lässt das Blatt vorher los; spät startende Datenbank wird
+  übernommen (`dbLateRecover`); Start weicht auf das nächste lesbare Blatt aus.
+- Grenzen: beim Zeichnen (20 000 Objekte, lange Striche geteilt); gespeicherte Blätter
+  werden gekürzt geladen (`sanitizeDoc(..., { stored: true })`), Importe bleiben streng.
+- Leistung: Beschreibung mit Raster (`geoBefore`), Schnittpunkte mit Vorauswahl
+  (bis 5000 Linien) und schrittweise beim Hinzufügen (`intersectionsAdded`),
+  Zeichnen nur des sichtbaren Ausschnitts, Radierer mit Umriss-Vorfilter.
+- Beschreibung: Senkrechte/Parallele nur, wenn am Geodreieck gezeichnet.
+- Abgaben: Objekte aus Rückmelde-Links bereinigt; gleicher Name → Rückfrage.
+- iOS-Import ohne Dateifilter; `file.text()`-Ersatz; kein `inset`.
+- Android: `enableOnBackInvokedCallback="false"` (Zurück-Taste ab Android 16),
+  `AndroidEdgeToEdge` aus; CI prüft beides.
+- CI: Prüfkette in eigenem Job (Android), `persist-credentials: false`, `build.json` per jq,
+  Privacy-Manifest nur der App ersetzen.
+- Barrierefreiheit: Fokus in Fenster und zurück, `aria-pressed`, Richtungsnamen.
+- CSP: `object-src 'none'; base-uri 'none'`.
+- Offen/auf Gerät prüfen: Zurück-Taste Android 16, Ränder Android 15/16, iOS-Dateiauswahl,
+  Vorlesen-Stimmen, `target=_blank` in den Rechtstexten.
 
 ## Prüfkette
 

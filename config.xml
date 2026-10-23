@@ -1,10 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="de.zirkelwerk.app"
-        version="0.6.0"
-        android-versionCode="600"
-        ios-CFBundleVersion="600"
+        version="0.10.0"
+        android-versionCode="1000"
+        ios-CFBundleVersion="1000"
         xmlns="http://www.w3.org/ns/widgets"
-        xmlns:cdv="http://cordova.apache.org/ns/1.0">
+        xmlns:cdv="http://cordova.apache.org/ns/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Grundname ist der englische. Deutsch kommt über die Sprachdateien
          (res/ios/de.lproj, res/android/values-de). So sieht jede Sprache
@@ -35,6 +36,19 @@
         <!-- Ein Link aus der Kamera-App soll die laufende App erreichen, nicht
              eine zweite Instanz im Task der Kamera starten. -->
         <preference name="AndroidLaunchMode" value="singleTask" />
+        <!-- Ab Android 16 (Ziel-SDK 36) kommt die Zurück-Taste sonst nicht mehr
+             als backbutton-Ereignis an: cordova-android 15 nutzt noch den alten
+             Weg. Der vorübergehende Opt-out ist offiziell vorgesehen; ersetzen,
+             sobald Cordova OnBackInvokedCallback unterstützt. -->
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+            <application android:enableOnBackInvokedCallback="false" />
+        </edit-config>
+        <!-- Kein Edge-to-Edge: Cordova rückt die Web-Ansicht aus Status- und
+             Navigationsleiste heraus (Android 16 erzwingt sonst randlos). -->
+        <preference name="AndroidEdgeToEdge" value="false" />
+        <!-- Den Link, mit dem die App gestartet wurde, nach dem Verarbeiten
+             vergessen – sonst kommt er nach jedem Neuladen der Seite wieder. -->
+        <preference name="CustomURLSchemePluginClearsAndroidIntent" value="true" />
 
         <preference name="AndroidWindowSplashScreenBackground" value="#234e8c" />
         <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/android/icon_fg_xxxhdpi.png" />

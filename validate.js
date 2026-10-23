@@ -54,15 +54,42 @@ if (packs) {
   /* Schalter im PDF-Dialog: Schlüssel stehen als Daten in rows */
   for (const k of ['pdf_grid', 'pdf_head', 'pdf_desc', 'pdf_descHint', 'pdf_taskOnly', 'pdf_taskOnlyHint']) used.add(k);
   for (const k of ['sss', 'sws', 'wsw', 'ssw']) { used.add('lab_desc_' + k); used.add('lab_kind_' + k); }
+  /* Körper: Schlüssel aus BODY_KINDS gebildet */
+  for (const k of ['cube', 'cuboid', 'prism3', 'pyramid4', 'cylinder']) { used.add('body_' + k); used.add('bodyDesc_' + k); }
+  for (let i = 0; i < 8; i++) used.add('dir' + i);   /* Lage der Beschriftung, aus der Richtungsnummer */
   for (const k of ['ineq', 'angles', 'short']) used.add('lab_none_' + k);
   for (const k of ['ineq', 'angles', 'short', 'two']) used.add('note_' + k);
   for (const k of ['lab_sheetTask', 'lab_sheetSolution', 'lab_sheetDemo']) used.add(k); used.add('pbCount1'); used.add('ariaPbPause'); used.add('ariaPbPlay');
+  /* Schlüssel als Daten (z. B. in Tabellen) und Diagnosen (why: 'scale' → why_scale) */
+  for (const m of js.matchAll(/'([A-Za-z][A-Za-z0-9_]*)'/g)) if (de.includes(m[1])) used.add(m[1]);
+  for (const m of js.matchAll(/\bwhy: '([a-z]+)'/g)) used.add('why_' + m[1]);
+  /* Grundkonstruktionen, Farben, feste Sätze: Schlüssel aus Listen im Code */
+  const listOf = name => { const m = js.match(new RegExp('const ' + name + ' = \\[([^\\]]*)\\]')); return m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : []; };
+  for (const k of listOf('GEO_KINDS')) for (const p of ['geo_', 'task_', 'hint_']) used.add(p + k);
+  for (const k of ['msk', 'wh', 'lot', 'senk', 'par']) used.add('chk_g_none_' + k);
+  for (const m of js.matchAll(/\.why = '([A-Za-z]+)'/g)) used.add('why_' + m[1]);
+  for (const k of listOf('SAY_KEYS')) { used.add('d_say_' + k); used.add('s_say_' + k); }
+  for (const c of listOf('PENCIL_COLORS').concat(listOf('MARKER_COLORS'))) used.add('col_' + c.slice(1));
+  for (const m of js.matchAll(/\bk: 'g_([A-Za-z]+)'/g)) used.add('chk_g_' + m[1]);
+  for (const m of js.matchAll(/notes\.push\('([A-Za-z_]+)'\)/g)) used.add('note_' + m[1]);
+  for (const k of ['angle_perp', 'angle_par', 'angle_wh']) used.add('chk_g_' + k);
+  for (const k of ['umkCenter', 'inkCenter', 'inkRadius']) used.add('why_' + k);
+  used.delete('chk_g_angle'); used.delete('chk_g_none');
   /* Satzbausteine der Konstruktionsbeschreibung (fill('d_…') usw.) */
   for (const m of js.matchAll(/'((?:d|dv|s)_[A-Za-z0-9]+)'/g)) used.add(m[1]);
   for (const k of ['d_perp', 'd_par']) used.add(k + 'U');
   /* Zugriff über das Sprachpaket im Kern: T.lab_planTitle usw. */
   for (const m of js.matchAll(/\bT\.([A-Za-z0-9_]+)/g)) used.add(m[1]);
   for (const k of ['sizeSmall', 'sizeMedium', 'sizeLarge', 'styleMarker', 'styleColor', 'ariaLock', 'ariaUnlock']) used.add(k);
+  /* Kurzbezeichnungen der Befunde in den Abgaben: zu jeder Diagnose und jeder Befundart */
+  used.add('paywall_results');
+  for (const m of js.matchAll(/showPaywall\('([a-z]+)'\)/g)) used.add('paywall_' + m[1]);
+  for (const k of [...used]) {
+    if (k.startsWith('why_')) used.add('res_' + k.slice(4));
+    if (k.startsWith('chk_g_') && !/^chk_g_(angle_|none_)/.test(k)) used.add('res_g_' + k.slice(6));
+  }
+  for (const k of ['g_angle', 'g_none', 'missing', 'degenerate', 'side', 'angle', 'sides', 'other']) used.add('res_' + k);
+  used.delete('res_g_angle_perp');
   const missing = [...used].filter(k => !de.includes(k));
   if (missing.length) E('Benutzte, aber nicht definierte Schlüssel: ' + missing.join(', '));
   else O(`Alle ${used.size} benutzten Schlüssel definiert`);

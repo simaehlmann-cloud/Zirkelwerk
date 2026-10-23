@@ -520,6 +520,15 @@ async function main() {
     await page.click('#taskBar .btn');
     ok((await page.textContent('#dialogTitle')) === 'Noch nicht ganz' && (await page.textContent('#dialogMessage')).includes('Beschrifte die Eckpunkte mit A, B und C.'), 'Prüfen ohne Konstruktion: Hinweis auf Beschriftung');
     await page.click('#dialogButtons .btn.primary');
+    /* Gestufte Hilfe auf leerem Blatt */
+    await page.click('#btnHint');
+    ok((await page.textContent('#dialogTitle')) === 'Hilfe – Stufe 1 von 4' && (await page.textContent('#dialogMessage')).startsWith('Zeichne zuerst die Seite c.'), 'Hilfe Stufe 1: Denkanstoß');
+    await page.click('#dialogButtons .btn.primary');
+    ok((await page.textContent('#dialogTitle')) === 'Hilfe – Stufe 2 von 4' && /^Dein nächster Schritt: Zeichne die Strecke AB/.test(await page.textContent('#dialogMessage')), 'Hilfe Stufe 2: nächster Schritt in Worten', await page.textContent('#dialogMessage'));
+    await page.click('#dialogButtons .btn.primary');
+    ok((await page.textContent('#dialogTitle')) === 'Hilfe – Stufe 4 von 4', 'Ohne A und B nichts einzuzeichnen → gleich Stufe 4');
+    await page.click('#dialogButtons .btn:not(.primary)');
+    ok(await page.evaluate(() => window.__zw.doc.help === 4), 'Genutzte Hilfestufe im Blatt vermerkt');
     // Konstruktion rechts der Planfigur, mit den echten Werkzeugen
     const cx0 = await page.evaluate(() => { const z = window.__zw; return z.s2w(z.view && 0, 0); });
     const vc = await page.evaluate(() => { const z = window.__zw; const r = document.getElementById('cvBase').getBoundingClientRect(); return z.s2w(r.width * 0.55, r.height * 0.65); });
@@ -534,6 +543,14 @@ async function main() {
     await page.click('[data-inst="ruler"]');
     await page.click('[data-tool="point"]');
     await stroke(page, 'pen', [[sA.x + 0.6, sA.y]]); await stroke(page, 'pen', [[sB.x - 0.6, sB.y]]);
+    /* Nach AB: Hilfe beginnt wieder bei Stufe 1, Stufe 3 zeichnet den Bogen um A gestrichelt ein */
+    await page.click('#btnHint');
+    ok((await page.textContent('#dialogTitle')) === 'Hilfe – Stufe 1 von 4', 'Hilfe: neuer Schritt → wieder Stufe 1');
+    await page.click('#dialogButtons .btn.primary');
+    ok(/Kreisbogen um A mit dem Radius r = 4 cm/.test(await page.textContent('#dialogMessage')), 'Hilfe Stufe 2 nennt den Bogen um A', await page.textContent('#dialogMessage'));
+    await page.click('#dialogButtons .btn.primary');
+    const gh = await page.evaluate(() => hintGhost && hintGhost.objs.map(o => [o.type, Math.round(o.r || 0)]));
+    ok(gh && gh.length === 1 && gh[0][0] === 'arc' && gh[0][1] === 40, 'Hilfe Stufe 3: Bogen um A gestrichelt eingezeichnet', gh);
     await page.click('[data-tool="pencil"]');
     await page.click('[data-inst="compass"]');
     let Ic = (await inst(page)).compass;
@@ -561,6 +578,7 @@ async function main() {
     await stroke(page, 'pen', [[Cs.x + 1, Cs.y + 0.8]]);
     await page.click('#taskBar .btn');
     ok((await page.textContent('#dialogMessage')).includes('Zeichne noch die Seite(n) BC und AC.'), 'Prüfen: fehlende Seiten werden genannt', await page.textContent('#dialogMessage'));
+    ok(await page.evaluate(() => hintGhost === null), 'Geisterbild verschwindet beim Weiterzeichnen');
     await page.click('#dialogButtons .btn.primary');
     // Seiten AC und BC am Lineal (Kante genau durch beide Punkte gelegt)
     await page.click('[data-tool="pencil"]');
@@ -623,9 +641,95 @@ async function main() {
       ok(w3.pdf.startsWith('%PDF') && w3.pdf.endsWith('%%EOF\n'), 'PDF aus der Blattliste', w3.name);
       await page.click('#sheetsPanel header .tb');
     }
-    await page.click('#taskBar .tb');
+    await page.click('#taskBar [data-icon="more"]');
     await page.click('#dialogButtons .btn.danger');
     ok(!(await page.isVisible('#taskBar')) && !(await page.evaluate(() => window.__zw.doc.task)), 'Aufgabe entfernt');
+    /* ---------- Grundkonstruktionen im Labor ---------- */
+    {
+      await page.click('#btnLab');
+      await page.click('#labMode_geo');
+      ok(await page.isVisible('#labGeo') && !(await page.isVisible('#labTri')) && (await page.locator('#labGeoKinds .btn').count()) === 8, 'Labor: acht Grundkonstruktionen');
+      await page.click('#labGeo_msk');
+      ok((await page.textContent('#labGeoTask')) === 'Konstruiere die Mittelsenkrechte der Strecke AB.', 'Labor: Aufgabe Mittelsenkrechte');
+      ok(await page.evaluate(() => { const c = document.getElementById('labPreview'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let dark = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 120) dark++; return c.width > 100 && dark > 20; }), 'Labor: Vorschau zeigt die Ausgangsfigur');
+      await page.click('#btnLabSelf');
+      await page.waitForFunction(() => window.__zw.doc.task && window.__zw.doc.task.kind === 'msk', null, { timeout: 5000 });
+      ok((await page.textContent('#taskText')) === 'Konstruiere die Mittelsenkrechte der Strecke AB.' && (await objs(page)).every(o => o.m && o.m.giv), 'Aufgabenblatt Mittelsenkrechte mit Ausgangsfigur');
+      await page.click('#taskBar .btn.primary');
+      ok((await page.textContent('#dialogMessage')).includes('Es fehlt noch die Mittelsenkrechte.'), 'Prüfen: Mittelsenkrechte fehlt');
+      await page.click('#dialogButtons .btn.primary');
+      await page.click('#btnHint'); await page.click('#dialogButtons .btn.primary');
+      ok(/Kreisbogen um A/.test(await page.textContent('#dialogMessage')), 'Hilfe Stufe 2: Bogen um A', await page.textContent('#dialogMessage'));
+      await page.click('#dialogButtons .btn.primary');
+      ok(await page.evaluate(() => hintGhost && hintGhost.objs[0].type === 'arc'), 'Hilfe Stufe 3: Bogen um A eingezeichnet');
+      /* Schüler zeichnet die Musterlösung (direkt eingefügt) */
+      await page.evaluate(() => {
+        const t = window.__zw.doc.task, sol = geoSolution(t.kind, t.given);
+        sol.forEach((o, i) => window.__zw.doc.objects.push(Object.assign({ id: 'z' + i }, o, { m: Object.assign({}, o.m, { say: undefined }) })));
+        contentChanged();
+      });
+      await page.click('#taskBar .btn.primary');
+      ok((await page.textContent('#dialogTitle')) === '✓ Richtig!' && (await page.textContent('#dialogMessage')).includes('Deine Konstruktion ist richtig.'), 'Mittelsenkrechte als richtig erkannt', await page.textContent('#dialogMessage'));
+      /* Rückmeldung an die Lehrkraft */
+      await page.click('#dialogButtons .btn >> text=Rückmeldung (QR)');
+      ok((await page.textContent('#dialogTitle')) === 'Rückmeldung an die Lehrkraft', 'Rückmeldung fragt nach Name oder Kürzel');
+      await page.fill('#dialogInput', 'Mia'); await page.click('#dialogButtons .btn.primary');
+      await page.waitForSelector('#qrPanel:not([hidden])');
+      const rlink = await page.getAttribute('#qrCanvas', 'data-link');
+      ok((await page.textContent('#qrTitle')) === 'Rückmeldung' && rlink.startsWith('zirkelwerk://r?v=1&d=') && (await page.textContent('#qrText')).startsWith('Mia · ✓'), 'Rückmeldungs-Code mit Name und Ergebnis', rlink.length);
+      await page.click('#qrPanel header .tb');
+      /* Lehrkraft scannt zwei Abgaben */
+      await page.evaluate(l => window.handleOpenURL(l), rlink);
+      await page.waitForSelector('#resultsPanel:not([hidden])', { timeout: 5000 });
+      ok((await page.textContent('.res-sum')) === '1 Abgabe · 1 richtig', 'Abgaben: erste Rückmeldung gesammelt', await page.textContent('.res-sum'));
+      const bad = await page.evaluate(() => { const t = window.__zw.doc.task; return linkForResult({ task: t, name: 'Ben', ok: false, help: 3, codes: ['radii', 'g_offset'], objects: [] }, false); });
+      await page.evaluate(l => window.handleOpenURL(l), bad);
+      await page.waitForTimeout(300);
+      ok((await page.textContent('.res-sum')) === '2 Abgaben · 1 richtig' && (await page.textContent('.res-top')).includes('Bögen ungleich') && (await page.locator('.res-row').count()) === 2, 'Abgaben: Auswertung mit häufigstem Fehler', await page.textContent('#resultsBody'));
+      await page.evaluate(l => window.handleOpenURL(l), bad);
+      await page.waitForFunction(() => document.getElementById('dialogTitle').textContent === 'Abgabe schon vorhanden' && !document.getElementById('dialog').hidden, null, { timeout: 5000 });
+      ok((await page.textContent('#dialogMessage')).includes('„Ben“'), 'Abgaben: gleicher Name – Rückfrage statt still ersetzen');
+      await page.click('#dialogButtons .btn >> text=Ersetzen');
+      await page.waitForTimeout(300);
+      ok((await page.locator('.res-row').count()) === 2 && (await page.textContent('#toast')).includes('aktualisiert'), 'Abgaben: zweites Scannen derselben Person ersetzt');
+      await page.evaluate(l => window.handleOpenURL(l), bad);
+      await page.waitForFunction(() => !document.getElementById('dialog').hidden, null, { timeout: 5000 });
+      await page.click('#dialogButtons .btn >> text=Beide behalten');
+      await page.waitForTimeout(300);
+      ok((await page.locator('.res-row').count()) === 3, 'Abgaben: „Beide behalten“ legt eine weitere Abgabe an');
+      await page.click('.res-row:has-text("Mia") .btn');
+      await page.waitForFunction(() => window.__zw.doc.name === 'Abgabe: Mia', null, { timeout: 5000 });
+      ok(await page.evaluate(() => checkTask(window.__zw.doc.task, window.__zw.doc.objects).ok), 'Abgabe ansehen: Zeichnung samt Aufgabe, nachprüfbar');
+      await page.click('#btnSheets'); await page.click('#btnResults');
+      ok(await page.isVisible('#resultsPanel') && (await page.locator('.res-group').count()) === 1, 'Abgaben über „Meine Blätter“ erreichbar');
+      await page.click('#resultsPanel header .tb');
+      /* Vorführen: Umkreis */
+      await page.click('#btnLab'); await page.click('#labGeo_umk');
+      await page.click('#btnLabDemo');
+      await page.waitForFunction(() => window.__zw.PB.on, null, { timeout: 5000 });
+      const st = await page.evaluate(() => window.__zw.PB.steps.map(s => s.text));
+      ok(st[0] === 'Gegeben ist die Ausgangsfigur.' && st.some(x => x.startsWith('Konstruiere die Mittelsenkrechte von AB')) && /Kreis um M/.test(st[st.length - 1]), 'Vorführen Umkreis: Schritte in Schulsprache', st);
+      await page.keyboard.press('Escape');
+      await page.click('#btnLab'); await page.click('#labMode_tri'); await page.click('#labPanel header .tb');
+    }
+    /* ---------- Rechtstexte im App-Fenster, Blattliste ---------- */
+    {
+      await page.click('[aria-label="Hilfe und Über"]');
+      const before = page.url();
+      await page.click('#helpPanel .help-about .btn >> text=Datenschutz');
+      await page.waitForSelector('#legalPanel:not([hidden])', { timeout: 5000 });
+      ok(page.url() === before && (await page.textContent('#legalTitle')) === 'Datenschutz' && (await page.textContent('#legalBody')).includes('QR-Code') && !(await page.textContent('#legalBody')).includes('Zurück zur App'), 'Datenschutz im App-Fenster, ohne Seitenwechsel');
+      await page.click('#legalPanel header .tb');
+      if (await page.isVisible('#helpPanel')) await page.click('#helpPanel header .tb');
+      ok(!(await page.isVisible('#saveWarn')), 'Kein Speicher-Warnhinweis im Normalbetrieb');
+      /* Aktuelles Blatt in der Liste antippen: Rückgängig bleibt möglich */
+      await page.click('[data-tool="pencil"]');
+      await stroke(page, 'pen', [[10, 10], [30, 12], [50, 10]]);
+      await page.click('#btnSheets');
+      await page.click('.sheet.current button:not(.more)');
+      ok(!(await page.isVisible('#sheetsPanel')) && !(await page.isDisabled('#btnUndo')), 'Aktuelles Blatt antippen lädt nicht neu (Rückgängig bleibt)');
+      await page.click('#btnUndo');
+    }
     /* ---------- Aufgaben per QR-Code ---------- */
     {
       const cnt = () => page.evaluate(() => new Promise(r => { const q = indexedDB.open('zirkelwerk'); q.onsuccess = () => { const tx = q.result.transaction('docs').objectStore('docs').count(); tx.onsuccess = () => r(tx.result); }; }));
@@ -658,7 +762,7 @@ async function main() {
       await page.waitForTimeout(300);
       ok((await page.textContent('#toast')).includes('neueren'), 'Link aus neuerer Version: Hinweis zum Aktualisieren');
       /* Aufgabenmenü → QR */
-      await page.click('#taskBar .tb');
+      await page.click('#taskBar [data-icon="more"]');
       await page.click('#dialogButtons .btn >> text=QR-Code für die Klasse');
       ok(await page.isVisible('#qrPanel') && (await page.getAttribute('#qrCanvas', 'data-link')) === link, 'Aufgabenmenü zeigt denselben Code');
       await page.click('#qrPanel header .tb');
@@ -693,6 +797,93 @@ async function main() {
     await page.click('[aria-label="Settings"]'); await page.click('#choiceLangDe'); await page.click('#settingsPanel header .tb');
 
     }
+    /* ---------- Wiedergabe als Video ---------- */
+    {
+      await page.evaluate(() => createLabSheet('sws', { c: 50, b: 40, alpha: 60 }, 'demo'));
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('SWS'), null, { timeout: 5000 });
+      if (!(await page.isVisible('#protoPanel'))) await page.click('#btnProto');
+      await page.click('#btnVideo');
+      ok((await page.textContent('#dialogTitle')) === 'Konstruktion als Video', 'Video: Dialog mit Tempowahl');
+      const t0 = Date.now();
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.click('#dialogButtons .btn.primary')]);
+      const buf = require('fs').readFileSync(await dl.path());
+      ok(/\.(webm|mp4)$/.test(dl.suggestedFilename()) && buf.length > 20000 && (buf.slice(0, 4).toString('hex') === '1a45dfa3' || buf.slice(4, 8).toString() === 'ftyp'), 'Video aufgenommen (' + dl.suggestedFilename() + ', ' + Math.round(buf.length / 1024) + ' KB, ' + Math.round((Date.now() - t0) / 1000) + ' s)');
+      ok(!(await page.evaluate(() => window.__zw.PB.on)) && await page.isHidden('#recOverlay') && await page.isVisible('#protoPanel'), 'Nach der Aufnahme: Wiedergabe beendet, Leiste wieder da');
+      /* Abbrechen */
+      await page.click('#btnVideo'); await page.click('#dialogButtons .btn.primary');
+      await page.waitForSelector('#recOverlay:not([hidden])');
+      let got = false; page.once('download', () => { got = true; });
+      await page.click('#recOverlay .btn');
+      await page.waitForTimeout(1200);
+      ok(!got && await page.isHidden('#recOverlay') && !(await page.evaluate(() => window.__zw.PB.on)), 'Aufnahme abbrechen: keine Datei, alles zurück');
+    }
+    /* ---------- Körper und Netze ---------- */
+    {
+      await page.click('#btnLab');
+      await page.click('#labMode_body');
+      ok(await page.isVisible('#labBody') && !(await page.isVisible('#btnLabDemo')) && await page.isVisible('#btnBodyNet'), 'Labor: Bereich Körper & Netze');
+      await page.click('#bodyKind_cuboid');
+      ok((await page.inputValue('#bodyIn_a')) === '5' && (await page.inputValue('#bodyIn_b')) === '3', 'Körper: Vorgaben in cm');
+      await page.fill('#bodyIn_a', '4,5');
+      await page.click('.body-vo summary');
+      ok((await page.textContent('#bodyVO')) === 'V ≈ 27,0 cm³ · O ≈ 57,0 cm²', 'Quader 4,5 × 3 × 2: V und O', await page.textContent('#bodyVO'));
+      const ink = await page.evaluate(() => { const c = document.getElementById('bodyView'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 200) n++; return n; });
+      ok(ink > 500, 'Körper-Vorschau gezeichnet', ink);
+      await page.fill('#bodyIn_a', '0');
+      ok(await page.isDisabled('#btnBodyNet') && (await page.textContent('#bodyStatus')).includes('0,5 bis 20'), 'Körper: ungültige Maße gesperrt');
+      await page.fill('#bodyIn_a', '4,5');
+      await page.click('#btnBodyNet');
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('Netz Quader'), null, { timeout: 5000 });
+      const no = await objs(page);
+      ok(no.filter(o => o.type === 'segment' && o.d === 1).length >= 5 && no.some(o => o.type === 'text'), 'Netz aufs Blatt mit Faltlinien und Hinweis', no.length);
+      ok(await page.evaluate(() => { const o = window.__zw.doc.objects; const bt = boundsOf(o.filter(x => x.type === 'text')), bn = boundsOf(o.filter(x => x.type !== 'text')); return bt.x1 <= bn.x1 + 1; }), 'Netz: Hinweis nicht breiter als das Netz (sonst würde das PDF verkleinert)');
+      await page.click('#btnLab');
+      await page.click('#bodyKind_cylinder');
+      ok(await page.isDisabled('#bodyFold') && (await page.textContent('#bodyStatus')).includes('rollen'), 'Zylinder: Falten gesperrt, Hinweis');
+      await page.click('#btnBodyPdf');
+      await page.waitForSelector('#pdfOpt_grid', { timeout: 5000 });
+      ok(await page.isVisible('#pdfOpt_grid') && (await page.evaluate(() => window.__zw.doc.objects.filter(o => o.type === 'arc').length)) === 2, 'Netz als PDF: Blatt angelegt, PDF-Dialog offen');
+      await page.click('#dialogButtons .btn >> text=Abbrechen');
+      await page.click('#btnLab'); await page.click('#labMode_tri');
+      ok(await page.isVisible('#btnLabDemo') && !(await page.isVisible('#labBody')), 'Zurück zu den Kongruenzsätzen');
+      await page.click('#labPanel header .tb');
+    }
+    /* ---------- Sprachförderung: Vorlesen und Lückentext ---------- */
+    {
+      await page.click('#btnLab'); await page.click('#labMode_tri'); await page.click('#labKind_sws');
+      await page.click('#btnLabDemo');
+      await page.waitForFunction(() => window.__zw.PB.on, null, { timeout: 5000 });
+      await page.click('#pbLast');
+      const sp = await page.evaluate(() => ({ can: canSpeak(), vis: !document.getElementById('pbSpeak').hidden, txt: speechText('Verbinde AB mit C. Schnittpunkte S₁ und S₂, Dreieck ABC.') }));
+      ok(sp.txt === 'Verbinde A B mit C. Schnittpunkte S1 und S2, Dreieck A B C.', 'Vorlesen: Punktnamen buchstabiert, Indizes gelesen', sp.txt);
+      if (sp.can) {
+        ok(sp.vis && await page.isVisible('#btnSpeakAll'), 'Vorlesen: Knöpfe sichtbar, wo der Browser sprechen kann');
+        await page.click('#pbSpeak');
+        ok(await page.evaluate(() => S.speakSteps && document.getElementById('pbSpeak').classList.contains('sel')), 'Schritte vorlesen: eingeschaltet');
+        await page.click('#pbSpeak');
+        ok(await page.evaluate(() => !S.speakSteps), 'Schritte vorlesen: ausgeschaltet');
+      }
+      await page.keyboard.press('Escape');
+      const fsx = require('fs');
+      await page.click('#btnPdf');
+      if ((await page.textContent('#pdfOpt_desc')) === 'Aus') await page.click('#pdfOpt_desc');
+      if ((await page.textContent('#pdfOpt_cloze')) === 'Aus') await page.click('#pdfOpt_cloze');
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('#dialogButtons .btn.primary')]);
+      const pdf = fsx.readFileSync(await dl.path()).toString('latin1');
+      ok(pdf.includes('(Wortspeicher:) Tj') && pdf.includes('__________') && !pdf.includes('(Zeichne die Strecke AB'), 'PDF mit Lückentext und Wortspeicher');
+      await page.click('#btnPdf');
+      await page.click('#pdfOpt_desc');
+      ok(await page.isDisabled('#pdfOpt_cloze'), 'Lückentext nur zusammen mit der Beschreibung');
+      await page.click('#pdfOpt_desc');
+      await page.click('#pdfOpt_cloze');
+      await page.click('#dialogButtons .btn >> text=Abbrechen');
+    }
+    /* Fokus: in Fenster hinein und wieder zurück (VoiceOver, Tastatur) */
+    await page.click('#btnHelp');
+    ok(await page.evaluate(() => document.activeElement && document.activeElement.id === 'helpTitle'), 'Fokus springt ins geöffnete Fenster');
+    await page.keyboard.press('Escape');
+    ok(await page.evaluate(() => document.activeElement && document.activeElement.id === 'btnHelp'), 'Fokus kehrt nach dem Schließen zurück');
+    ok(await page.evaluate(() => document.getElementById('labMode_tri').getAttribute('aria-pressed') !== null), 'Umschalter melden ihren Zustand (aria-pressed)');
     /* ---------- Handy (iPhone hochkant) ---------- */
     {
       const ph = await launch({ locale: 'de-DE', viewport: { width: 390, height: 844 }, screen: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
