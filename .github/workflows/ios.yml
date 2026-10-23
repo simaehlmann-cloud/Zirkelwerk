@@ -164,12 +164,18 @@ jobs:
           echo "Entwicklungsregion: $REGION"
           [ "$REGION" = "en" ] || { echo "::error::CFBundleDevelopmentRegion ist '$REGION', erwartet 'en'."; FEHLER=1; }
 
-          # Nur iPad (target-device = tablet): TARGETED_DEVICE_FAMILY = 2
+          # Aufgaben per QR-Code: Ohne eingetragenes Schema bietet die
+          # Kamera-App "In Zirkelwerk öffnen" gar nicht erst an.
+          SCHEMA=$(holen "CFBundleURLTypes:0:CFBundleURLSchemes:0")
+          echo "URL-Schema:       $SCHEMA"
+          [ "$SCHEMA" = "zirkelwerk" ] || { echo "::error::CFBundleURLTypes ohne 'zirkelwerk' – QR-Aufgaben öffnen die App nicht."; FEHLER=1; }
+
+          # iPad und iPhone (target-device = universal): TARGETED_DEVICE_FAMILY = "1,2"
           FAM=$(grep -o 'TARGETED_DEVICE_FAMILY = "*[0-9,]*"*' "$PBX" | sort -u | tr -d '"' | awk '{print $3}' | sort -u | tr '\n' ' ')
           echo "Gerätefamilie: $FAM"
           case "$FAM" in
-            "2 ") echo "Nur iPad bestätigt." ;;
-            *) echo "::error::TARGETED_DEVICE_FAMILY ist '$FAM', erwartet nur 2 (iPad)."; FEHLER=1 ;;
+            "1,2 ") echo "iPhone und iPad bestätigt." ;;
+            *) echo "::error::TARGETED_DEVICE_FAMILY ist '$FAM', erwartet 1,2 (iPhone und iPad)."; FEHLER=1 ;;
           esac
 
           # cordova-ios 8 legt selbst ein PrivacyInfo.xcprivacy an – aber mit
