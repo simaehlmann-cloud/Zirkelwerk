@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.3.0 (Stufe 3a)
+# Zirkelwerk – Projektwissen, Stand 0.4.0 (Stufe 3b)
 
 ## Entscheidungen
 
@@ -64,6 +64,25 @@
 - Entscheidungen 3b/3c: PDF mit Karo und Beschreibung nur auf Wunsch (Vollversion);
   QR-Aufgaben nur bei installierter App, ohne Webseite; öffnen kostenlos, erstellen Vollversion.
 
+## PDF-Export (Stufe 3b)
+
+- Eigener PDF-Schreiber im Kern (`pdfCompose`, `pdfLayout`, `PdfCanvas`, `pdfBuild`),
+  keine Bibliothek. `PdfCanvas` bildet die Canvas-Befehle nach, die `drawObjects()`
+  nutzt – PDF und Bildschirm teilen dieselbe Zeichenroutine.
+- Schriften: Standard-14 (Helvetica, Helvetica-Bold, Symbol), nicht eingebettet.
+  Breiten aus den Adobe-AFM (über reportlab erzeugt). Griechisch und Mathezeichen
+  über Symbol, tiefgestellte Ziffern als kleine Helvetica-Ziffern, Rest „?".
+- Datei ist reines ASCII (Oktal-Escapes) → xref-Positionen = Stringlänge;
+  ausgegeben über `pdfBytes()`.
+- Seite: A4, Rand 12 mm, Kopf 12 mm (Name/Datum), Aufgabenzeile 9 mm, Abstand um die
+  Zeichnung 8 mm. Format automatisch (größerer Maßstab, Gleichstand → hoch).
+  Maßstab 1 oder auf ganze Prozent abgerundet; Karo im Raster der Zeichnung.
+- „Nur die Aufgabe": nur Objekte mit `m.plan`, immer hoch, 1 : 1, oben links;
+  Beschreibung dann gesperrt (verriete die Lösung).
+- Wahl im Dialog gilt für die Sitzung (`pdfOpts`), Karo startet mit der Papier-Einstellung.
+- Prüfung: coretest (Struktur, xref, Stream-Längen, Bögen, Layout; qpdf/pdftotext,
+  falls installiert), smoketest (Dialog, Download, qpdf).
+
 ## Geräte
 
 - Lineal 20 cm (passt auf jedes iPad bei 100 %), Skala an der Oberkante.
@@ -92,4 +111,4 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 
 - In-App-Kauf aktivieren (siehe Kommentar in config.xml; `IAP_ENABLED`, `LIMITS_ACTIVE`).
 - Store-Texte und Bildschirmfotos.
-- Stufe 3b: PDF-Export. Stufe 3c: Aufgaben per QR-Code.
+- Stufe 3c: Aufgaben per QR-Code.

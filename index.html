@@ -92,7 +92,7 @@ input, textarea { -webkit-user-select: text; user-select: text; font: inherit; }
 .spacer { flex: 1; }
 .zoomgrp { display: inline-flex; align-items: center; background: var(--chrome-2); border-radius: 12px; }
 .zoomgrp .tb { min-width: 40px; }
-#zoomLabel { min-width: 64px; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+#zoomLabel { min-width: 64px; white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
 
 /* ---------------- Werkzeugleiste ---------------- */
 #toolbar {
@@ -417,6 +417,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   </div>
   <button class="tb" id="btnLab" data-icon="lab" onclick="openLab()" data-i18n-aria="ariaLab" aria-label="Kongruenzsätze-Labor"></button>
   <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
+  <button class="tb" id="btnPdf" data-icon="pdf" onclick="openPdfExport()" data-i18n-aria="ariaPdf" aria-label="Als PDF exportieren"></button>
   <button class="tb" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Kurzanleitung"></button>
   <button class="tb" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
 </header>
@@ -636,6 +637,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="lab"></div><div><strong data-i18n="helpLabT">Kongruenzsätze-Labor</strong><p data-i18n="helpLab">Über das Dreieck-Symbol oben: SSS, SWS, WSW oder SsW wählen, Werte eingeben oder Zufallswerte nehmen. „Vorführen“ konstruiert das Dreieck mit Animation, „Selbst konstruieren“ stellt die Aufgabe und prüft am Ende.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="pdf"></div><div><strong data-i18n="helpPdfT">Als PDF drucken</strong><p data-i18n="helpPdf">Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.</p></div></div>
     </div>
@@ -817,6 +819,17 @@ const i18n = {
     chk_sides: 'Zeichne noch die Seite(n) {list}.',
     chk_impTitle: 'Diese Aufgabe hat keine Lösung',
     paywall_lab: 'Das Kongruenzsätze-Labor gehört zur Vollversion.',
+    paywall_pdf: 'Der PDF-Export gehört zur Vollversion.',
+    ariaPdf: 'Als PDF exportieren', btnPdf: 'Als PDF', pdf_title: 'Als PDF (A4)', pdf_create: 'PDF erstellen',
+    pdf_grid: 'Karopapier', pdf_head: 'Zeile für Name und Datum',
+    pdf_desc: 'Konstruktionsbeschreibung', pdf_descHint: 'Unter der Zeichnung oder auf der nächsten Seite.',
+    pdf_taskOnly: 'Nur die Aufgabe', pdf_taskOnlyHint: 'Arbeitsblatt ohne Lösung: Planfigur und Gegebenes, darunter Platz zum Konstruieren.',
+    pdf_hint: 'Passt die Zeichnung auf A4, wird sie in Originalgröße ausgegeben. Beim Drucken „Tatsächliche Größe“ bzw. 100 % wählen.',
+    pdf_name: 'Name:', pdf_date: 'Datum:', pdf_descTitle: 'Konstruktionsbeschreibung',
+    pdf_scaled: 'Verkleinert auf {p} % – Längen nicht nachmessen.', pdf_fileTask: 'Aufgabe',
+    msgPdfFailed: 'Das PDF konnte nicht erstellt werden.', msgPdfEmpty: 'Das Blatt ist leer.',
+    helpPdfT: 'Als PDF drucken',
+    helpPdf: 'Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.',
     helpLabT: 'Kongruenzsätze-Labor',
     helpLab: 'Über das Dreieck-Symbol oben: SSS, SWS, WSW oder SsW wählen, Werte eingeben oder Zufallswerte nehmen. „Vorführen" konstruiert das Dreieck mit Animation, „Selbst konstruieren" stellt die Aufgabe und prüft am Ende.',
     d_plan: 'Fertige eine Planfigur an und markiere die gegebenen Größen.', s_plan: 'Planfigur',
@@ -981,6 +994,17 @@ const i18n = {
     chk_sides: 'Still to draw: side(s) {list}.',
     chk_impTitle: 'This task has no solution',
     paywall_lab: 'The congruence lab is part of the full version.',
+    paywall_pdf: 'PDF export is part of the full version.',
+    ariaPdf: 'Export as PDF', btnPdf: 'As PDF', pdf_title: 'As PDF (A4)', pdf_create: 'Create PDF',
+    pdf_grid: 'Squared paper', pdf_head: 'Line for name and date',
+    pdf_desc: 'Construction description', pdf_descHint: 'Below the drawing or on the next page.',
+    pdf_taskOnly: 'Task only', pdf_taskOnlyHint: 'Worksheet without the solution: plan figure and given parts, with space below for the construction.',
+    pdf_hint: 'If the drawing fits on A4, it is output at its original size. When printing, choose “Actual size” or 100 %.',
+    pdf_name: 'Name:', pdf_date: 'Date:', pdf_descTitle: 'Construction description',
+    pdf_scaled: 'Reduced to {p} % – do not measure lengths.', pdf_fileTask: 'task',
+    msgPdfFailed: 'The PDF could not be created.', msgPdfEmpty: 'The sheet is empty.',
+    helpPdfT: 'Print as PDF',
+    helpPdf: 'The sheet button with the arrow creates an A4 PDF – at original size if the drawing fits. Squared paper, a line for name and date and the construction description are optional; for lab tasks also a worksheet without the solution.',
     helpLabT: 'Congruence lab',
     helpLab: 'Use the triangle button at the top: choose SSS, SAS, ASA or SSA, enter values or take random ones. “Demonstrate” constructs the triangle with animation, “Construct myself” sets the task and checks it at the end.',
     d_plan: 'Sketch a plan figure and mark the given parts.', s_plan: 'Plan figure',
@@ -2187,12 +2211,352 @@ function sanitizeTask(t) {
   for (const k of LAB_GIVEN[t.kind]) given[k] = t.given[k];
   return labValid(t.kind, given) ? { kind: t.kind, given } : null;
 }
+/* ---------- PDF-Export ---------- */
+/* Eigener kleiner PDF-Schreiber: Vektorgrafik, die Standardschriften jedes
+   PDF-Programms (Helvetica, Symbol), keine Bibliothek, kein Netz.
+   PdfCanvas versteht genau die Canvas-Befehle, die drawObjects() benutzt –
+   das Papier zeigt also dieselbe Zeichnung wie der Bildschirm.
+   Die Datei besteht nur aus ASCII-Zeichen (Umlaute als Oktal-Escape), damit
+   die Byte-Positionen im Verzeichnis (xref) einfach die Stringlänge sind. */
+const PDF_PT = 72 / 25.4;                       /* Punkt je Millimeter */
+const PDF_A4 = { w: 210, h: 297 };
+const PDF_M = 12;                               /* Seitenrand in mm */
+const PDF_HEAD = 12, PDF_TASKH = 9, PDF_PAD = 8;
+const PDF_TXT = 3.6, PDF_LEAD = 5.2;            /* Fließtext ~10 pt */
+/* Breiten der Standardschriften (Adobe-AFM, je 1000 Einheiten), WinAnsi 32–255. */
+const PDF_W_HELV = '278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500';
+const PDF_W_HELVB = '278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556';
+/* Unicode → WinAnsi (0x80–0x9F) und → Symbol [Code, Breite] */
+const PDF_WIN_SPECIAL = {0x152: 0x8C, 0x153: 0x9C, 0x160: 0x8A, 0x161: 0x9A, 0x178: 0x9F, 0x17D: 0x8E, 0x17E: 0x9E, 0x192: 0x83, 0x2C6: 0x88, 0x2DC: 0x98, 0x2013: 0x96, 0x2014: 0x97, 0x2018: 0x91, 0x2019: 0x92, 0x201A: 0x82, 0x201C: 0x93, 0x201D: 0x94, 0x201E: 0x84, 0x2020: 0x86, 0x2021: 0x87, 0x2022: 0x9D, 0x2026: 0x85, 0x2030: 0x89, 0x2039: 0x8B, 0x203A: 0x9B, 0x20AC: 0x80, 0x2122: 0x99};
+const PDF_SYMBOL = {0x391: [0x41, 722], 0x392: [0x42, 667], 0x393: [0x47, 603], 0x395: [0x45, 611], 0x396: [0x5A, 611], 0x397: [0x48, 722], 0x398: [0x51, 741], 0x399: [0x49, 333], 0x39A: [0x4B, 722], 0x39B: [0x4C, 686], 0x39C: [0x4D, 889], 0x39D: [0x4E, 722], 0x39E: [0x58, 645], 0x39F: [0x4F, 722], 0x3A0: [0x50, 768], 0x3A1: [0x52, 556], 0x3A3: [0x53, 592], 0x3A4: [0x54, 611], 0x3A5: [0x55, 690], 0x3A6: [0x46, 763], 0x3A7: [0x43, 722], 0x3A8: [0x59, 795], 0x3B1: [0x61, 631], 0x3B2: [0x62, 549], 0x3B3: [0x67, 411], 0x3B4: [0x64, 494], 0x3B5: [0x65, 439], 0x3B6: [0x7A, 494], 0x3B7: [0x68, 603], 0x3B8: [0x71, 521], 0x3B9: [0x69, 329], 0x3BA: [0x6B, 549], 0x3BB: [0x6C, 549], 0x3BD: [0x6E, 521], 0x3BE: [0x78, 493], 0x3BF: [0x6F, 549], 0x3C0: [0x70, 549], 0x3C1: [0x72, 549], 0x3C2: [0x56, 439], 0x3C3: [0x73, 603], 0x3C4: [0x74, 439], 0x3C5: [0x75, 576], 0x3C6: [0x66, 521], 0x3C7: [0x63, 549], 0x3C8: [0x79, 686], 0x3C9: [0x77, 686], 0x3D1: [0x4A, 631], 0x3D2: [0xA1, 620], 0x3D5: [0x6A, 603], 0x3D6: [0x76, 713], 0x2190: [0xAC, 987], 0x2191: [0xAD, 603], 0x2192: [0xAE, 987], 0x2193: [0xAF, 603], 0x2194: [0xAB, 1042], 0x2212: [0x2D, 549], 0x221E: [0xA5, 713], 0x2220: [0xD0, 768], 0x2248: [0xBB, 549], 0x2260: [0xB9, 549], 0x2264: [0xA3, 549], 0x2265: [0xB3, 549], 0x22A5: [0x5E, 658], 0x22C5: [0xD7, 250]};
+const PDF_WIDTHS = { F1: PDF_W_HELV.split(',').map(Number), F2: PDF_W_HELVB.split(',').map(Number) };
+
+/* Text in Abschnitte je Schrift zerlegen: Latein → Helvetica (WinAnsi),
+   Griechisch und Mathezeichen → Symbol, tiefgestellte Ziffern (C₁) →
+   kleinere, tiefer gesetzte Helvetica-Ziffern. Unbekanntes wird „?". */
+function pdfRuns(str, bold) {
+  const F = bold ? 'F2' : 'F1', runs = [];
+  let cur = null;
+  const put = (f, code, w, sub) => {
+    if (!cur || cur.f !== f || cur.sub !== sub) { cur = { f, sub, codes: [], w: 0 }; runs.push(cur); }
+    cur.codes.push(code); cur.w += w * (sub ? 0.7 : 1);
+  };
+  for (const ch of String(str)) {
+    let c = ch.codePointAt(0);
+    if (c === 9 || c === 10 || c === 13) c = 32;
+    if ((c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff)) put(F, c, PDF_WIDTHS[F][c - 32], false);
+    else if (PDF_WIN_SPECIAL[c]) { const k = PDF_WIN_SPECIAL[c]; put(F, k, PDF_WIDTHS[F][k - 32], false); }
+    else if (c >= 0x2080 && c <= 0x2089) { const k = c - 0x2080 + 48; put(F, k, PDF_WIDTHS[F][k - 32], true); }
+    else if (PDF_SYMBOL[c]) put('F3', PDF_SYMBOL[c][0], PDF_SYMBOL[c][1], false);
+    else put(F, 63, PDF_WIDTHS[F][63 - 32], false);
+  }
+  return runs;
+}
+function pdfTextWidth(str, size, bold) {
+  let w = 0;
+  for (const r of pdfRuns(str, bold)) w += r.w;
+  return w * size / 1000;
+}
+function pdfEsc(codes) {
+  let s = '';
+  for (const c of codes) {
+    if (c === 40 || c === 41 || c === 92) s += '\\' + String.fromCharCode(c);
+    else if (c >= 32 && c < 127) s += String.fromCharCode(c);
+    else s += '\\' + c.toString(8).padStart(3, '0');
+  }
+  return s;
+}
+function pdfNum(v) {
+  const r = Math.round(v * 100) / 100;
+  return (Object.is(r, -0) ? 0 : r).toString();
+}
+function pdfColor(c) {
+  const s = String(c || '').trim();
+  let m = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m) return m[1].split('').map(h => parseInt(h + h, 16) / 255);
+  m = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(s);
+  if (m) return [m[1], m[2], m[3]].map(v => clamp(+v / 255, 0, 1));
+  return [0, 0, 0];
+}
+/* Zeilenumbruch an Leerzeichen; geschützte Leerzeichen halten zusammen. */
+function pdfWrap(text, width, size, bold) {
+  const lines = [];
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      const tryLine = line ? line + ' ' + word : word;
+      if (!line || pdfTextWidth(tryLine, size, bold) <= width) { line = tryLine; continue; }
+      lines.push(line); line = word;
+    }
+    /* Ein einzelnes Wort breiter als die Zeile wird hart getrennt. */
+    while (pdfTextWidth(line, size, bold) > width && line.length > 1) {
+      let n = line.length - 1;
+      while (n > 1 && pdfTextWidth(line.slice(0, n), size, bold) > width) n--;
+      lines.push(line.slice(0, n)); line = line.slice(n);
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+/* Abbildung Welt (mm) → Seite: map = { s, ox, oy, px, py, H }.
+   Seiten-mm von oben links; PDF zählt in Punkt von unten links. */
+const PDF_STATE = ['strokeStyle', 'fillStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha',
+  'globalCompositeOperation', 'font', 'textAlign', 'textBaseline'];
+class PdfCanvas {
+  constructor(map, res) {
+    this.map = map; this.res = res; this.out = []; this.stack = [];
+    this.path = ''; this.has = false; this.cx = 0; this.cy = 0; this.sx = 0; this.sy = 0;
+    Object.assign(this, { strokeStyle: '#000000', fillStyle: '#000000', lineWidth: 1, lineCap: 'butt', lineJoin: 'miter',
+      globalAlpha: 1, globalCompositeOperation: 'source-over', font: '10px sans-serif', textAlign: 'start', textBaseline: 'alphabetic' });
+  }
+  X(x) { return (this.map.px + (x - this.map.ox) * this.map.s) * PDF_PT; }
+  Y(y) { return (this.map.H - (this.map.py + (y - this.map.oy) * this.map.s)) * PDF_PT; }
+  P(x, y) { return pdfNum(this.X(x)) + ' ' + pdfNum(this.Y(y)); }
+  save() { const st = {}; for (const k of PDF_STATE) st[k] = this[k]; this.stack.push(st); }
+  restore() { const st = this.stack.pop(); if (st) Object.assign(this, st); }
+  setTransform() {} setLineDash() {}
+  beginPath() { this.path = ''; this.has = false; }
+  moveTo(x, y) { this.path += this.P(x, y) + ' m '; this.has = true; this.cx = this.sx = x; this.cy = this.sy = y; }
+  lineTo(x, y) {
+    if (!this.has) return this.moveTo(x, y);
+    this.path += this.P(x, y) + ' l '; this.cx = x; this.cy = y;
+  }
+  bezierCurveTo(ax, ay, bx, by, x, y) {
+    if (!this.has) this.moveTo(ax, ay);
+    this.path += this.P(ax, ay) + ' ' + this.P(bx, by) + ' ' + this.P(x, y) + ' c '; this.cx = x; this.cy = y;
+  }
+  quadraticCurveTo(qx, qy, x, y) {
+    if (!this.has) this.moveTo(qx, qy);
+    const x0 = this.cx, y0 = this.cy;
+    this.bezierCurveTo(x0 + 2 / 3 * (qx - x0), y0 + 2 / 3 * (qy - y0), x + 2 / 3 * (qx - x), y + 2 / 3 * (qy - y), x, y);
+  }
+  closePath() { if (this.has) { this.path += 'h '; this.cx = this.sx; this.cy = this.sy; } }
+  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
+  /* Wie Canvas: Drehsinn über ccw, ab einer vollen Umdrehung ein ganzer Kreis.
+     Kubische Bézierstücke bis 90°, Fehler unter 0,03 % des Radius. */
+  arc(cx, cy, r, a0, a1, ccw) {
+    let sw = a1 - a0;
+    if (!ccw) sw = sw >= TAU ? TAU : ((sw % TAU) + TAU) % TAU;
+    else sw = sw <= -TAU ? -TAU : -((((-sw) % TAU) + TAU) % TAU);
+    const sx = cx + r * Math.cos(a0), sy = cy + r * Math.sin(a0);
+    if (this.has) this.lineTo(sx, sy); else this.moveTo(sx, sy);
+    if (!(r > 0) || sw === 0) return;
+    const n = Math.max(1, Math.ceil(Math.abs(sw) / (Math.PI / 2) - 1e-9)), d = sw / n, kk = 4 / 3 * Math.tan(d / 4);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * d, b = a + d, ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+      this.bezierCurveTo(cx + r * (ca - kk * sa), cy + r * (sa + kk * ca), cx + r * (cb + kk * sb), cy + r * (sb - kk * cb), cx + r * cb, cy + r * sb);
+    }
+  }
+  gs() {
+    const a = clamp(+this.globalAlpha || 0, 0, 1), mul = this.globalCompositeOperation === 'multiply';
+    if (a >= 1 && !mul) return '';
+    const key = 'G' + Math.round(a * 100) + (mul ? 'm' : '');
+    this.res.gs[key] = '<< /Type /ExtGState /CA ' + pdfNum(a) + ' /ca ' + pdfNum(a) + (mul ? ' /BM /Multiply' : '') + ' >>';
+    return '/' + key + ' gs ';
+  }
+  stroke() {
+    if (!this.path) return;
+    const [r, g, b] = pdfColor(this.strokeStyle);
+    const w = Math.max(0, +this.lineWidth || 0) * this.map.s * PDF_PT;
+    const cap = this.lineCap === 'round' ? 1 : this.lineCap === 'square' ? 2 : 0;
+    const join = this.lineJoin === 'round' ? 1 : this.lineJoin === 'bevel' ? 2 : 0;
+    this.out.push('q ' + this.gs() + pdfNum3(r, g, b) + ' RG ' + pdfNum(w) + ' w ' + cap + ' J ' + join + ' j ' + this.path + 'S Q');
+  }
+  fill() {
+    if (!this.path) return;
+    const [r, g, b] = pdfColor(this.fillStyle);
+    this.out.push('q ' + this.gs() + pdfNum3(r, g, b) + ' rg ' + this.path + 'f Q');
+  }
+  fontInfo() {
+    const f = String(this.font), m = /([\d.]+)px/.exec(f);
+    return { size: m ? +m[1] : 10, bold: /\b(bold|[6-9]00)\b/.test(f) };
+  }
+  measureText(s) { const f = this.fontInfo(); return { width: pdfTextWidth(s, f.size, f.bold) }; }
+  fillText(s, x, y) {
+    const f = this.fontInfo(), w = pdfTextWidth(s, f.size, f.bold);
+    const al = this.textAlign;
+    if (al === 'right' || al === 'end') x -= w; else if (al === 'center') x -= w / 2;
+    const bl = this.textBaseline;
+    if (bl === 'top' || bl === 'hanging') y += 0.77 * f.size;
+    else if (bl === 'middle') y += 0.35 * f.size;
+    else if (bl === 'bottom' || bl === 'ideographic') y -= 0.22 * f.size;
+    const [r, g, b] = pdfColor(this.fillStyle);
+    let ops = 'q ' + this.gs() + pdfNum3(r, g, b) + ' rg BT ';
+    for (const run of pdfRuns(s, f.bold)) {
+      const size = f.size * (run.sub ? 0.7 : 1), dy = run.sub ? 0.18 * f.size : 0;
+      ops += '/' + run.f + ' ' + pdfNum(size * this.map.s * PDF_PT) + ' Tf 1 0 0 1 ' + this.P(x, y + dy) + ' Tm (' + pdfEsc(run.codes) + ') Tj ';
+      x += run.w * f.size / 1000;
+    }
+    this.out.push(ops + 'ET Q');
+  }
+  clip(x, y, w, h) { this.out.push(pdfNum(this.X(x)) + ' ' + pdfNum(this.Y(y + h)) + ' ' + pdfNum(w * this.map.s * PDF_PT) + ' ' + pdfNum(h * this.map.s * PDF_PT) + ' re W n'); }
+}
+function pdfNum3(r, g, b) { return pdfNum3.f(r) + ' ' + pdfNum3.f(g) + ' ' + pdfNum3.f(b); }
+pdfNum3.f = v => (Math.round(v * 1000) / 1000).toString();
+
+/* Seite wählen: Hoch- oder Querformat, je nachdem, wo die Zeichnung größer
+   herauskommt; bei Gleichstand Hochformat. Passt sie, dann 1 : 1, sonst auf
+   ganze Prozent verkleinert. Arbeitsblatt („nur Aufgabe"): immer Hochformat,
+   1 : 1, Planfigur oben links – der Rest bleibt zum Konstruieren frei. */
+function pdfLayout(b, o) {
+  const top = PDF_M + (o.head ? PDF_HEAD : 0) + (o.taskLine ? PDF_TASKH : 0);
+  const bw = b ? b.x1 - b.x0 + 2 * PDF_PAD : 0, bh = b ? b.y1 - b.y0 + 2 * PDF_PAD : 0;
+  const cand = (o.taskOnly ? ['portrait'] : ['portrait', 'landscape']).map(orient => {
+    const pw = orient === 'portrait' ? PDF_A4.w : PDF_A4.h, ph = orient === 'portrait' ? PDF_A4.h : PDF_A4.w;
+    const aw = pw - 2 * PDF_M, ah = ph - top - PDF_M;
+    let s = Math.min(1, bw ? aw / bw : 1, bh ? ah / bh : 1);
+    if (s < 1) s = Math.max(0.01, Math.floor(s * 100 + 1e-9) / 100);
+    return { orient, pw, ph, s, area: { x: PDF_M, y: top, w: aw, h: ah } };
+  });
+  const L = cand.reduce((best, c) => c.s > best.s + 1e-9 ? c : best);
+  const dx = o.taskOnly ? 0 : Math.max(0, (L.area.w - bw * L.s) / 2);
+  return Object.assign(L, {
+    ox: b ? b.x0 - PDF_PAD : 0, oy: b ? b.y0 - PDF_PAD : 0,
+    px: L.area.x + dx, py: L.area.y, used: bh * L.s
+  });
+}
+
+/* Ganze Datei. o = { objects, draw(ctx, objects, k), grid, head:{name,date}|null,
+   taskLine, taskOnly, desc:{title, steps:[text]}|null, scaledNote(p), title, date } */
+function pdfCompose(o) {
+  const b = boundsOf(o.objects);
+  const L = pdfLayout(b, { head: !!o.head, taskLine: !!o.taskLine, taskOnly: !!o.taskOnly });
+  const res = { gs: {} };
+  const pages = [];
+  const newPage = () => { const map = { s: 1, ox: 0, oy: 0, px: 0, py: 0, H: L.ph }; const p = new PdfCanvas(map, res); pages.push(p); return p; };
+  const pg = newPage();   /* Seiten-mm, unverzerrt: für Kopf, Text, Karo */
+  const INK = '#3b3f45', SOFT = '#6b7078';
+
+  /* Kopf: Name und Datum zum Ausfüllen */
+  if (o.head) {
+    const y = PDF_M + 6.5;
+    pg.font = PDF_TXT + 'px sans-serif'; pg.fillStyle = INK; pg.strokeStyle = SOFT; pg.lineWidth = 0.25;
+    const nW = pdfTextWidth(o.head.name, PDF_TXT), dW = pdfTextWidth(o.head.date, PDF_TXT);
+    const dx = L.pw - PDF_M - 55;
+    pg.fillText(o.head.name, PDF_M, y);
+    pg.beginPath(); pg.moveTo(PDF_M + nW + 2, y + 0.8); pg.lineTo(dx - 8, y + 0.8); pg.stroke();
+    pg.fillText(o.head.date, dx, y);
+    pg.beginPath(); pg.moveTo(dx + dW + 2, y + 0.8); pg.lineTo(L.pw - PDF_M, y + 0.8); pg.stroke();
+  }
+  if (o.taskLine) {
+    pg.font = '600 ' + PDF_TXT + 'px sans-serif'; pg.fillStyle = INK;
+    const line = pdfWrap(o.taskLine, L.area.w, PDF_TXT, true)[0];
+    pg.fillText(line, PDF_M, PDF_M + (o.head ? PDF_HEAD : 0) + 5.5);
+  }
+
+  /* Beschreibung: unter die Zeichnung, wenn Platz ist, sonst Folgeseiten */
+  let descLines = null, descOnFirst = false, descTop = 0;
+  if (o.desc && o.desc.steps.length) {
+    descLines = [];
+    const num = o.desc.steps.length >= 10 ? 7 : 5;
+    o.desc.steps.forEach((s, i) => {
+      pdfWrap(s, L.area.w - num, PDF_TXT, false).forEach((l, j) => descLines.push({ n: j ? '' : (i + 1) + '.', text: l, first: j === 0 }));
+    });
+    descLines.num = num;
+    const need = 9 + descLines.length * PDF_LEAD + descLines.filter(l => l.first).length * 0.8;
+    descTop = L.py + L.used + 4;
+    descOnFirst = descTop + need <= L.area.y + L.area.h;
+  }
+
+  /* Karo: im Raster der Zeichnung, damit Linien und Kästchen zusammenpassen */
+  const gridBottom = descOnFirst ? descTop - 2 : L.area.y + L.area.h;
+  if (o.grid) {
+    const step = 5 * L.s;
+    const first = v => Math.ceil(v / 5 - 1e-9) * 5;
+    pg.strokeStyle = '#bccde2'; pg.lineWidth = 0.15; pg.lineCap = 'butt';
+    pg.beginPath();
+    const wx0 = L.ox + (L.area.x - L.px) / L.s, wy0 = L.oy + (L.area.y - L.py) / L.s;
+    for (let wx = first(wx0); ; wx += 5) {
+      const x = L.px + (wx - L.ox) * L.s; if (x > L.area.x + L.area.w + 1e-6) break;
+      pg.moveTo(x, L.area.y); pg.lineTo(x, gridBottom);
+    }
+    for (let wy = first(wy0); ; wy += 5) {
+      const y = L.py + (wy - L.oy) * L.s; if (y > gridBottom + 1e-6) break;
+      pg.moveTo(L.area.x, y); pg.lineTo(L.area.x + L.area.w, y);
+    }
+    if (step > 0) pg.stroke();
+  }
+
+  /* Zeichnung */
+  const dc = new PdfCanvas({ s: L.s, ox: L.ox, oy: L.oy, px: L.px, py: L.py, H: L.ph }, res);
+  dc.out.push('q');
+  dc.clip(L.ox + (L.area.x - L.px) / L.s, L.oy + (L.area.y - L.py) / L.s, L.area.w / L.s, (gridBottom - L.area.y) / L.s);
+  o.draw(dc, o.objects, 4 * L.s);
+  dc.out.push('Q');
+  pg.out.push(...dc.out);
+
+  if (L.s < 1 && o.scaledNote) {
+    pg.font = '2.8px sans-serif'; pg.fillStyle = SOFT; pg.textAlign = 'left'; pg.textBaseline = 'alphabetic';
+    pg.fillText(o.scaledNote(Math.round(L.s * 100)), PDF_M, L.ph - 6);
+  }
+
+  if (descLines) {
+    let p = pg, y = descOnFirst ? descTop + 5 : 0;
+    if (!descOnFirst) { p = newPage(); y = PDF_M + 5; }
+    p.textAlign = 'left'; p.textBaseline = 'alphabetic';
+    p.font = '600 4.2px sans-serif'; p.fillStyle = INK;
+    p.fillText(o.desc.title, PDF_M, y); y += 7.5;
+    p.font = PDF_TXT + 'px sans-serif';
+    for (const l of descLines) {
+      if (l.first) y += 0.8;
+      if (y > L.ph - PDF_M) { p = newPage(); p.font = PDF_TXT + 'px sans-serif'; p.fillStyle = INK; y = PDF_M + 5; }
+      if (l.n) { p.textAlign = 'right'; p.fillText(l.n, PDF_M + descLines.num - 1.5, y); p.textAlign = 'left'; }
+      p.fillText(l.text, PDF_M + descLines.num, y);
+      y += PDF_LEAD;
+    }
+  }
+  return { pdf: pdfBuild(pages.map(p => ({ w: L.pw, h: L.ph, content: p.out.join('\n') })), res, o), layout: L, pages: pages.length };
+}
+
+/* PDF-Textstring für das Info-Verzeichnis: UTF-16BE in Hex, ASCII-sicher. */
+function pdfInfoString(s) {
+  let h = 'FEFF';
+  for (let i = 0; i < s.length; i++) h += s.charCodeAt(i).toString(16).toUpperCase().padStart(4, '0');
+  return '<' + h + '>';
+}
+function pdfBuild(pages, res, meta) {
+  const objs = [];
+  const add = body => { objs.push(body); return objs.length; };
+  const catalog = add(null), pagesId = add(null);
+  const f1 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  const f2 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  const f3 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>');
+  const gsKeys = Object.keys(res.gs);
+  const resources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R >>' +
+    (gsKeys.length ? ' /ExtGState << ' + gsKeys.map(k => '/' + k + ' ' + res.gs[k]).join(' ') + ' >>' : '') + ' >>';
+  const kids = [];
+  for (const p of pages) {
+    const content = add('<< /Length ' + p.content.length + ' >>\nstream\n' + p.content + '\nendstream');
+    kids.push(add('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + pdfNum(p.w * PDF_PT) + ' ' + pdfNum(p.h * PDF_PT) +
+      '] /Resources ' + resources + ' /Contents ' + content + ' 0 R >>'));
+  }
+  objs[catalog - 1] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
+  objs[pagesId - 1] = '<< /Type /Pages /Kids [' + kids.map(k => k + ' 0 R').join(' ') + '] /Count ' + kids.length + ' >>';
+  const info = add('<< /Title ' + pdfInfoString(String(meta.title || '')) + ' /Producer (Zirkelwerk) /Creator (Zirkelwerk)' +
+    (meta.date ? ' /CreationDate (D:' + meta.date + ')' : '') + ' >>');
+  let out = '%PDF-1.4\n';
+  const offs = [];
+  objs.forEach((body, i) => { offs.push(out.length); out += (i + 1) + ' 0 obj\n' + body + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map(n => String(n).padStart(10, '0') + ' 00000 n \n').join('');
+  out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root ' + catalog + ' 0 R /Info ' + info + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return out;
+}
+/* String → Bytes. Die Datei ist reines ASCII, ein Zeichen = ein Byte. */
+function pdfBytes(s) {
+  const a = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 255;
+  return a;
+}
 /* ==CORE-END== */
 
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -2320,6 +2684,7 @@ const ICONS = {
   lab: '<path d="M3 19.5h18L12 4z"/><path d="m8.6 14.2 2.4 2.4 4.4-4.8"/>',
   dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>',
   more: '<circle cx="5.5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor"/>',
+  pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/>',
   share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'
 };
 function iconSvg(name) {
@@ -3764,6 +4129,7 @@ async function sheetActions(id) {
       { label: t('btnRename'), value: 'rename' },
       { label: t('btnDuplicate'), value: 'dup' },
       { label: t('btnExport'), value: 'export' },
+      { label: t('btnPdf'), value: 'pdf' },
       { label: t('btnDelete'), value: 'delete', kind: 'danger' },
       { label: t('btnCancel'), value: null }
     ]
@@ -3771,6 +4137,7 @@ async function sheetActions(id) {
   if (a === 'rename') await renameSheet(d);
   else if (a === 'dup') await duplicateSheet(d);
   else if (a === 'export') exportSheet(d);
+  else if (a === 'pdf') await openPdfExport(d);
   else if (a === 'delete') await deleteSheet(d);
   if (a) await renderSheetList();
 }
@@ -4733,7 +5100,7 @@ function fitForPlayback() {
 }
 
 /* ---------- Beschreibung kopieren und teilen (Vollversion) ---------- */
-function safeFileBase(name) { return (String(name).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'blatt').slice(0, 40); }
+function safeFileBase(name) { return (String(name).replace(/[^\p{L}\p{N}\s_,-]+/gu, '').replace(/\s+/g, ' ').trim() || 'blatt').slice(0, 40).trim(); }
 function descriptionText() {
   return sheetName(doc) + '\n\n' + currentSteps().map((s, i) => (i + 1) + '. ' + s.text).join('\n');
 }
@@ -4769,6 +5136,82 @@ function shareDescription() {
   }
   if (navigator.share) { navigator.share({ title: sheetName(doc), text }).catch(() => {}); return; }
   deliverFile(safeFileBase(sheetName(doc)) + '.txt', new Blob([text], { type: 'text/plain' }));
+}
+
+/* ---------------------------------------------------------
+   PDF-Export (Vollversion)
+   --------------------------------------------------------- */
+/* Die Wahl gilt für die Sitzung; Karo folgt anfangs der Papier-Einstellung. */
+const pdfOpts = { grid: null, head: true, desc: false, taskOnly: false };
+function canExportPdf() { return !LIMITS_ACTIVE || Purchase.owned; }
+async function openPdfExport(d) {
+  if (!canExportPdf()) return showPaywall('pdf');
+  let src = doc;
+  if (d && (!doc || d.id !== doc.id)) {
+    try { src = prepareLoaded(clone(d)); } catch (e) { notify(t('msgPdfFailed'), true); return; }
+  }
+  if (!src) return;
+  if (!src.objects.length) { notify(t('msgPdfEmpty')); return; }
+  if (pdfOpts.grid === null) pdfOpts.grid = S.paper === 'grid';
+  const isTask = !!src.task;
+  const hasSteps = describe(src.objects, lang, i18n[lang]).length > 0;
+  const o = { grid: pdfOpts.grid, head: pdfOpts.head, desc: pdfOpts.desc && hasSteps, taskOnly: isTask && pdfOpts.taskOnly };
+  const box = document.createElement('div');
+  const rows = [['grid', 'pdf_grid'], ['head', 'pdf_head'], ['desc', 'pdf_desc', 'pdf_descHint']];
+  if (isTask) rows.push(['taskOnly', 'pdf_taskOnly', 'pdf_taskOnlyHint']);
+  const btns = {};
+  const refresh = () => {
+    for (const [key] of rows) {
+      const b = btns[key];
+      const off = key === 'desc' && (!hasSteps || o.taskOnly);
+      b.disabled = off;
+      const on = o[key] && !off;
+      b.textContent = on ? t('on') : t('off');
+      b.classList.toggle('sel', on);
+    }
+  };
+  for (const [key, label, hint] of rows) {
+    const row = document.createElement('div'); row.className = 'switch-row';
+    const txt = document.createElement('div'); txt.className = 'txt';
+    const st = document.createElement('strong'); st.textContent = t(label); txt.appendChild(st);
+    if (hint) { const sm = document.createElement('small'); sm.textContent = t(hint); txt.appendChild(sm); }
+    const b = document.createElement('button'); b.className = 'btn'; b.id = 'pdfOpt_' + key;
+    b.onclick = () => { o[key] = !o[key]; refresh(); };
+    btns[key] = b;
+    row.append(txt, b); box.appendChild(row);
+  }
+  const p = document.createElement('p'); p.className = 'hint'; p.textContent = t('pdf_hint'); box.appendChild(p);
+  refresh();
+  const a = await openDialog({
+    title: t('pdf_title'), extra: box,
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('pdf_create'), value: 'ok', kind: 'primary' }]
+  });
+  if (a !== 'ok') return;
+  pdfOpts.grid = o.grid; pdfOpts.head = o.head;
+  if (hasSteps) pdfOpts.desc = o.desc;   /* Wunsch bleibt, auch wenn „Nur Aufgabe" ihn gerade sperrt */
+  if (isTask) pdfOpts.taskOnly = o.taskOnly;
+  let pdf;
+  try { pdf = buildPdf(src, o); }
+  catch (e) { console.error('PDF:', e); notify(t('msgPdfFailed'), true); return; }
+  const name = safeFileBase(sheetName(src)) + (o.taskOnly ? ' ' + t('pdf_fileTask') : '') + '.pdf';
+  deliverFile(name, new Blob([pdfBytes(pdf)], { type: 'application/pdf' }));
+}
+function pdfDateStamp(d) {
+  const z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds());
+}
+function buildPdf(src, o) {
+  const T = i18n[lang];
+  const taskOnly = !!(o.taskOnly && src.task);
+  const objects = taskOnly ? src.objects.filter(x => x.m && x.m.plan) : src.objects;
+  const steps = o.desc && !taskOnly ? describe(src.objects, lang, T).map(s => s.text) : [];
+  return pdfCompose({
+    objects, draw: (ctx, objs, k) => drawObjects(ctx, objs, k, null),
+    grid: !!o.grid, head: o.head ? { name: t('pdf_name'), date: t('pdf_date') } : null,
+    taskLine: src.task ? t('lab_task', { given: labGivenText(src.task.kind, src.task.given, lang, T) }) : '',
+    taskOnly, desc: steps.length ? { title: t('pdf_descTitle'), steps } : null,
+    scaledNote: p => t('pdf_scaled', { p }), title: sheetName(src), date: pdfDateStamp(new Date())
+  }).pdf;
 }
 
 /* ---------------------------------------------------------

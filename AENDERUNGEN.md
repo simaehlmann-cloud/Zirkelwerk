@@ -1,5 +1,21 @@
 # Änderungen
 
+## 0.4.0 – Stufe 3b (Oktober 2026)
+
+- **PDF-Export** (Blatt-Symbol mit Pfeil oben oder „⋯" in der Blattliste, Vollversion):
+  A4, Vektorgrafik, ohne Internet erzeugt
+- In **Originalgröße**, wenn die Zeichnung auf A4 passt; sonst auf ganze Prozent
+  verkleinert, mit Hinweis „Verkleinert auf … %"
+- Hoch- oder Querformat automatisch, je nachdem, wo die Zeichnung größer herauskommt
+- Wählbar: Karopapier (im Raster der Zeichnung), Zeile für Name und Datum,
+  Konstruktionsbeschreibung (unter der Zeichnung oder auf Folgeseiten)
+- **Arbeitsblatt** bei Laboraufgaben: „Nur die Aufgabe" – Aufgabenzeile, Planfigur
+  und Gegebenes, darunter Karo zum Konstruieren, ohne Lösung
+- Griechische Buchstaben, Umlaute und C₁/C₂ werden im PDF richtig gesetzt
+- Kopfleiste: Zoomanzeige bricht auf dem iPad mini nicht mehr um
+- Dateinamen ohne doppelte Leerzeichen
+- Android-CI: `cordova clean` entfernt (löschte den deutschen App-Namen vor der Prüfung)
+
 ## 0.3.0 – Stufe 3a (Oktober 2026)
 
 - **Kongruenzsätze-Labor** (Dreieck-Symbol oben, Vollversion): SSS, SWS, WSW, SsW;

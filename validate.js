@@ -50,7 +50,9 @@ if (packs) {
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
   /* Zusammengesetzte Schlüssel */
   for (const d of ['ipad', 'ipadmini', 'iphone', 'android', 'desktop']) used.add('device_' + d);
-  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab');
+  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab'); used.add('paywall_pdf');
+  /* Schalter im PDF-Dialog: Schlüssel stehen als Daten in rows */
+  for (const k of ['pdf_grid', 'pdf_head', 'pdf_desc', 'pdf_descHint', 'pdf_taskOnly', 'pdf_taskOnlyHint']) used.add(k);
   for (const k of ['sss', 'sws', 'wsw', 'ssw']) { used.add('lab_desc_' + k); used.add('lab_kind_' + k); }
   for (const k of ['ineq', 'angles', 'short']) used.add('lab_none_' + k);
   for (const k of ['ineq', 'angles', 'short', 'two']) used.add('note_' + k);

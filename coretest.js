@@ -20,7 +20,8 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   intersections, dedupePoints, snapCandidates, findSnap, snapToCurve, objectDistance, topObjectAt, nextLabel,
   bestLabelDir, fmtLen, fmtDeg, fmtNum, parseNum, History, applyEntry, revertEntry,
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
-  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN };`, ctx);
+  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
+  PdfCanvas, pdfRuns, pdfTextWidth, pdfWrap, pdfLayout, pdfCompose, pdfColor, pdfEsc, pdfBytes, PDF_PT, PDF_M, PDF_PAD };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
 {
@@ -455,6 +456,113 @@ const ba = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -0.3, sweep: 0.6 
 ok(near(ba.x1, 10) && ba.x0 > 9 && Math.abs(ba.y0) < 3.1 && Math.abs(ba.y1) < 3.1, 'Kurzer Bogen: Umriss nur um den gezeichneten Teil', ba);
 const bb2 = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -Math.PI * 0.75, sweep: Math.PI * 0.5 }]);
 ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: höchster Punkt erfasst', bb2);
+
+/* ---------- PDF ---------- */
+{
+  /* Die echte Zeichenroutine der App, damit das PDF genau das zeigt, was
+     auch auf dem Bildschirm steht. */
+  const ds = html.indexOf('/* k = Pixel je Millimeter'), de = html.indexOf('/* ---------- Deckschicht');
+  vm.runInContext('var S = { pointStyle: "cross" };\n' + html.slice(ds, de) + '\nthis.drawObjects = drawObjects;', ctx);
+  const draw = (c, objs, k) => ctx.drawObjects(c, objs, k, null);
+  const R = K.pdfRuns('Ä–α C₁ 😀', false);
+  ok(R[0].f === 'F1' && R[0].codes[0] === 0xC4 && R[0].codes[1] === 0x96, 'PDF: Umlaut und Gedankenstrich in WinAnsi', R[0].codes);
+  ok(R[1].f === 'F3' && R[1].codes[0] === 0x61, 'PDF: α über die Symbol-Schrift', R[1]);
+  ok(R.some(r => r.sub && r.codes[0] === 49), 'PDF: tiefgestellte 1 als kleine Ziffer');
+  ok(R[R.length - 1].codes.slice(-1)[0] === 63, 'PDF: Unbekanntes Zeichen wird „?"');
+  ok(near(K.pdfTextWidth('Hallo', 10), 22.78, 1e-9), 'PDF: Textbreite nach Helvetica-Maßen', K.pdfTextWidth('Hallo', 10));
+  ok(near(K.pdfTextWidth('Hallo', 10, true), 24.45, 1e-9), 'PDF: Textbreite fett', K.pdfTextWidth('Hallo', 10, true));
+  ok(K.pdfEsc([40, 41, 92, 65, 228]) === '\\(\\)\\\\A\\344', 'PDF: Klammern, Backslash, Umlaut maskiert', K.pdfEsc([40, 41, 92, 65, 228]));
+  ok(JSON.stringify(K.pdfColor('#d0342c').map(v => Math.round(v * 255))) === '[208,52,44]' && K.pdfColor('rgba(0, 255, 0, .5)')[1] === 1, 'PDF: Farben');
+  const wr = K.pdfWrap('eins zwei drei vier fünf sechs b = 4,5 cm', 30, 3.6);
+  ok(wr.length > 1 && wr.every(l => K.pdfTextWidth(l, 3.6) <= 30 + 1e-9) && wr.some(l => l.includes('b = 4,5 cm')), 'PDF: Umbruch, geschützte Leerzeichen halten', wr);
+
+  /* Seitenwahl */
+  const L1 = K.pdfLayout({ x0: 0, y0: 0, x1: 100, y1: 80 }, { head: true });
+  ok(L1.orient === 'portrait' && L1.s === 1, 'PDF: Kleine Zeichnung hochkant in Originalgröße', L1);
+  const L2 = K.pdfLayout({ x0: 0, y0: 0, x1: 240, y1: 90 }, { head: true });
+  ok(L2.orient === 'landscape' && L2.s === 1, 'PDF: Breite Zeichnung quer in Originalgröße', L2);
+  const L3 = K.pdfLayout({ x0: -50, y0: 0, x1: 450, y1: 100 }, { head: true });
+  ok(L3.orient === 'landscape' && L3.s < 1 && L3.s === Math.floor(L3.s * 100) / 100 && (500 + 2 * K.PDF_PAD) * L3.s <= L3.area.w + 1e-9, 'PDF: Zu große Zeichnung auf ganze Prozent verkleinert', L3);
+  const L4 = K.pdfLayout({ x0: 0, y0: 0, x1: 240, y1: 40 }, { taskOnly: true });
+  ok(L4.orient === 'portrait' && L4.px === K.PDF_M, 'PDF: Arbeitsblatt immer hochkant, oben links', L4);
+  ok(K.pdfLayout(null, {}).s === 1, 'PDF: Leeres Blatt geht');
+
+  /* Bögen: Bézierstücke liegen auf dem Kreis */
+  const pc = new K.PdfCanvas({ s: 1, ox: 0, oy: 0, px: 100, py: 100, H: 297 }, { gs: {} });
+  pc.lineWidth = 0.5; pc.beginPath(); pc.arc(0, 0, 20, 0, K.TAU); pc.stroke();
+  ok((pc.out[0].match(/ c /g) || []).length === 4, 'PDF: Vollkreis aus vier Bézierstücken', pc.out[0]);
+  {
+    const bz = new K.PdfCanvas({ s: 1, ox: 0, oy: 0, px: 0, py: 0, H: 0 }, { gs: {} });
+    /* H = 0: Y = -y·PT, also einfach zurückrechnen */
+    bz.beginPath(); bz.arc(0, 0, 50, 0.3, 0.3 + 2.5, false); bz.stroke();
+    const n = bz.out[0].match(/-?[\d.]+/g).map(Number);
+    let maxErr = 0;
+    const cmd = bz.out[0].split(' S ')[0];
+    const pts = []; const re = /(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) c/g; let mm;
+    const st = /(-?[\d.]+) (-?[\d.]+) m/.exec(cmd);
+    let px0 = +st[1], py0 = +st[2];
+    while ((mm = re.exec(cmd))) {
+      const q = mm.slice(1).map(Number);
+      for (let tt = 0; tt <= 1; tt += 0.125) {
+        const u = 1 - tt;
+        const x = u * u * u * px0 + 3 * u * u * tt * q[0] + 3 * u * tt * tt * q[2] + tt * tt * tt * q[4];
+        const y = u * u * u * py0 + 3 * u * u * tt * q[1] + 3 * u * tt * tt * q[3] + tt * tt * tt * q[5];
+        maxErr = Math.max(maxErr, Math.abs(Math.hypot(x, y) / K.PDF_PT - 50));
+      }
+      pts.push(q); px0 = q[4]; py0 = q[5];
+    }
+    const end = Math.atan2(-py0, px0);
+    ok(pts.length === 2 && maxErr < 0.05 && near(end, 2.8, 2e-3), 'PDF: Bogen genau und endet am richtigen Winkel', { maxErr, end, n: pts.length });
+    const bc = new K.PdfCanvas({ s: 1, ox: 0, oy: 0, px: 0, py: 0, H: 0 }, { gs: {} });
+    bc.beginPath(); bc.arc(0, 0, 50, 1, 0.5, true); bc.stroke();
+    const ends = bc.out[0].match(/(-?[\d.]+) (-?[\d.]+) c S/);
+    ok(near(Math.atan2(-ends[2], +ends[1]), 0.5, 2e-3) && (bc.out[0].match(/ c /g) || []).length === 1, 'PDF: Bogen gegen den Uhrzeigersinn (kurzer Weg)', bc.out[0]);
+  }
+
+  /* Ganze Datei */
+  const lab = K.labConstruction('sws', { c: 60, b: 45, alpha: 50 });
+  const plan = K.labPlan('sws', { c: 60, b: 45, alpha: 50 }, K.solveTriangle('sws', { c: 60, b: 45, alpha: 50 }).sols, { x: -70, y: -20 }, 'de', I18N.de);
+  const withIds = list => list.map((o, i) => Object.assign({ id: 'P' + i }, o));
+  const objs = withIds(plan.concat(lab.objects).concat([{ type: 'stroke', pts: [0, 10, 5, 12, 10, 10], c: '#e0b400', w: 4, al: 0.4 }]));
+  const steps = K.describe(objs, 'de', I18N.de).map(s => s.text);
+  ok(steps.length >= 5, 'PDF: Beschreibung des Laborblatts vollständig', steps);
+  const make = o => K.pdfCompose(Object.assign({ objects: objs, draw, grid: true, head: { name: 'Name:', date: 'Datum:' }, title: 'Aufgabe SWS – Ä', date: '20261023120000' }, o));
+  const checkFile = (pdf, label) => {
+    ok(/^[\x00-\x7f]*$/.test(pdf), label + ': nur ASCII');
+    const sx = +/startxref\n(\d+)\n%%EOF\n$/.exec(pdf)[1];
+    ok(pdf.slice(sx, sx + 4) === 'xref', label + ': startxref zeigt auf xref', sx);
+    const rows = pdf.slice(sx).split('\n').filter(l => / 00000 n $/.test(l)).map(l => +l.slice(0, 10));
+    ok(rows.length > 5 && rows.every((off, i) => pdf.startsWith((i + 1) + ' 0 obj', off)), label + ': Verzeichnis stimmt für jedes Objekt');
+    const lens = [...pdf.matchAll(/<< \/Length (\d+) >>\nstream\n/g)];
+    ok(lens.length > 0 && lens.every(m => pdf.slice(m.index + m[0].length + +m[1], m.index + m[0].length + +m[1] + 10) === '\nendstream'), label + ': Stream-Längen stimmen');
+  };
+  const r1 = make({ desc: { title: 'Konstruktionsbeschreibung', steps } });
+  checkFile(r1.pdf, 'PDF');
+  ok(r1.layout.s === 1 && r1.pages === 1, 'PDF: Lab-Blatt mit Beschreibung auf einer Seite, 1 : 1', { s: r1.layout.s, pages: r1.pages });
+  ok(r1.pdf.includes('/BM /Multiply') && r1.pdf.includes('/F3 '), 'PDF: Marker durchscheinend, Griechisch über Symbol');
+  ok(r1.pdf.includes('(Name:) Tj') && r1.pdf.includes('/Title <FEFF'), 'PDF: Kopfzeile und Titel');
+  ok(!K.pdfCompose({ objects: objs, draw, title: '' }).pdf.includes('(Name:)'), 'PDF: Kopfzeile abschaltbar');
+  const long = make({ desc: { title: 'K', steps: Array.from({ length: 70 }, (_, i) => 'Schritt ' + i + ' mit etwas längerem Text, der sicher umbrochen werden muss, weil er so lang ist.') } });
+  checkFile(long.pdf, 'PDF lang');
+  ok(long.pages >= 3 && (long.pdf.match(/\/Type \/Page /g) || []).length === long.pages, 'PDF: Lange Beschreibung auf Folgeseiten', long.pages);
+  const big = make({ objects: objs.concat([{ type: 'segment', x1: -300, y1: 0, x2: 300, y2: 0, c: '#000000', w: 0.3, al: 1 }]) });
+  ok(big.layout.s < 1 && big.pdf.includes('(Verkleinert') === false && make({ objects: objs.concat([{ type: 'segment', x1: -300, y1: 0, x2: 300, y2: 0, c: '#000000', w: 0.3, al: 1 }]), scaledNote: p => 'Verkleinert auf ' + p + ' %' }).pdf.includes('(Verkleinert auf ' + Math.round(big.layout.s * 100) + ' %) Tj'), 'PDF: Verkleinerung mit Hinweis', big.layout.s);
+  const task = make({ taskOnly: true, objects: objs.filter(o => o.m && o.m.plan), taskLine: 'Konstruiere das Dreieck ABC mit c = 6 cm.' });
+  ok(task.layout.orient === 'portrait' && task.layout.s === 1 && task.pdf.includes('Konstruiere'), 'PDF: Arbeitsblatt mit Aufgabenzeile');
+
+  /* Wenn vorhanden: echte PDF-Werkzeuge als Gegenprobe (lokal; in der CI optional) */
+  const cp = require('child_process'), os = require('os'), path = require('path');
+  const has = cmd => cp.spawnSync('sh', ['-c', 'command -v ' + cmd]).status === 0;
+  if (has('qpdf') && has('pdftotext')) {
+    const f = path.join(os.tmpdir(), 'zw-test-' + process.pid + '.pdf');
+    fs.writeFileSync(f, Buffer.from(K.pdfBytes(r1.pdf)));
+    const q = cp.spawnSync('qpdf', ['--check', f], { encoding: 'utf8' });
+    ok(q.status === 0 && /No syntax or stream encoding errors/.test(q.stdout) && !/WARNING/.test(q.stdout + q.stderr), 'PDF: qpdf --check ohne Befund', q.stdout + q.stderr);
+    const txt = cp.spawnSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8' }).stdout;
+    ok(txt.includes('Trage in A an AB den Winkel α = 50° an.') && txt.includes('Planfigur') && txt.includes('Name:'), 'PDF: Text lesbar (auch α und °)', txt);
+    fs.unlinkSync(f);
+  } else console.log('  (qpdf/pdftotext nicht installiert – PDF-Gegenprobe übersprungen)');
+}
 
 /* ---------- Ausgabe ---------- */
 console.log(`Zirkelwerk-Kerntest: ${passed} bestanden, ${failed} fehlgeschlagen`);

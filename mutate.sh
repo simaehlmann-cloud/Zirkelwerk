@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.3.0"' 'version="0.3.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="300"' 'android-versionCode="301"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.3.0" "zirkelwerk-0.2.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.4.0"' 'version="0.4.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="400"' 'android-versionCode="401"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.4.0" "zirkelwerk-0.3.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -72,6 +72,16 @@ pruefe "Planfigur zerfällt"         coretest.js index.html "if (last && last.ki
 pruefe "Bogen-Umriss = Vollkreis"   coretest.js index.html "if (!(Math.abs(o.sweep) < TAU - 1e-7)) { add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); }" "{ add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); } if (false) {}"
 pruefe "Zufall SsW mehrdeutig"      coretest.js index.html "a: c + pick(5, 25, 5) };" "a: c - pick(5, 15, 5) };"
 pruefe "Aufgabe ungeprüft geladen"  coretest.js index.html "return labValid(t.kind, given) ? { kind: t.kind, given } : null;" "return { kind: t.kind, given };"
+pruefe "PDF: Bogen falsch herum"    coretest.js index.html "else sw = sw <= -TAU ? -TAU : -((((-sw) % TAU) + TAU) % TAU);" "else sw = -(((sw % TAU) + TAU) % TAU);"
+pruefe "PDF: Bézier ungenau"         coretest.js index.html "kk = 4 / 3 * Math.tan(d / 4);" "kk = 0.5;"
+pruefe "PDF: Verzeichnis verschoben" coretest.js index.html "offs.push(out.length);" "offs.push(out.length + 1);"
+pruefe "PDF: Stream-Länge falsch"    coretest.js index.html "'<< /Length ' + p.content.length" "'<< /Length ' + (p.content.length + 1)"
+pruefe "PDF: Klammern unmaskiert"    coretest.js index.html "if (c === 40 || c === 41 || c === 92)" "if (c === 92)"
+pruefe "PDF: Griechisch fehlt"       coretest.js index.html "else if (PDF_SYMBOL[c]) put('F3'" "else if (false) put('F3'"
+pruefe "PDF: krumme Prozente"        coretest.js index.html "if (s < 1) s = Math.max(0.01, Math.floor(s * 100 + 1e-9) / 100);" ""
+pruefe "PDF: nie Querformat"         coretest.js index.html "c.s > best.s + 1e-9 ? c : best" "best"
+pruefe "PDF: Beschreibung verschluckt" coretest.js index.html "if (o.desc && o.desc.steps.length) {" "if (false) {"
+pruefe "PDF-Texte fehlen (EN)"       validate.js index.html "    pdf_name: 'Name:', pdf_date: 'Date:', pdf_descTitle: 'Construction description'," "    pdf_name: 'Name:', pdf_date: 'Date:',"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

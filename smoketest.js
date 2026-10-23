@@ -588,6 +588,41 @@ async function main() {
     await page.click('#btnSheets');
     await page.locator('.sheet', { hasText: 'Aufgabe SSS' }).locator('button').first().click();
     await page.waitForFunction(() => window.__zw.doc.task, null, { timeout: 3000 });
+    /* PDF: Arbeitsblatt ohne Lösung, dann mit Lösung und Beschreibung */
+    {
+      const fsx = require('fs'), cp = require('child_process');
+      const grab = async () => {
+        const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('#dialogButtons .btn.primary')]);
+        const file = await dl.path();
+        return { name: dl.suggestedFilename(), file, pdf: fsx.readFileSync(file).toString('latin1') };
+      };
+      await page.click('#btnPdf');
+      ok((await page.textContent('#dialogTitle')) === 'Als PDF (A4)' && await page.isVisible('#pdfOpt_taskOnly'), 'PDF-Dialog mit Schalter „Nur die Aufgabe"');
+      if ((await page.textContent('#pdfOpt_desc')) === 'Aus') await page.click('#pdfOpt_desc');
+      await page.click('#pdfOpt_taskOnly');
+      ok(await page.isDisabled('#pdfOpt_desc'), 'Nur Aufgabe: Beschreibung gesperrt (würde die Lösung verraten)');
+      const w1 = await grab();
+      ok(w1.name.endsWith(' Aufgabe.pdf') && w1.pdf.startsWith('%PDF-1.4') && w1.pdf.includes('(Konstruiere das Dreieck ABC mit c') && !w1.pdf.includes('(Konstruktionsbeschreibung)'), 'Arbeitsblatt-PDF ohne Lösung', w1.name);
+      const nPts = (w1.pdf.match(/ Tj /g) || []).length;
+      await page.click('#btnPdf');
+      ok((await page.textContent('#pdfOpt_taskOnly')) === 'Ein', 'PDF-Dialog merkt sich die Wahl');
+      await page.click('#pdfOpt_taskOnly');
+      ok(!(await page.isDisabled('#pdfOpt_desc')) && (await page.textContent('#pdfOpt_desc')) === 'Ein', 'Beschreibung wieder wählbar');
+      const w2 = await grab();
+      ok(!w2.name.endsWith(' Aufgabe.pdf') && w2.pdf.includes('(Konstruktionsbeschreibung) Tj') && (w2.pdf.match(/ Tj /g) || []).length > nPts, 'PDF mit Konstruktion und Beschreibung', w2.name);
+      if (cp.spawnSync('sh', ['-c', 'command -v qpdf']).status === 0) {
+        const q = cp.spawnSync('qpdf', ['--check', w2.file], { encoding: 'utf8' });
+        ok(q.status === 0 && !/WARNING/.test(q.stdout + q.stderr), 'App-PDF besteht qpdf --check', q.stdout + q.stderr);
+      }
+      /* Anderes Blatt über „⋯" in der Blattliste */
+      await page.click('#btnSheets');
+      await page.locator('.sheet:not(.current) .more').first().click();
+      await page.click('#dialogButtons .btn >> text=Als PDF');
+      await page.waitForFunction(() => document.getElementById('dialogTitle').textContent === 'Als PDF (A4)', null, { timeout: 3000 });
+      const w3 = await grab();
+      ok(w3.pdf.startsWith('%PDF') && w3.pdf.endsWith('%%EOF\n'), 'PDF aus der Blattliste', w3.name);
+      await page.click('#sheetsPanel header .tb');
+    }
     await page.click('#taskBar .tb');
     await page.click('#dialogButtons .btn.danger');
     ok(!(await page.isVisible('#taskBar')) && !(await page.evaluate(() => window.__zw.doc.task)), 'Aufgabe entfernt');
