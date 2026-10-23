@@ -5,8 +5,45 @@ on:
     branches: [main]
   workflow_dispatch:
 
+
+# Zwei schnelle Pushes: der ältere Lauf wird abgebrochen, damit nicht zwei
+# Builds gleichzeitig signieren oder hochladen.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Prüfkette in einem eigenen Job: Hier werden fremde npm-Pakete
+  # (Playwright) installiert – sie sollen nie im selben Job laufen, der
+  # später den Keystore entschlüsselt und signiert.
+  pruefungen:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT: '1.63.0'
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      # Ein fehlerhafter Commit fällt nach etwa einer Minute durch statt erst
+      # nach dem Herunterladen des Android-SDK.
+      - name: Prüfungen
+        run: |
+          set -e
+          node validate.js
+          node coretest.js
+          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT}"
+          npx playwright install --with-deps chromium
+          node smoketest.js
+
   build:
+    needs: pruefungen
     runs-on: ubuntu-latest
 
     env:
@@ -18,27 +55,17 @@ jobs:
       CORDOVA_ANDROID: '15.0.0'
       # Muss zu android-targetSdkVersion in der config.xml passen.
       TARGET_SDK: '36'
-      PLAYWRIGHT: '1.63.0'
 
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Node einrichten
         uses: actions/setup-node@v5
         with:
           node-version: '22'
-
-      # Ganz vorne: Ein fehlerhafter Commit fällt nach etwa einer Minute
-      # durch statt erst nach dem Herunterladen des Android-SDK.
-      - name: Prüfungen
-        run: |
-          set -e
-          node validate.js
-          node coretest.js
-          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT}"
-          npx playwright install --with-deps chromium
-          node smoketest.js
 
       - name: Java einrichten
         uses: actions/setup-java@v5
@@ -127,6 +154,8 @@ jobs:
             || { echo "::error::Kein intent-filter für zirkelwerk:// – QR-Aufgaben öffnen die App nicht."; exit 1; }
           grep -q 'android:launchMode="singleTask"' "$MF" \
             || { echo "::error::launchMode ist nicht singleTask – ein Link startet sonst eine zweite App-Instanz."; exit 1; }
+          grep -q 'android:enableOnBackInvokedCallback="false"' "$MF" \
+            || { echo "::error::enableOnBackInvokedCallback fehlt – unter Android 16 käme die Zurück-Taste nicht mehr in der App an."; exit 1; }
           if grep -q 'android:scheme=" "' "$MF"; then echo "::error::Leerer Link-Filter (Schema \" \") im Manifest."; exit 1; fi
           echo "Link-Filter zirkelwerk:// vorhanden, singleTask."
           # Farbe für den Icon-Hintergrund, sonst bricht aapt beim Bauen ab
@@ -179,19 +208,10 @@ jobs:
             eval "wert=\$$name"
             [ -n "$wert" ] || { echo "::error::Secret für $name fehlt oder ist leer."; exit 1; }
           done
-          cat > build.json <<JSON
-          {
-            "android": {
-              "release": {
-                "keystore": "$RUNNER_TEMP/zirkelwerk.keystore",
-                "storePassword": "$STORE_PW",
-                "alias": "$KEY_ALIAS",
-                "password": "$KEY_PW",
-                "keystoreType": "pkcs12"
-              }
-            }
-          }
-          JSON
+          # Mit jq statt Heredoc: Anführungszeichen oder Backslash im Passwort
+          # ergäben sonst ungültiges JSON.
+          jq -n --arg ks "$RUNNER_TEMP/zirkelwerk.keystore" --arg sp "$STORE_PW" --arg al "$KEY_ALIAS" --arg kp "$KEY_PW" \
+            '{android: {release: {keystore: $ks, storePassword: $sp, alias: $al, password: $kp, keystoreType: "pkcs12"}}}' > build.json
           cordova build android --release -- --packageType=apk
           cordova build android --release -- --packageType=bundle
           rm -f build.json

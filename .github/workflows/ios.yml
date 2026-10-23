@@ -12,6 +12,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+
+# Zwei schnelle Pushes: der ältere Lauf wird abgebrochen, damit nicht zwei
+# Builds gleichzeitig signieren oder hochladen.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Die Pruefkette laeuft auf Linux. macOS-Laeufer werden je Minute zehnfach
   # abgerechnet – ein Tippfehler soll nicht auf dem teuren Laeufer auffallen.
@@ -20,6 +27,8 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Node einrichten
         uses: actions/setup-node@v5
@@ -51,6 +60,8 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Node einrichten
         uses: actions/setup-node@v5
@@ -183,20 +194,23 @@ jobs:
           # fuer UserDefaults. Es muss das mitgelieferte ersetzen, nicht
           # daneben liegen: zwei Manifeste im Projekt sind mehrdeutig, und
           # Xcode bindet nur das aus der Projektdatei ein.
-          MANIFESTE=$(find platforms/ios -name PrivacyInfo.xcprivacy | wc -l | tr -d ' ')
-          echo "Privacy-Manifeste im Projekt: $MANIFESTE"
+          # Nur das Manifest der App selbst – Manifeste, die Plugins mitbringen,
+          # begründen deren eigene API-Zugriffe und müssen bleiben (sonst ITMS-91053).
+          APPMANIFESTE=$(find platforms/ios -name PrivacyInfo.xcprivacy -not -path '*/Plugins/*' -not -path '*/Pods/*' -not -path '*/CordovaLib/*' -not -path '*/node_modules/*')
+          MANIFESTE=$(printf '%s\n' $APPMANIFESTE | grep -c . || true)
+          echo "Privacy-Manifeste der App: $MANIFESTE"
 
           if [ "$MANIFESTE" -eq 0 ]; then
             echo "::error::Kein PrivacyInfo.xcprivacy im Projekt. App Store Connect weist den Upload zurück."
             FEHLER=1
           else
-            for M in $(find platforms/ios -name PrivacyInfo.xcprivacy); do
+            for M in $APPMANIFESTE; do
               if ! grep -q 'CA92.1' "$M"; then
                 echo "Ersetze mitgeliefertes Manifest: $M"
                 cp ../res/ios/PrivacyInfo.xcprivacy "$M"
               fi
             done
-            for M in $(find platforms/ios -name PrivacyInfo.xcprivacy); do
+            for M in $APPMANIFESTE; do
               grep -q 'CA92.1' "$M" || { echo "::error::$M ohne Zugriffsgrund."; FEHLER=1; }
             done
           fi
@@ -284,19 +298,9 @@ jobs:
           PROFIL_UUID: ${{ steps.signieren.outputs.profil_uuid }}
         run: |
           set -e
-          cat > build.json <<JSON
-          {
-            "ios": {
-              "release": {
-                "codeSignIdentity": "$IDENTITAET",
-                "developmentTeam": "$TEAM_ID",
-                "provisioningProfile": "$PROFIL_UUID",
-                "packageType": "app-store",
-                "automaticProvisioning": false
-              }
-            }
-          }
-          JSON
+          # Mit jq statt Heredoc: Sonderzeichen in den Werten ergäben sonst ungültiges JSON
+          jq -n --arg id "$IDENTITAET" --arg team "$TEAM_ID" --arg prof "$PROFIL_UUID" \
+            '{ios: {release: {codeSignIdentity: $id, developmentTeam: $team, provisioningProfile: $prof, packageType: "app-store", automaticProvisioning: false}}}' > build.json
           cordova build ios --release --device
           rm -f build.json
 
