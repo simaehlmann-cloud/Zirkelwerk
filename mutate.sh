@@ -95,6 +95,7 @@ pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.6.0" "Stand 0.5.0"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

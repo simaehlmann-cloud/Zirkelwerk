@@ -50,7 +50,7 @@ if (packs) {
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
   /* Zusammengesetzte Schlüssel */
   for (const d of ['ipad', 'ipadmini', 'iphone', 'android', 'desktop']) used.add('device_' + d);
-  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab'); used.add('paywall_pdf');
+  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab'); used.add('paywall_pdf'); used.add('paywall_qr'); used.add('msgQrNewer');
   /* Schalter im PDF-Dialog: Schlüssel stehen als Daten in rows */
   for (const k of ['pdf_grid', 'pdf_head', 'pdf_desc', 'pdf_descHint', 'pdf_taskOnly', 'pdf_taskOnlyHint']) used.add(k);
   for (const k of ['sss', 'sws', 'wsw', 'ssw']) { used.add('lab_desc_' + k); used.add('lab_kind_' + k); }
@@ -126,6 +126,12 @@ else {
   if (vcode === expected && icode === expected) O(`Version ${version} / Build ${expected} überall gleich`);
 }
 if (bundle !== cid) E(`BUNDLE_ID (${bundle}) ≠ config.xml id (${cid})`);
+/* Doku auf demselben Stand: Überschrift im Projektwissen, oberster Eintrag der Änderungen */
+const pw = ((read('PROJEKTWISSEN.md') || '').match(/^# .*Stand ([\d.]+)/) || [])[1];
+const ch = ((read('AENDERUNGEN.md') || '').match(/^## ([\d.]+)/m) || [])[1];
+if (pw !== version) E(`PROJEKTWISSEN.md nennt Stand ${pw}, App ist ${version}`);
+if (ch !== version) E(`AENDERUNGEN.md beginnt mit ${ch}, App ist ${version}`);
+if (pw === version && ch === version) O(`Doku auf Stand ${version}`);
 const sw = read('sw.js') || '';
 const cache = (sw.match(/const CACHE = '([^']+)'/) || [])[1];
 if (cache !== 'zirkelwerk-' + version) E(`Service-Worker-Cache ${cache}, erwartet zirkelwerk-${version}`);

@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.5.0 (Stufe 3c)
+# Zirkelwerk – Projektwissen, Stand 0.6.0 (iPhone und Handy)
 
 ## Entscheidungen
 
