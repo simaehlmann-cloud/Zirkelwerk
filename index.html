@@ -285,6 +285,70 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
 .labelpos button.sel { border-color: var(--accent); background: var(--accent-soft); }
 .labelpos button.mid { visibility: hidden; }
 
+
+/* ---------------- Konstruktion: Leiste und Wiedergabe ---------------- */
+#protoPanel {
+  position: fixed; right: 0; bottom: 0;
+  top: calc(var(--top-h) + env(safe-area-inset-top));
+  width: min(360px, calc(100vw - var(--tool-w) - 24px));
+  padding-right: env(safe-area-inset-right);
+  display: flex; flex-direction: column;
+  background: var(--panel); border-left: 1px solid var(--line);
+  box-shadow: -6px 0 24px rgba(20,30,50,.10);
+  z-index: 18;
+}
+body.tools-right #protoPanel { right: auto; left: 0; border-left: none; border-right: 1px solid var(--line); padding-left: env(safe-area-inset-left); }
+#protoPanel header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--line); }
+#protoPanel header h2 { flex: 1; margin: 0; font-size: 18px; }
+.pb-controls { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 8px 4px; }
+.pb-controls .tb { min-width: 46px; }
+.pb-controls .tb.primary { background: var(--accent); color: #fff; border-radius: 23px; min-width: 56px; }
+:root[data-theme="dark"] .pb-controls .tb.primary { color: #10203a; }
+@media (prefers-color-scheme: dark) { :root[data-theme="auto"] .pb-controls .tb.primary { color: #10203a; } }
+#pbSpeed { font-size: 14px; font-weight: 700; min-width: 48px; }
+#pbStatus { text-align: center; margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+#protoList {
+  flex: 1; overflow-y: auto; margin: 0; padding: 4px 10px 12px 10px; list-style: none;
+  counter-reset: step; -webkit-overflow-scrolling: touch;
+}
+#protoList li {
+  counter-increment: step;
+  position: relative; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 10px 10px 8px; margin: 2px 0; border-radius: 12px;
+  line-height: 1.4; cursor: pointer;
+}
+#protoList li::before {
+  content: counter(step); flex: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--chrome-2); color: var(--ink-soft); font-weight: 700; font-size: 13px;
+}
+#protoList li:active { background: var(--chrome-2); }
+body.playing #protoList li { opacity: .45; }
+body.playing #protoList li.done { opacity: 1; }
+body.playing #protoList li.done::before { background: var(--accent-soft); color: var(--accent); }
+#protoList li.current { background: var(--accent-soft); opacity: 1 !important; }
+#protoList li.current::before { background: var(--accent); color: #fff; }
+#protoEmpty { padding: 16px 20px; }
+.proto-foot { padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; }
+.proto-foot .btn { flex: 1 1 auto; min-height: 42px; font-size: 14px; }
+.proto-foot .hint { flex-basis: 100%; margin: 0; }
+
+/* Schwebende Steuerung während der Wiedergabe – bleibt auch bei
+   geschlossener Leiste, z. B. am Beamer. */
+#pbPill {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  border-radius: 28px; background: rgba(29, 42, 58, .92); color: #fff;
+  box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 19;
+}
+#pbPill .tb { color: #fff; min-width: 48px; height: 48px; border-radius: 24px; }
+#pbPill .tb:active { background: rgba(255,255,255,.15); }
+#pbPillStatus { min-width: 64px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+body.playing #toolbar { opacity: .35; pointer-events: none; }
+body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
+
 /* ---------------- Meldung ---------------- */
 #toast {
   position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
@@ -322,6 +386,7 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
     <button class="tb" id="zoomLabel" onclick="zoomReset()" data-i18n-aria="ariaZoomReset" aria-label="Originalgröße">100 %</button>
     <button class="tb" data-icon="plus" onclick="zoomStep(1)" data-i18n-aria="ariaZoomIn" aria-label="Vergrößern"></button>
   </div>
+  <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
   <button class="tb" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Kurzanleitung"></button>
   <button class="tb" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
 </header>
@@ -347,6 +412,41 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
   <canvas id="cvOver"></canvas>
   <div id="chips"></div>
 </main>
+
+
+<!-- Konstruktion: Schritte, Wiedergabe, Beschreibung -->
+<aside id="protoPanel" hidden aria-labelledby="protoTitle">
+  <header>
+    <h2 id="protoTitle" data-i18n="protoTitle">Konstruktion</h2>
+    <button class="tb" data-icon="close" onclick="closeProto()" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+  </header>
+  <div class="pb-controls">
+    <button class="tb" id="pbFirst" data-icon="first" onclick="pbFirst()" data-i18n-aria="ariaPbFirst" aria-label="Zum Anfang"></button>
+    <button class="tb" id="pbPrev" data-icon="prev" onclick="pbPrev()" data-i18n-aria="ariaPbPrev" aria-label="Schritt zurück"></button>
+    <button class="tb primary" id="pbPlay" onclick="pbToggle()" data-i18n-aria="ariaPbPlay" aria-label="Abspielen"></button>
+    <button class="tb" id="pbNext" data-icon="next" onclick="pbNext()" data-i18n-aria="ariaPbNext" aria-label="Nächster Schritt"></button>
+    <button class="tb" id="pbLast" data-icon="last" onclick="pbLast()" data-i18n-aria="ariaPbLast" aria-label="Zum Ende"></button>
+    <button class="tb" id="pbSpeed" onclick="pbSpeed()" data-i18n-aria="ariaPbSpeed" aria-label="Tempo">1×</button>
+  </div>
+  <p id="pbStatus" class="hint"></p>
+  <ol id="protoList"></ol>
+  <p id="protoEmpty" class="hint" data-i18n="protoEmpty" hidden>Noch keine Schritte. Zeichne mit Lineal, Geodreieck oder Zirkel – jeder Schritt erscheint hier.</p>
+  <div class="proto-foot">
+    <button class="btn" id="btnDescCopy" onclick="copyDescription()"><span data-icon="copy"></span><span data-i18n="btnDescCopy">Beschreibung kopieren</span></button>
+    <button class="btn" id="btnDescShare" onclick="shareDescription()"><span data-icon="share"></span><span data-i18n="btnDescShare">Teilen</span></button>
+    <button class="btn" id="btnPbExit" onclick="pbExit()" hidden data-i18n="btnPbExit">Wiedergabe beenden</button>
+    <p class="hint" id="protoProHint" data-i18n="protoProHint" hidden>Die ausformulierte Konstruktionsbeschreibung gehört zur Vollversion.</p>
+  </div>
+</aside>
+
+<div id="pbPill" hidden>
+  <button class="tb" data-icon="prev" onclick="pbPrev()" data-i18n-aria="ariaPbPrev" aria-label="Schritt zurück"></button>
+  <button class="tb" id="pbPillPlay" onclick="pbToggle()" data-i18n-aria="ariaPbPlay" aria-label="Abspielen"></button>
+  <button class="tb" data-icon="next" onclick="pbNext()" data-i18n-aria="ariaPbNext" aria-label="Nächster Schritt"></button>
+  <span id="pbPillStatus"></span>
+  <button class="tb" data-icon="steps" onclick="openProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
+  <button class="tb" data-icon="close" onclick="pbExit()" data-i18n-aria="btnPbExit" aria-label="Wiedergabe beenden"></button>
+</div>
 
 <div id="stylePop" class="pop" hidden>
   <h4 id="stylePopTitle" data-i18n="styleColor">Farbe</h4>
@@ -472,6 +572,7 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
       <div class="help-item"><div class="ic" data-icon="compass"></div><div><strong data-i18n="helpCompassT">Zirkel</strong><p data-i18n="helpCompass">Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="geo"></div><div><strong data-i18n="helpGeoT">Geodreieck und Lineal</strong><p data-i18n="helpGeo">Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.</p></div></div>
     </div>
@@ -606,7 +707,46 @@ const i18n = {
     msgStoreUnavailable: 'Der Store ist gerade nicht erreichbar. Bitte später erneut versuchen.',
     msgPurchaseFailed: 'Der Kauf konnte nicht abgeschlossen werden.',
     msgRestored: 'Die Vollversion wurde wiederhergestellt.',
-    msgNothingToRestore: 'Für diese Apple-ID bzw. dieses Google-Konto wurde kein Kauf gefunden.'
+    msgNothingToRestore: 'Für diese Apple-ID bzw. dieses Google-Konto wurde kein Kauf gefunden.',
+
+    ariaProto: 'Konstruktion', protoTitle: 'Konstruktion',
+    ariaPbFirst: 'Zum Anfang', ariaPbPrev: 'Schritt zurück', ariaPbPlay: 'Abspielen', ariaPbPause: 'Anhalten',
+    ariaPbNext: 'Nächster Schritt', ariaPbLast: 'Zum Ende', ariaPbSpeed: 'Tempo',
+    protoEmpty: 'Noch keine Schritte. Zeichne mit Lineal, Geodreieck oder Zirkel – jeder Schritt erscheint hier.',
+    btnDescCopy: 'Beschreibung kopieren', btnDescShare: 'Teilen', btnPbExit: 'Wiedergabe beenden',
+    protoProHint: 'Die ausformulierte Konstruktionsbeschreibung gehört zur Vollversion.',
+    pbStatus: 'Schritt {k} von {n}', pbCount: '{n} Schritte', pbCount1: '1 Schritt',
+    msgNoSteps: 'Auf diesem Blatt gibt es noch keine Konstruktionsschritte.',
+    msgCopied: 'Beschreibung kopiert.', msgCopyFailed: 'Kopieren hat nicht geklappt.',
+    paywall_describe: 'Die ausformulierte Konstruktionsbeschreibung zum Kopieren und Teilen gehört zur Vollversion.',
+    helpProtoT: 'Konstruktion abspielen',
+    helpProto: 'Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.',
+
+    /* Konstruktionsbeschreibung: d_* Sätze, dv_* Satzteile im Dativ, s_* Kurzformen */
+    d_and: ' und ', s_around: 'um',
+    d_seg: 'Zeichne die Strecke {n} mit der Länge {l}.',
+    d_segFrom: 'Zeichne von {a} aus eine Strecke der Länge {l}.',
+    d_segU: 'Zeichne eine Strecke der Länge {l}.',
+    d_perp: 'Zeichne die Senkrechte zu {s} durch {p}.', d_perpU: 'Zeichne eine Senkrechte durch {p}.',
+    d_par: 'Zeichne die Parallele zu {s} durch {p}.', d_parU: 'Zeichne eine Parallele durch {p}.',
+    d_pair: '{a} mit {b}', d_connect: 'Verbinde {list}.',
+    d_arc: 'Zeichne einen Kreisbogen um {c} mit dem Radius r = {r}.',
+    d_circle: 'Zeichne einen Kreis um {c} mit dem Radius r = {r}.',
+    d_arcU: 'Zeichne einen Kreisbogen mit dem Radius r = {r}.',
+    d_circleU: 'Zeichne einen Kreis mit dem Radius r = {r}.',
+    d_arcTaken: 'Greife mit dem Zirkel die Länge von {s} ab und zeichne einen Kreisbogen um {c}.',
+    d_circleTaken: 'Greife mit dem Zirkel die Länge von {s} ab und zeichne einen Kreis um {c}.',
+    d_crossArcs: 'Der Schnittpunkt der beiden Kreisbögen ist {p}.',
+    d_crossArcsU: 'Markiere den Schnittpunkt der beiden Kreisbögen.',
+    d_crossArcs2: 'Die Schnittpunkte der beiden Kreisbögen sind {list}.', d_cross2: 'Die Schnittpunkte von {a} und {b} sind {list}.',
+    d_cross: 'Der Schnittpunkt von {a} und {b} ist {p}.', d_crossU: 'Markiere den Schnittpunkt von {a} und {b}.',
+    d_on: 'Markiere auf {a} den Punkt {p}.', d_onU: 'Markiere einen Punkt auf {a}.',
+    d_point: 'Zeichne einen Punkt {p}.', d_pointU: 'Zeichne einen Punkt.',
+    d_other: 'Skizze und Beschriftung.',
+    dv_segN: 'der Strecke {n}', dv_seg: 'der Strecke', dv_arcN: 'dem Kreisbogen um {c}', dv_arc: 'dem Kreisbogen',
+    dv_circleN: 'dem Kreis um {c}', dv_circle: 'dem Kreis',
+    s_seg: 'Strecke', s_arc: 'Kreisbogen', s_circle: 'Kreis', s_cross: 'Schnittpunkt', s_point: 'Punkt',
+    s_connect: 'Verbinde', s_perp: 'Senkrechte', s_par: 'Parallele', s_to: 'zu {s}', s_other: 'Skizze'
   },
 
   en: {
@@ -693,7 +833,45 @@ const i18n = {
     msgStoreUnavailable: 'The store is not reachable right now. Please try again later.',
     msgPurchaseFailed: 'The purchase could not be completed.',
     msgRestored: 'The full version has been restored.',
-    msgNothingToRestore: 'No purchase was found for this Apple ID or Google account.'
+    msgNothingToRestore: 'No purchase was found for this Apple ID or Google account.',
+
+    ariaProto: 'Construction', protoTitle: 'Construction',
+    ariaPbFirst: 'To the start', ariaPbPrev: 'Previous step', ariaPbPlay: 'Play', ariaPbPause: 'Pause',
+    ariaPbNext: 'Next step', ariaPbLast: 'To the end', ariaPbSpeed: 'Speed',
+    protoEmpty: 'No steps yet. Draw with the ruler, set square or compass – every step appears here.',
+    btnDescCopy: 'Copy description', btnDescShare: 'Share', btnPbExit: 'End playback',
+    protoProHint: 'The written-out construction description is part of the full version.',
+    pbStatus: 'Step {k} of {n}', pbCount: '{n} steps', pbCount1: '1 step',
+    msgNoSteps: 'There are no construction steps on this sheet yet.',
+    msgCopied: 'Description copied.', msgCopyFailed: 'Copying did not work.',
+    paywall_describe: 'The written-out construction description for copying and sharing is part of the full version.',
+    helpProtoT: 'Play back a construction',
+    helpProto: 'The button at the top right opens the list of all construction steps. Press ▶ to play the construction step by step – the ruler, set square and compass draw it for you. Ideal for showing on a projector.',
+
+    d_and: ' and ', s_around: 'centre',
+    d_seg: 'Draw the line segment {n} with length {l}.',
+    d_segFrom: 'Starting at {a}, draw a line segment of length {l}.',
+    d_segU: 'Draw a line segment of length {l}.',
+    d_perp: 'Draw the perpendicular to {s} through {p}.', d_perpU: 'Draw a perpendicular through {p}.',
+    d_par: 'Draw the parallel to {s} through {p}.', d_parU: 'Draw a parallel line through {p}.',
+    d_pair: '{a} to {b}', d_connect: 'Join {list}.',
+    d_arc: 'Draw an arc with centre {c} and radius r = {r}.',
+    d_circle: 'Draw a circle with centre {c} and radius r = {r}.',
+    d_arcU: 'Draw an arc with radius r = {r}.',
+    d_circleU: 'Draw a circle with radius r = {r}.',
+    d_arcTaken: 'Set the compass to the length of {s} and draw an arc with centre {c}.',
+    d_circleTaken: 'Set the compass to the length of {s} and draw a circle with centre {c}.',
+    d_crossArcs: 'The intersection of the two arcs is {p}.',
+    d_crossArcsU: 'Mark the intersection of the two arcs.',
+    d_crossArcs2: 'The intersections of the two arcs are {list}.', d_cross2: 'The intersections of {a} and {b} are {list}.',
+    d_cross: 'The intersection of {a} and {b} is {p}.', d_crossU: 'Mark the intersection of {a} and {b}.',
+    d_on: 'Mark the point {p} on {a}.', d_onU: 'Mark a point on {a}.',
+    d_point: 'Draw a point {p}.', d_pointU: 'Draw a point.',
+    d_other: 'Sketch and labels.',
+    dv_segN: 'the line segment {n}', dv_seg: 'the line segment', dv_arcN: 'the arc with centre {c}', dv_arc: 'the arc',
+    dv_circleN: 'the circle with centre {c}', dv_circle: 'the circle',
+    s_seg: 'Line segment', s_arc: 'Arc', s_circle: 'Circle', s_cross: 'Intersection', s_point: 'Point',
+    s_connect: 'Join', s_perp: 'Perpendicular', s_par: 'Parallel', s_to: 'to {s}', s_other: 'Sketch'
   }
 };
 
@@ -1216,6 +1394,18 @@ function cleanColor(c, fallback) { return (typeof c === 'string' && /^#[0-9a-fA-
 function cleanNum(v, lo, hi, fallback) { return isNum(v) ? clamp(v, lo, hi) : fallback; }
 function cleanStr(v, max) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max) : ''; }
 
+/* Metadaten zur Entstehung (Stufe 2). Verweise auf andere Objekte sind
+   Kennungen; sanitizeDoc schreibt sie auf die neuen Kennungen um. */
+function cleanId(v) { return (typeof v === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(v)) ? v : null; }
+function cleanRs(rs) {
+  if (!rs || typeof rs !== 'object') return null;
+  if (rs.t === 'set' || rs.t === 'typed') return { t: rs.t };
+  if (rs.t === 'taken' && Array.isArray(rs.p) && rs.p.length === 2) {
+    const a = cleanId(rs.p[0]), b = cleanId(rs.p[1]);
+    if (a && b) return { t: 'taken', p: [a, b] };
+  }
+  return null;
+}
 function sanitizeObject(o, newId) {
   if (!o || typeof o !== 'object') return null;
   const C = LIMITS.coord, col = cleanColor(o.c, '#3b3f45');
@@ -1227,10 +1417,19 @@ function sanitizeObject(o, newId) {
       return { id: newId, type: 'point', x: o.x, y: o.y, label: cleanStr(o.label, 12), ld: cleanNum(Math.round(o.ld), 0, 7, 7), c: col };
     case 'segment':
       if (!need('x1', 'y1', 'x2', 'y2')) return null;
-      return { id: newId, type: 'segment', x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, c: col, w, al };
+    {
+      const seg = { id: newId, type: 'segment', x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, c: col, w, al };
+      if (o.m && (o.m.via === 'ruler' || o.m.via === 'geo')) seg.m = { via: o.m.via };
+      return seg;
+    }
     case 'arc':
       if (!need('cx', 'cy', 'r', 'a0', 'sweep') || o.r <= 0) return null;
-      return { id: newId, type: 'arc', cx: o.cx, cy: o.cy, r: o.r, a0: o.a0, sweep: clamp(o.sweep, -TAU, TAU), c: col, w, al };
+    {
+      const arc = { id: newId, type: 'arc', cx: o.cx, cy: o.cy, r: o.r, a0: o.a0, sweep: clamp(o.sweep, -TAU, TAU), c: col, w, al };
+      const rs = o.m && cleanRs(o.m.rs);
+      if (rs) arc.m = { rs };
+      return arc;
+    }
     case 'stroke': {
       if (!Array.isArray(o.pts) || o.pts.length < 2 || o.pts.length > LIMITS.strokePts) return null;
       const pts = [];
@@ -1259,9 +1458,29 @@ function sanitizeDoc(raw, newDocId, now) {
   if (raw.objects.length > LIMITS.objects) throw new Error('toolarge');
   let seq = 1;
   const objects = [];
+  const idMap = new Map();          // alte Kennung → neue
   for (const o of raw.objects) {
     const clean = sanitizeObject(o, 'o' + seq);
-    if (clean) { objects.push(clean); seq++; }
+    if (clean) {
+      if (o && (typeof o.id === 'string' || typeof o.id === 'number')) idMap.set(String(o.id), clean.id);
+      objects.push(clean); seq++;
+    }
+  }
+  /* Verweise auf Punkte zeigen nach dem Neunummerieren sonst ins Leere –
+     oder schlimmer auf einen anderen Punkt. Fehlt das Ziel, entfällt die
+     Angabe („abgegriffen von …") und der Radius wird als Zahl beschrieben. */
+  const remap = id => idMap.get(id) || null;
+  for (const o of objects) {
+    if (o.m && o.m.rs && o.m.rs.t === 'taken') {
+      const a = remap(o.m.rs.p[0]), b = remap(o.m.rs.p[1]);
+      o.m.rs = (a && b) ? { t: 'taken', p: [a, b] } : { t: 'set' };
+    }
+  }
+  const inst = sanitizeInst(raw.inst);
+  inst.compass.pid = inst.compass.pid ? remap(inst.compass.pid) : null;
+  if (inst.compass.rs && inst.compass.rs.t === 'taken') {
+    const a = remap(inst.compass.rs.p[0]), b = remap(inst.compass.rs.p[1]);
+    inst.compass.rs = (a && b) ? { t: 'taken', p: [a, b] } : { t: 'set' };
   }
   const view = raw.view && typeof raw.view === 'object' ? raw.view : {};
   return {
@@ -1272,7 +1491,7 @@ function sanitizeDoc(raw, newDocId, now) {
     modified: now,
     objects, seq,
     view: { cx: cleanNum(view.cx, -LIMITS.coord, LIMITS.coord, 0), cy: cleanNum(view.cy, -LIMITS.coord, LIMITS.coord, 0), zoom: cleanNum(view.zoom, 0.2, 10, 1) },
-    inst: sanitizeInst(raw.inst)
+    inst
   };
 }
 
@@ -1280,7 +1499,7 @@ function defaultInst() {
   return {
     ruler: { on: false, x: 0, y: 40, rot: 0 },
     geo: { on: false, x: 0, y: 60, rot: 0 },
-    compass: { on: false, nx: -20, ny: 0, r: 40, ang: 0, lock: false },
+    compass: { on: false, nx: -20, ny: 0, r: 40, ang: 0, lock: false, pid: null, rs: { t: 'set' } },
     order: ['ruler', 'geo', 'compass']
   };
 }
@@ -1305,6 +1524,8 @@ function sanitizeInst(raw) {
     d.compass.r = cleanNum(c.r, COMPASS.minR, COMPASS.maxR, d.compass.r);
     d.compass.ang = cleanNum(c.ang, -1e3, 1e3, 0);
     d.compass.lock = !!c.lock;
+    d.compass.pid = cleanId(c.pid);
+    d.compass.rs = cleanRs(c.rs) || { t: 'set' };
   }
   if (Array.isArray(raw.order) && raw.order.length === 3 &&
       ['ruler', 'geo', 'compass'].every(k => raw.order.includes(k))) d.order = raw.order.slice();
@@ -1331,12 +1552,217 @@ function boundsOf(objects) {
   }
   return x0 === Infinity ? null : { x0, y0, x1, y1 };
 }
+/* ---------- Konstruktionsbeschreibung ---------- */
+/* Aus den Objekten in Entstehungsreihenfolge werden Schritte in Schulsprache
+   (Befehlsform). Fast alles wird aus der Geometrie erschlossen – Mittelpunkte,
+   Schnittpunkte, Senkrechte –, damit es auch für ältere Blätter und nach dem
+   Umbenennen von Punkten stimmt. Mitgeschrieben ist nur, was man nicht sehen
+   kann: ob ein Radius abgegriffen wurde und an welchem Gerät eine Strecke
+   entstand.
+   T ist das Sprachpaket (i18n[lang]); Schlüssel d_* sind Sätze, dv_* Satzteile
+   im Dativ, s_* Kurzformen. Freihandstriche, Marker und Texte bilden keine
+   eigenen Schritte, sondern hängen sich an den vorigen an. */
+const DESC_EPS = 1e-3;
+function fmtCm(mm, lang) {
+  const v = Math.round(mm) / 10;
+  return fmtNum(v, Number.isInteger(v) ? 0 : 1, lang) + ' cm';
+}
+function describe(objects, lang, T) {
+  const fill = (k, v) => {
+    let s = (T && T[k] !== undefined) ? T[k] : k;
+    if (v) for (const n of Object.keys(v)) s = s.split('{' + n + '}').join(v[n]);
+    return s;
+  };
+  const idx = new Map(objects.map((o, i) => [o.id, i]));
+  const byId = new Map(objects.map(o => [o.id, o]));
+  const named = objects.filter(o => o.type === 'point' && o.label);
+  const isGeo = o => (o.type === 'segment' || o.type === 'arc') && (o.al == null || o.al >= 1);
+  const same = (p, x, y) => Math.abs(p.x - x) < DESC_EPS && Math.abs(p.y - y) < DESC_EPS;
+  const pointAt = (x, y) => named.find(p => same(p, x, y)) || null;
+  const pointAtBefore = (x, y, i) => named.find(p => idx.get(p.id) < i && same(p, x, y)) || null;
+  const segName = s => { const a = pointAt(s.x1, s.y1), b = pointAt(s.x2, s.y2); return a && b ? a.label + b.label : null; };
+  const centerName = a => { const p = pointAt(a.cx, a.cy); return p ? p.label : null; };
+  const onObj = (p, o) => o.type === 'segment'
+    ? distToSeg(p.x, p.y, o.x1, o.y1, o.x2, o.y2) < DESC_EPS
+    : distToArc(p.x, p.y, o) < DESC_EPS;
+  const dative = o => {
+    if (o.type === 'segment') { const n = segName(o); return n ? fill('dv_segN', { n }) : fill('dv_seg'); }
+    const c = centerName(o), full = isFullCircle(o);
+    return c ? fill(full ? 'dv_circleN' : 'dv_arcN', { c }) : fill(full ? 'dv_circle' : 'dv_arc');
+  };
+
+  const steps = [];
+  const assigned = new Set();       // Objekte, die schon in einem Schritt stecken
+  let pending = [];
+  const push = st => {
+    st.ids = pending.concat(st.ids); pending = [];
+    for (const id of st.ids) assigned.add(id);
+    steps.push(st);
+    return st;
+  };
+  const assign = (st, id) => { st.ids.push(id); assigned.add(id); };
+  const knownAt = (x, y) => named.find(p => assigned.has(p.id) && same(p, x, y)) || null;
+  const unknownAt = (x, y) => named.find(p => !assigned.has(p.id) && same(p, x, y)) || null;
+  const geoBefore = (p, i, excl) => {
+    const on = [];
+    for (let k = i - 1; k >= 0 && on.length < 2; k--) {
+      const g = objects[k];
+      if (g.id !== excl && isGeo(g) && onObj(p, g)) on.push(g);
+    }
+    return on.reverse();   // ältere zuerst
+  };
+  /* Schnittpunkte derselben zwei Linien werden zu einem Satz zusammengefasst
+     („Die Schnittpunkte … sind S und T"). */
+  const addCross = (p, on) => {
+    const last = steps[steps.length - 1];
+    if (last && last.kind === 'cross' && !pending.length && p.label && last.ps.every(q => q.label) &&
+        last.on[0].id === on[0].id && last.on[1].id === on[1].id && last.ps.length < 4) {
+      last.ps.push(p); assign(last, p.id); return;
+    }
+    push({ kind: 'cross', ids: [p.id], ps: [p], on });
+  };
+  /* Ein Punkt, der erst später benannt wurde, aber in einem Schnittpunkt
+     liegt, gilt als konstruiert, sobald eine Linie ihn benutzt. So wird aus
+     „Zeichne die Strecke AC mit 4 cm" richtig „C ist der Schnittpunkt …,
+     verbinde A mit C" – C ist konstruiert, nicht abgemessen. */
+  const resolveEarly = (x, y, i, excl) => {
+    const p = unknownAt(x, y);
+    if (!p) return;
+    const on = geoBefore(p, i, excl);
+    if (on.length >= 2) addCross(p, on);
+  };
+
+  objects.forEach((o, i) => {
+    if (assigned.has(o.id)) return;
+    if (o.type === 'segment' && isGeo(o)) {
+      resolveEarly(o.x1, o.y1, i, o.id);
+      resolveEarly(o.x2, o.y2, i, o.id);
+      const a0 = knownAt(o.x1, o.y1), b0 = knownAt(o.x2, o.y2);
+      if (a0 && b0) {
+        const last = steps[steps.length - 1];
+        if (last && last.kind === 'connect' && last.pairs.length < 3 && !pending.length) {
+          assign(last, o.id); last.pairs.push([a0, b0]);
+        } else push({ kind: 'connect', ids: [o.id], pairs: [[a0, b0]] });
+        return;
+      }
+      const through = a0 || b0 || named.find(p => assigned.has(p.id) && onObj(p, o)) || null;
+      /* Bezug: die jüngste passende Strecke – benannte Strecken zuerst, damit
+         „Parallele zu AB" nicht zur „Senkrechten" auf eine Hilfslinie wird. */
+      let rel = null, relAny = null;
+      if (through) {
+        const dir = Math.atan2(o.y2 - o.y1, o.x2 - o.x1);
+        for (let k = i - 1; k >= 0 && !rel; k--) {
+          const s1 = objects[k];
+          if (s1.type !== 'segment' || !isGeo(s1)) continue;
+          let d = Math.abs(angDiff(Math.atan2(s1.y2 - s1.y1, s1.x2 - s1.x1), dir));
+          d = Math.min(d, Math.PI - d);
+          let r = null;
+          if (Math.abs(d - Math.PI / 2) < 1e-4) r = { k: 'perp', s1 };
+          else if (d < 1e-4 && !onObj(through, s1)) r = { k: 'par', s1 };
+          if (!r) continue;
+          if (segName(s1)) rel = r; else if (!relAny) relAny = r;
+        }
+        rel = rel || relAny;
+      }
+      const st = push({ kind: 'seg', ids: [o.id], o, rel, through, start: a0 || b0 });
+      /* Endpunkte, die erst danach benannt wurden, gehören zu diesem Schritt. */
+      for (const [x, y] of [[o.x1, o.y1], [o.x2, o.y2]]) { const p = unknownAt(x, y); if (p) assign(st, p.id); }
+      return;
+    }
+    if (o.type === 'arc' && isGeo(o)) {
+      resolveEarly(o.cx, o.cy, i, o.id);
+      const st = push({ kind: 'arc', ids: [o.id], o });
+      const p = unknownAt(o.cx, o.cy);
+      if (p) assign(st, p.id);
+      return;
+    }
+    if (o.type === 'point') {
+      const on = geoBefore(o, i, null);
+      if (on.length >= 2) { addCross(o, on); return; }
+      push({ kind: on.length === 1 ? 'on' : 'point', ids: [o.id], o, on });
+      return;
+    }
+    if (steps.length) assign(steps[steps.length - 1], o.id);
+    else pending.push(o.id);
+  });
+  if (pending.length) push({ kind: 'other', ids: [] });
+
+  const and = fill('d_and'), around = fill('s_around');
+  const list = items => items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + and + items[items.length - 1];
+  for (const st of steps) {
+    const o = st.o;
+    switch (st.kind) {
+      case 'seg': {
+        const n = segName(o), l = fmtCm(dist(o.x1, o.y1, o.x2, o.y2), lang);
+        if (st.rel && st.through && st.through.label) {
+          const sn = segName(st.rel.s1), p = st.through.label;
+          const key = st.rel.k === 'perp' ? 'd_perp' : 'd_par';
+          st.text = fill(sn ? key : key + 'U', { s: sn, p });
+          st.short = fill(st.rel.k === 'perp' ? 's_perp' : 's_par') + (sn ? ' ' + fill('s_to', { s: sn }) : '') + ' · ' + p;
+        } else if (n) {
+          st.text = fill('d_seg', { n, l });
+          st.short = fill('s_seg') + ' ' + n + ' · ' + l;
+        } else if (st.start) {
+          st.text = fill('d_segFrom', { a: st.start.label, l });
+          st.short = fill('s_seg') + ' · ' + l;
+        } else {
+          st.text = fill('d_segU', { l });
+          st.short = fill('s_seg') + ' · ' + l;
+        }
+        break;
+      }
+      case 'connect': {
+        const pairs = st.pairs.map(([a, b]) => fill('d_pair', { a: a.label, b: b.label }));
+        st.text = fill('d_connect', { list: list(pairs) });
+        st.short = fill('s_connect') + ' ' + st.pairs.map(([a, b]) => a.label + b.label).join(', ');
+        break;
+      }
+      case 'arc': {
+        const c = centerName(o), full = isFullCircle(o), r = fmtCm(o.r, lang);
+        const rs = o.m && o.m.rs;
+        let taken = null;
+        if (rs && rs.t === 'taken') {
+          const pa = byId.get(rs.p[0]), pb = byId.get(rs.p[1]);
+          if (pa && pb && pa.label && pb.label && Math.abs(dist(pa.x, pa.y, pb.x, pb.y) - o.r) < DESC_EPS) taken = pa.label + pb.label;
+        }
+        if (taken && c) st.text = fill(full ? 'd_circleTaken' : 'd_arcTaken', { s: taken, c });
+        else if (c) st.text = fill(full ? 'd_circle' : 'd_arc', { c, r });
+        else st.text = fill(full ? 'd_circleU' : 'd_arcU', { r });
+        st.short = fill(full ? 's_circle' : 's_arc') + (c ? ' ' + around + ' ' + c : '') + ' · r = ' + (taken ? '|' + taken + '|' : r);
+        break;
+      }
+      case 'cross': {
+        const labels = st.ps.map(q => q.label), p = labels[0];
+        const bothArcs = st.on[0].type === 'arc' && st.on[1].type === 'arc';
+        const a = dative(st.on[0]), b = dative(st.on[1]);
+        if (labels.length > 1) st.text = fill(bothArcs ? 'd_crossArcs2' : 'd_cross2', { a, b, list: list(labels) });
+        else if (bothArcs) st.text = fill(p ? 'd_crossArcs' : 'd_crossArcsU', { p });
+        else st.text = fill(p ? 'd_cross' : 'd_crossU', { a, b, p });
+        st.short = fill('s_cross') + (p ? ' ' + labels.join(', ') : '');
+        break;
+      }
+      case 'on':
+        st.text = fill(o.label ? 'd_on' : 'd_onU', { a: dative(st.on[0]), p: o.label });
+        st.short = fill('s_point') + (o.label ? ' ' + o.label : '');
+        break;
+      case 'point':
+        st.text = fill(o.label ? 'd_point' : 'd_pointU', { p: o.label });
+        st.short = fill('s_point') + (o.label ? ' ' + o.label : '');
+        break;
+      default:
+        st.text = fill('d_other');
+        st.short = fill('s_other');
+    }
+    delete st.o; delete st.on; delete st.rel; delete st.through; delete st.start; delete st.pairs; delete st.ps;
+  }
+  return steps;
+}
 /* ==CORE-END== */
 
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -1421,6 +1847,7 @@ function applyLanguage() {
   updateTitle();
   renderChipsStatic();
   if (!document.getElementById('settingsPanel').hidden) refreshSettingsUI();
+  if (doc) { if (PB.on) PB.steps = currentSteps(); renderProto(); }
   requestRender(false);
 }
 function chooseLanguage(l) { S.lang = l; saveSettings(); applyLanguage(); refreshSettingsUI(); }
@@ -1450,7 +1877,16 @@ const ICONS = {
   exportI: '<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
-  circle: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'
+  circle: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+  steps: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 5l1.5-1V8"/><path d="M3.8 11.2a1.3 1.3 0 0 1 2.4.6c0 .9-2.4 2.2-2.4 2.2h2.6"/><path d="M3.8 16.6a1.2 1.2 0 1 1 1.3 1.6 1.2 1.2 0 1 1-1.3 1.6"/>',
+  first: '<path d="M6 5v14"/><path d="M18 6 10 12l8 6z" fill="currentColor"/>',
+  prev: '<path d="M15 6 9 12l6 6"/>',
+  next: '<path d="m9 6 6 6-6 6"/>',
+  last: '<path d="M18 5v14"/><path d="M6 6l8 6-8 6z" fill="currentColor"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
+  pause: '<rect x="6.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/><rect x="13.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'
 };
 function iconSvg(name) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
@@ -1626,7 +2062,8 @@ function renderBase() {
   drawGrid(ctx);
   if (!doc) return;
   worldTransform(ctx);
-  drawObjects(ctx, doc.objects, sc(), null);
+  if (PB.on) { const vis = pbVisibleIds(); drawObjects(ctx, doc.objects.filter(o => vis.has(o.id)), sc(), null); }
+  else drawObjects(ctx, doc.objects, sc(), null);
 }
 
 function drawGrid(ctx) {
@@ -1755,6 +2192,7 @@ function renderOver() {
   if (!doc) return;
   worldTransform(ctx);
   const k = sc();
+  if (PB.on) { drawPlayback(ctx, k); return; }
   /* Vorschau unter den Geräten, so wie der Strich auf dem Papier liegt. */
   drawGesturePreview(ctx, k);
   for (const kind of doc.inst.order) {
@@ -2116,6 +2554,8 @@ function startGesture(e, p) {
   const base = { ptype, pid: e.pointerId, start: p, moved: false };
 
   if (ptype === 'mouse' && (e.button === 1 || e.button === 2)) return beginPan(base, p);
+  /* Wiedergabe: nur verschieben und zoomen, nichts verändern. */
+  if (PB.on) return beginPan(base, p);
 
   const ch = hitCompass(w, ptype);
   if (ch) return beginCompass(base, ch, w);
@@ -2355,7 +2795,7 @@ function finishEdge(g) {
   const L = edgeLen(g.edge);
   if (Math.abs(g.t1 - g.t0) * L < 0.5) return;
   const a = edgePoint(g.edge, g.t0), b = edgePoint(g.edge, g.t1);
-  addObjects([{ type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: g.style.c, w: g.style.w, al: g.style.al }]);
+  addObjects([{ type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: g.style.c, w: g.style.w, al: g.style.al, m: { via: g.inst === 'geo' ? 'geo' : 'ruler' } }]);
 }
 
 /* ---------- Radierer ---------- */
@@ -2566,6 +3006,8 @@ function moveNeedle(w) {
   const raw = { x: w.x + G.offX, y: w.y + G.offY };
   const s = snapFree(raw, G.ptype, false);
   c.nx = s.x; c.ny = s.y;
+  /* Steht die Spitze auf einem benannten Punkt, merken – für „abgegriffen". */
+  c.pid = s.kind === 'point' ? s.id : null;
   G.snapShow = s.kind !== 'free' ? s : null;
 }
 function moveLead(w) {
@@ -2579,6 +3021,8 @@ function moveLead(w) {
     if (s.kind === 'free' && S.snap) r = roundTo(r, 1);
     c.r = clamp(r, COMPASS.minR, COMPASS.maxR);
     if (dist(c.nx, c.ny, s.x, s.y) > 0.2) c.ang = Math.atan2(s.y - c.ny, s.x - c.nx);
+    /* Spitze auf A, Mine auf B: Länge AB abgegriffen. */
+    c.rs = (s.kind === 'point' && c.pid && s.id !== c.pid) ? { t: 'taken', p: [c.pid, s.id] } : { t: 'set' };
     G.snapShow = s.kind !== 'free' ? s : null;
   }
   G.live = { text: 'r = ' + fmtLen(c.r, lang), at: compassParts(c) };
@@ -2594,12 +3038,12 @@ function moveArc(w) {
 function finishArc(g) {
   const c = doc.inst.compass;
   if (Math.abs(g.sweep) < 0.5 * DEG || c.r < 0.5) { scheduleSave(false); return; }
-  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: g.start, sweep: g.sweep, c: S.pencilC, w: S.pencilW, al: 1 }]);
+  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: g.start, sweep: g.sweep, c: S.pencilC, w: S.pencilW, al: 1, m: { rs: clone(c.rs || { t: 'set' }) } }]);
 }
 function compassFullCircle() {
   const c = doc.inst.compass;
   if (c.r < 0.5) { notify(t('msgRadiusZero')); return; }
-  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: c.ang, sweep: TAU, c: S.pencilC, w: S.pencilW, al: 1 }]);
+  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: c.ang, sweep: TAU, c: S.pencilC, w: S.pencilW, al: 1, m: { rs: clone(c.rs || { t: 'set' }) } }]);
 }
 function compassToggleLock() {
   doc.inst.compass.lock = !doc.inst.compass.lock;
@@ -2617,7 +3061,7 @@ async function compassEnterRadius() {
   if (v === null) return;
   const n = parseNum(v);
   if (!isNum(n) || n < 0 || n * 10 > COMPASS.maxR) { notify(t('msgRadiusInvalid', { max: COMPASS.maxR / 10 }), true); return; }
-  c.r = n * 10; c.lock = true;
+  c.r = n * 10; c.lock = true; c.rs = { t: 'typed' };
   scheduleSave(false); renderChipsStatic(); requestRender(false);
 }
 
@@ -2720,10 +3164,12 @@ function modifyObject(o, changes) {
   hist.push(e);
   contentChanged();
 }
-function undo() { if (G) return; if (hist.undo(doc.objects)) contentChanged(); }
-function redo() { if (G) return; if (hist.redo(doc.objects)) contentChanged(); }
+function undo() { if (G || PB.on) return; if (hist.undo(doc.objects)) contentChanged(); }
+function redo() { if (G || PB.on) return; if (hist.redo(doc.objects)) contentChanged(); }
 function contentChanged() {
   snapCache = null;
+  stepsCache = null;
+  if (protoOpen()) scheduleProtoRender();
   contentDirty = true;
   updateUndoButtons();
   scheduleSave(true);
@@ -2790,6 +3236,10 @@ function prepareLoaded(d) {
   return Object.assign(sanitizeDoc(d, d.id, d.modified), { modified: d.modified, thumb: d.thumb || null });
 }
 async function loadDoc(d) {
+  /* Ein anderes Blatt beendet eine laufende Wiedergabe – ohne die alte
+     Ansicht zurückzuholen, die gehörte zum alten Blatt. */
+  if (PB.on) { pbStop(); PB.on = false; PB.playing = false; }
+  stepsCache = null;
   doc = d;
   hist.clear();
   snapCache = null;
@@ -2802,6 +3252,7 @@ async function loadDoc(d) {
   updateInstButtons();
   document.getElementById('zoomLabel').textContent = Math.round(view.zoom * 100) + ' %';
   renderChipsStatic();
+  renderProto();
   requestRender(true);
 }
 
@@ -2935,8 +3386,7 @@ function exportSheet(d) {
   const data = Object.assign({}, src);
   delete data.thumb;
   const json = JSON.stringify(data);
-  const base = (sheetName(src).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'blatt').slice(0, 40);
-  deliverFile(base + '.zirkelwerk', new Blob([json], { type: 'application/json' }));
+  deliverFile(safeFileBase(sheetName(src)) + '.zirkelwerk', new Blob([json], { type: 'application/json' }));
 }
 
 function importSheet() {
@@ -3026,7 +3476,7 @@ function toggleInstrument(kind) {
     const c = viewCenter(), vw = mm(stageW), vh = mm(stageH);
     if (kind === 'ruler') { inst.x = c.x; inst.y = c.y + Math.min(45, vh * 0.3); inst.rot = 0; }
     else if (kind === 'geo') { inst.x = c.x + Math.min(30, vw * 0.12); inst.y = c.y + Math.min(30, vh * 0.2); inst.rot = 0; }
-    else { inst.nx = c.x - Math.min(70, vw * 0.3); inst.ny = c.y - Math.min(10, vh * 0.05); inst.ang = 0; }
+    else { inst.nx = c.x - Math.min(70, vw * 0.3); inst.ny = c.y - Math.min(10, vh * 0.05); inst.ang = 0; inst.pid = null; }
     bringToFront(kind);
     if (kind !== 'compass') lastTouched[kind] = performance.now();
   }
@@ -3163,6 +3613,7 @@ function placeChip(el, sx, sy) {
 }
 function updateChips() {
   if (!doc || !chipEls.compass) return;
+  if (PB.on) { for (const k of ['compass', 'ruler', 'geo', 'live']) chipEls[k].hidden = true; return; }
   const c = doc.inst.compass;
   const busy = !!G;
   /* Zirkel */
@@ -3465,6 +3916,385 @@ async function showPaywall(reason) {
 }
 
 /* ---------------------------------------------------------
+   Konstruktion: Schritte, Wiedergabe, Beschreibung
+   --------------------------------------------------------- */
+/* Die Schritte kommen aus describe() im Kern. Die Wiedergabe zeigt das Blatt
+   Schritt für Schritt; jeder Schritt wird animiert: Das passende Gerät gleitet
+   an seinen Platz, dann entsteht die Linie bzw. der Bogen. Während der
+   Wiedergabe lässt sich das Blatt nur verschieben und zoomen. */
+const PB = {
+  on: false, steps: [], cur: 0, anim: null, playing: false, speed: 1,
+  inst: { ruler: null, geo: null, compass: null }, prevView: null, timer: null
+};
+let pbToken = 0;
+let stepsCache = null;
+function currentSteps() {
+  if (!doc) return [];
+  if (!stepsCache || stepsCache.lang !== lang) stepsCache = { steps: describe(doc.objects, lang, i18n[lang]), lang };
+  return stepsCache.steps;
+}
+function canDescribe() { return !LIMITS_ACTIVE || Purchase.owned; }
+
+function protoOpen() { return !document.getElementById('protoPanel').hidden; }
+function openProto() { closeStylePop(); document.getElementById('protoPanel').hidden = false; renderProto(); }
+function closeProto() { document.getElementById('protoPanel').hidden = true; updatePbControls(); }
+function toggleProto() { protoOpen() ? closeProto() : openProto(); }
+
+let protoRenderPending = false;
+function scheduleProtoRender() {
+  if (protoRenderPending) return;
+  protoRenderPending = true;
+  requestAnimationFrame(() => { protoRenderPending = false; renderProto(); });
+}
+function renderProto() {
+  updatePbControls();
+  if (!doc || !protoOpen()) return;
+  const steps = PB.on ? PB.steps : currentSteps();
+  const full = canDescribe();
+  const list = document.getElementById('protoList');
+  list.textContent = '';
+  const active = PB.on ? (PB.anim ? PB.anim.k : PB.cur - 1) : -1;
+  steps.forEach((st, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = full ? st.text : st.short;
+    li.appendChild(span);
+    if (PB.on && i < PB.cur) li.classList.add('done');
+    if (i === active) li.classList.add('current');
+    li.addEventListener('click', () => pbJump(i));
+    list.appendChild(li);
+  });
+  document.getElementById('protoEmpty').hidden = steps.length > 0;
+  document.getElementById('protoProHint').hidden = full;
+  document.getElementById('btnPbExit').hidden = !PB.on;
+  const cur = list.querySelector('li.current');
+  if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+}
+function updatePbControls() {
+  const n = PB.on ? PB.steps.length : currentSteps().length;
+  const k = PB.on ? (PB.anim ? PB.anim.k + 1 : PB.cur) : 0;
+  document.getElementById('pbStatus').textContent = PB.on ? t('pbStatus', { k, n }) : (n === 1 ? t('pbCount1') : t('pbCount', { n }));
+  document.getElementById('pbPillStatus').textContent = k + ' / ' + n;
+  for (const id of ['pbPlay', 'pbPillPlay']) {
+    const b = document.getElementById(id);
+    b.innerHTML = iconSvg(PB.playing ? 'pause' : 'play');
+    const lbl = t(PB.playing ? 'ariaPbPause' : 'ariaPbPlay');
+    b.setAttribute('aria-label', lbl); b.title = lbl;
+  }
+  for (const id of ['pbFirst', 'pbPrev', 'pbPlay', 'pbNext', 'pbLast']) document.getElementById(id).disabled = n === 0;
+  document.getElementById('pbSpeed').textContent = fmtNum(PB.speed, PB.speed % 1 ? 1 : 0, lang) + '×';
+  document.getElementById('pbPill').hidden = !PB.on;
+  document.body.classList.toggle('playing', PB.on);
+}
+
+function pbEnter() {
+  if (PB.on) return true;
+  if (!doc) return false;
+  const steps = currentSteps();
+  if (!steps.length) { notify(t('msgNoSteps')); return false; }
+  if (G) cancelGesture();
+  closeStylePop();
+  const c = viewCenter();
+  PB.prevView = { cx: c.x, cy: c.y, zoom: view.zoom };
+  Object.assign(PB, { on: true, steps, cur: 0, anim: null, playing: false, inst: { ruler: null, geo: null, compass: null } });
+  fitForPlayback();
+  requestRender(true);
+  renderProto();
+  return true;
+}
+function pbStop() {
+  PB.anim = null;
+  clearTimeout(PB.timer); PB.timer = null;
+}
+function pbExit() {
+  if (!PB.on) return;
+  pbStop();
+  PB.on = false; PB.playing = false;
+  if (PB.prevView) setViewCenter(PB.prevView.cx, PB.prevView.cy, PB.prevView.zoom);
+  viewChanged();
+  renderProto();
+  requestRender(true);
+}
+function pbResetInst() { PB.inst = { ruler: null, geo: null, compass: null }; }
+function pbAfterJump() { pbResetInst(); requestRender(true); renderProto(); }
+
+function pbNext() {
+  if (!pbEnter()) return;
+  PB.playing = false; clearTimeout(PB.timer);
+  /* Tippt man während eines laufenden Schritts erneut, ist er sofort fertig. */
+  if (PB.anim) { pbStepDone(); return; }
+  if (PB.cur < PB.steps.length) pbStartStep(PB.cur);
+  renderProto();
+}
+function pbPrev() {
+  if (!PB.on) return;
+  PB.playing = false;
+  const running = !!PB.anim;
+  pbStop();
+  if (!running) PB.cur = Math.max(0, PB.cur - 1);
+  pbAfterJump();
+}
+function pbFirst() { if (!pbEnter()) return; PB.playing = false; pbStop(); PB.cur = 0; pbAfterJump(); }
+function pbLast() { if (!pbEnter()) return; PB.playing = false; pbStop(); PB.cur = PB.steps.length; pbAfterJump(); }
+function pbJump(i) { if (!pbEnter()) return; PB.playing = false; pbStop(); PB.cur = clamp(i + 1, 0, PB.steps.length); pbAfterJump(); }
+function pbToggle() {
+  if (PB.playing) { PB.playing = false; clearTimeout(PB.timer); renderProto(); return; }
+  if (!pbEnter()) return;
+  if (PB.cur >= PB.steps.length && !PB.anim) { PB.cur = 0; pbResetInst(); requestRender(true); }
+  PB.playing = true;
+  if (!PB.anim) pbStartStep(PB.cur);
+  renderProto();
+}
+function pbSpeed() {
+  const order = [1, 2, 0.5];
+  const old = PB.speed;
+  PB.speed = order[(order.indexOf(PB.speed) + 1) % order.length];
+  /* Laufende Phase nahtlos weiterführen: bisherigen Fortschritt behalten. */
+  if (PB.anim) { const now = performance.now(); PB.anim.t0 = now - (now - PB.anim.t0) * old / PB.speed; }
+  updatePbControls();
+}
+
+function pbVisibleIds() {
+  const ids = new Set();
+  for (let i = 0; i < PB.cur && i < PB.steps.length; i++) for (const id of PB.steps[i].ids) ids.add(id);
+  if (PB.anim) for (const id of PB.anim.done) ids.add(id);
+  return ids;
+}
+function pbContentCenter() {
+  const vis = pbVisibleIds();
+  const b = boundsOf(doc.objects.filter(o => vis.has(o.id)));
+  return b ? { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 } : null;
+}
+
+function pbStartStep(k) {
+  const st = PB.steps[k];
+  if (!st) return;
+  const objs = st.ids.map(id => doc.objects.find(o => o.id === id)).filter(Boolean);
+  PB.anim = { k, objs, i: -1, done: new Set(), phases: [], ph: 0, t0: 0, partial: null, token: ++pbToken };
+  pbNextObj();
+  if (PB.anim) { const tok = PB.anim.token; requestAnimationFrame(() => pbLoop(tok)); }
+  renderProto();
+}
+function pbNextObj() {
+  const a = PB.anim;
+  a.i++;
+  a.partial = null;
+  if (a.i >= a.objs.length) { pbStepDone(); return; }
+  a.phases = pbPhases(a.objs[a.i]);
+  a.ph = 0;
+  a.t0 = performance.now();
+}
+function pbStepDone() {
+  if (!PB.anim) return;
+  const k = PB.anim.k;
+  PB.anim = null;
+  PB.cur = k + 1;
+  requestRender(true);
+  renderProto();
+  if (!PB.playing) return;
+  if (PB.cur < PB.steps.length) {
+    PB.timer = setTimeout(() => { if (PB.on && PB.playing && !PB.anim) pbStartStep(PB.cur); }, 450 / PB.speed);
+  } else { PB.playing = false; renderProto(); }
+}
+function pbLoop(token) {
+  const a = PB.anim;
+  if (!a || a.token !== token) return;     // veralteter Lauf
+  const now = performance.now();
+  const ph = a.phases[a.ph];
+  const p = Math.min(1, (now - a.t0) * PB.speed / ph.dur);
+  ph.apply(p);
+  if (p >= 1) {
+    a.ph++;
+    a.t0 = now;
+    if (a.ph >= a.phases.length) {
+      a.done.add(a.objs[a.i].id);
+      dirtyBase = true;
+      pbNextObj();
+    }
+  }
+  requestRender(false);
+  if (PB.anim && PB.anim.token === token) requestAnimationFrame(() => pbLoop(token));
+}
+
+const easeIO = p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+function pbPhases(o) {
+  const setPartial = p => { if (PB.anim) PB.anim.partial = { o, p }; };
+  if (o.type === 'segment') {
+    const kind = (o.m && o.m.via === 'geo') ? 'geo' : 'ruler';
+    const len = dist(o.x1, o.y1, o.x2, o.y2);
+    return [
+      pbMovePhase(kind, kind === 'ruler' ? rulerPoseFor(o) : geoPoseFor(o), 550),
+      { dur: clamp(260 + len * 9, 300, 1400), apply: setPartial }
+    ];
+  }
+  if (o.type === 'arc') {
+    return [
+      pbMovePhase('compass', { nx: o.cx, ny: o.cy, r: o.r, ang: o.a0 }, 650),
+      { dur: 450 + 1200 * Math.abs(o.sweep) / TAU, apply: p => { setPartial(p); if (PB.inst.compass) PB.inst.compass.ang = o.a0 + o.sweep * p; } }
+    ];
+  }
+  if (o.type === 'stroke') return [{ dur: 600, apply: setPartial }];
+  return [{ dur: o.type === 'point' ? 320 : 260, apply: setPartial }];
+}
+/* Gerät an seinen Platz gleiten lassen. Andere Geräte verschwinden; ein
+   eben benutztes gleitet von dort weiter, wo es war (wie auf dem Tisch). */
+function pbMovePhase(kind, target, dur) {
+  return {
+    dur, inited: false, from: null,
+    apply(p) {
+      if (!this.inited) {
+        this.inited = true;
+        for (const k of ['ruler', 'geo', 'compass']) if (k !== kind) PB.inst[k] = null;
+        this.from = PB.inst[kind] ? Object.assign({}, PB.inst[kind]) : null;
+      }
+      const e = easeIO(p);
+      if (!this.from) { PB.inst[kind] = Object.assign({}, target, { alpha: e }); return; }
+      const f = this.from, out = { alpha: 1 };
+      for (const key of Object.keys(target)) {
+        out[key] = (key === 'rot' || key === 'ang')
+          ? f[key] + angDiff(f[key], target[key]) * e
+          : f[key] + (target[key] - f[key]) * e;
+      }
+      PB.inst[kind] = out;
+    }
+  };
+}
+/* Lineal mit der Oberkante auf die Strecke, Null am Anfang. Der Körper liegt
+   auf der Seite, auf der noch nichts gezeichnet ist – sonst verdeckt er die
+   Figur. */
+function rulerPoseFor(o) {
+  let ax = o.x1, ay = o.y1, bx = o.x2, by = o.y2;
+  let rot = Math.atan2(by - ay, bx - ax);
+  const c = pbContentCenter(), mx = (ax + bx) / 2, my = (ay + by) / 2;
+  if (c && (c.x - mx) * -Math.sin(rot) + (c.y - my) * Math.cos(rot) > 0.01) {
+    rot += Math.PI;
+    [ax, ay, bx, by] = [bx, by, ax, ay];
+  }
+  const cs = Math.cos(rot), sn = Math.sin(rot), W = RULER.wid / 2;
+  const len = dist(ax, ay, bx, by);
+  const lx = len <= RULER.ticks ? RULER.zero : -len / 2;
+  return { x: ax - (lx * cs + W * sn), y: ay - (lx * sn - W * cs), rot };
+}
+function geoPoseFor(o) {
+  let rot = Math.atan2(o.y2 - o.y1, o.x2 - o.x1);
+  const mx = (o.x1 + o.x2) / 2, my = (o.y1 + o.y2) / 2, c = pbContentCenter();
+  if (c && (c.x - mx) * Math.sin(rot) + (c.y - my) * -Math.cos(rot) > 0.01) rot += Math.PI;
+  return { x: mx, y: my, rot };
+}
+
+function drawPlayback(ctx, k) {
+  const a = PB.anim, minW = 1 / k;
+  /* Strecken entstehen genau an der Gerätekante. Unter dem Gerät gezeichnet,
+     verschwänden sie in dessen Randlinie – also darüber, wie der sichtbare
+     Bleistiftstrich am echten Lineal. */
+  const drawSeg = () => {
+    if (!a || !a.partial || a.partial.o.type !== 'segment') return;
+    const { o, p } = a.partial;
+    drawObject(ctx, Object.assign({}, o, { x2: o.x1 + (o.x2 - o.x1) * p, y2: o.y1 + (o.y2 - o.y1) * p }), k, minW, false);
+  };
+  if (a && a.partial) {
+    const { o, p } = a.partial;
+    if (o.type === 'segment') {
+      /* wird nach den Geräten gezeichnet */
+    } else if (o.type === 'arc') {
+      if (p > 0) drawObject(ctx, Object.assign({}, o, { sweep: o.sweep * p }), k, minW, false);
+    } else if (o.type === 'stroke') {
+      const n = Math.max(2, Math.ceil(o.pts.length / 2 * p));
+      drawObject(ctx, Object.assign({}, o, { pts: o.pts.slice(0, n * 2) }), k, minW, false);
+    } else {
+      drawObject(ctx, Object.assign({}, o, { al: Math.max(0.05, p) }), k, minW, false);
+    }
+  }
+  for (const kind of ['ruler', 'geo']) {
+    const ins = PB.inst[kind];
+    if (!ins) continue;
+    ctx.save();
+    ctx.globalAlpha = ins.alpha == null ? 1 : ins.alpha;
+    if (kind === 'ruler') drawRuler(ctx, ins, k); else drawGeo(ctx, ins, k);
+    ctx.restore();
+  }
+  if (PB.inst.compass) {
+    ctx.save();
+    ctx.globalAlpha = PB.inst.compass.alpha == null ? 1 : PB.inst.compass.alpha;
+    drawCompass(ctx, PB.inst.compass, k);
+    ctx.restore();
+  }
+  drawSeg();
+  /* Bleistiftspitze an der wachsenden Linie */
+  if (a && a.partial && a.partial.o.type === 'segment' && a.partial.p < 1) {
+    const o = a.partial.o, p = a.partial.p;
+    const x = o.x1 + (o.x2 - o.x1) * p, y = o.y1 + (o.y2 - o.y1) * p;
+    ctx.fillStyle = '#1d2a3a';
+    ctx.beginPath(); ctx.arc(x, y, Math.max(0.7, 3 / k), 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#f2b705'; ctx.lineWidth = Math.max(0.3, 1.5 / k);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(1.4, 6 / k), 0, TAU); ctx.stroke();
+  }
+}
+
+/* Inhalt in den freien Bereich neben der Leiste rücken; nur verkleinern,
+   nie vergrößern – wer hineingezoomt hat, will das so. */
+function fitForPlayback() {
+  const b = boundsOf(doc.objects);
+  if (!b) return;
+  const panel = document.getElementById('protoPanel');
+  const panelW = (protoOpen() && stageW > 700) ? panel.offsetWidth : 0;
+  const availW = Math.max(200, stageW - panelW), availH = Math.max(200, stageH - 96);
+  const pad = 12;
+  const bw = (b.x1 - b.x0) + pad * 2, bh = (b.y1 - b.y0) + pad * 2;
+  const fitZ = Math.min(availW / (bw * ppm), availH / (bh * ppm));
+  /* Nur verkleinern, wenn deutlich etwas fehlt – wegen ein paar Pixeln am
+     Rand soll die echte Größe (100 %) nicht verloren gehen. */
+  if (fitZ < view.zoom * 0.92) {
+    /* Knapp unter 100 %: lieber echte Größe mit etwas weniger Rand. */
+    const z = (fitZ >= 0.92 && fitZ < 1 && view.zoom >= 1) ? 1 : fitZ;
+    view.zoom = clamp(z, ZOOM_MIN, ZOOM_MAX);
+  }
+  const k = sc(), offX = S.toolbarSide === 'right' ? panelW : 0;
+  view.ox = (b.x0 + b.x1) / 2 - (offX + availW / 2) / k;
+  view.oy = (b.y0 + b.y1) / 2 - (availH / 2) / k;
+  viewChanged();
+}
+
+/* ---------- Beschreibung kopieren und teilen (Vollversion) ---------- */
+function safeFileBase(name) { return (String(name).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'blatt').slice(0, 40); }
+function descriptionText() {
+  return sheetName(doc) + '\n\n' + currentSteps().map((s, i) => (i + 1) + '. ' + s.text).join('\n');
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) { /* weiter mit dem alten Weg */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+async function copyDescription() {
+  if (!canDescribe()) return showPaywall('describe');
+  if (!currentSteps().length) return notify(t('msgNoSteps'));
+  const ok = await copyText(descriptionText());
+  notify(ok ? t('msgCopied') : t('msgCopyFailed'), !ok);
+}
+function shareDescription() {
+  if (!canDescribe()) return showPaywall('describe');
+  if (!currentSteps().length) return notify(t('msgNoSteps'));
+  const text = descriptionText();
+  const sharer = window.plugins && window.plugins.socialsharing;
+  if (window.cordova && sharer && sharer.shareWithOptions) {
+    sharer.shareWithOptions({ message: text, subject: sheetName(doc), iPadPopupCoordinates: iPadShareAnchor() },
+      () => {}, () => notify(t('msgShareFailed'), true));
+    return;
+  }
+  if (navigator.share) { navigator.share({ title: sheetName(doc), text }).catch(() => {}); return; }
+  deliverFile(safeFileBase(sheetName(doc)) + '.txt', new Blob([text], { type: 'text/plain' }));
+}
+
+/* ---------------------------------------------------------
    Tastatur, Zurück-Taste
    --------------------------------------------------------- */
 function onKey(e) {
@@ -3476,6 +4306,12 @@ function onKey(e) {
   const top = topPanel();
   if (top) { if (e.key === 'Escape') { e.preventDefault(); top === 'calibPanel' ? closeCalibration(false) : closePanel(top); } return; }
   const mod = e.metaKey || e.ctrlKey;
+  if (PB.on && !mod) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pbNext(); return; }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pbPrev(); return; }
+    if (e.key === ' ') { e.preventDefault(); pbToggle(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); pbExit(); return; }
+  }
   if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); }
   else if (e.key === 'Escape') { if (G) cancelGesture(); closeStylePop(); }
@@ -3488,6 +4324,8 @@ function onBackButton() {
   const top = topPanel();
   if (top) return top === 'calibPanel' ? closeCalibration(false) : closePanel(top);
   if (!document.getElementById('stylePop').hidden) return closeStylePop();
+  if (PB.on) return pbExit();
+  if (protoOpen()) return closeProto();
   saveNow().finally(() => { if (navigator.app && navigator.app.exitApp) navigator.app.exitApp(); });
 }
 
@@ -3551,7 +4389,7 @@ async function init() {
   registerServiceWorker();
 
   /* Für den Ablauftest. Verändert nichts, liest nur. */
-  window.__zw = { get doc() { return doc; }, view, sc, w2s, s2w, get G() { return G; }, hist, S, saveNow, ready: true };
+  window.__zw = { get doc() { return doc; }, view, sc, w2s, s2w, get G() { return G; }, get PB() { return PB; }, steps: () => currentSteps(), hist, S, saveNow, ready: true };
 }
 
 function onDeviceReady() {

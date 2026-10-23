@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.1.0"' 'version="0.1.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="100"' 'android-versionCode="101"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.1.0" "zirkelwerk-0.0.9"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.2.0"' 'version="0.2.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="200"' 'android-versionCode="201"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.2.0" "zirkelwerk-0.1.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -55,6 +55,14 @@ pruefe "Import ohne Farbprüfung"    coretest.js index.html "/^#[0-9a-fA-F]{6}\$
 pruefe "Fangen ohne Vorrang"        coretest.js index.html "point: 0.75," "point: 1.2,"
 pruefe "iPad mini falsch"           coretest.js index.html "if (key === '744x1133') return { ppm: 163 / 25.4" "if (key === '744x1134') return { ppm: 163 / 25.4"
 
+pruefe "Satzbaustein fehlt (EN)"    validate.js index.html "    d_crossArcs2: 'The intersections of the two arcs are {list}.', " "    "
+pruefe "Spät beschriftet = gemessen" coretest.js index.html "if (on.length >= 2) addCross(p, on);
+  };" "if (false) addCross(p, on);
+  };"
+pruefe "Bezug ohne Namensvorrang"   coretest.js index.html "if (segName(s1)) rel = r; else if (!relAny) relAny = r;" "if (!relAny) relAny = r;"
+pruefe "Verweise nicht umgeschrieben" coretest.js index.html "o.m.rs = (a && b) ? { t: 'taken', p: [a, b] } : { t: 'set' };" ""
+pruefe "Abgriff ohne Längenprüfung" coretest.js index.html "Math.abs(dist(pa.x, pa.y, pb.x, pb.y) - o.r) < DESC_EPS" "true"
+pruefe "Schnittpunkte nicht zusammengefasst" coretest.js index.html "last.on[0].id === on[0].id && last.on[1].id === on[1].id && last.ps.length < 4" "false"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

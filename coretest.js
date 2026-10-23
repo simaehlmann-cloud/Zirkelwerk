@@ -20,8 +20,14 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   intersections, dedupePoints, snapCandidates, findSnap, snapToCurve, objectDistance, topObjectAt, nextLabel,
   bestLabelDir, fmtLen, fmtDeg, fmtNum, parseNum, History, applyEntry, revertEntry,
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
-  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc };`, ctx);
+  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm };`, ctx);
 const K = ctx.K;
+/* Sprachpakete für die Beschreibung */
+{
+  const si = html.indexOf('const i18n = {'), ei = html.indexOf('\n};', si) + 3;
+  vm.runInContext(html.slice(si, ei) + '\nthis.I18N = i18n;', ctx);
+}
+const I18N = ctx.I18N;
 
 let passed = 0, failed = 0;
 const fails = [];
@@ -226,6 +232,119 @@ ok(dirty.inst.compass.r === 200 && dirty.inst.compass.nx === -20, 'Zirkelwerte b
 ok(dirty.inst.order.join() === 'ruler,geo,compass', 'Ungültige Reihenfolge ersetzt');
 ok(new Set(dirty.objects.map(o => o.id)).size === dirty.objects.length && dirty.seq === 4, 'Neue, eindeutige IDs');
 
+
+{
+/* ---------- Konstruktionsbeschreibung ---------- */
+ok(K.fmtCm(50, 'de') === '5 cm' && K.fmtCm(45, 'de') === '4,5 cm' && K.fmtCm(49.97, 'de') === '5 cm' && K.fmtCm(45, 'en') === '4.5 cm', 'Längen ohne „,0"');
+const D = (objs, lang) => K.describe(objs, lang || 'de', I18N[lang || 'de']);
+const pA = { x: 0, y: 0 }, pB = { x: 50, y: 0 }, pC = { x: 32, y: -24 };
+let n = 0;
+const id = () => 'x' + (++n);
+const seg = (a, b, m) => ({ id: id(), type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: '#3b3f45', w: 0.5, al: 1, m });
+const pt = (p, label) => ({ id: id(), type: 'point', x: p.x, y: p.y, label, ld: 7, c: '#3b3f45' });
+const arc = (c, r, a0, sw, rs) => ({ id: id(), type: 'arc', cx: c.x, cy: c.y, r, a0, sweep: sw, c: '#3b3f45', w: 0.5, al: 1, m: rs ? { rs } : undefined });
+const sss = () => {
+  const s0 = seg(pA, pB, { via: 'ruler' });
+  const A = pt(pA, 'A'), B = pt(pB, 'B');
+  return [s0, A, B, arc(pA, 40, -0.2, -1, { t: 'set' }), arc(pB, 30, -1.8, -1, { t: 'typed' }), pt(pC, 'C'), seg(pA, pC), seg(pB, pC)];
+};
+let st = D(sss());
+ok(st.map(x => x.text).join('|') === [
+  'Zeichne die Strecke AB mit der Länge 5 cm.',
+  'Zeichne einen Kreisbogen um A mit dem Radius r = 4 cm.',
+  'Zeichne einen Kreisbogen um B mit dem Radius r = 3 cm.',
+  'Der Schnittpunkt der beiden Kreisbögen ist C.',
+  'Verbinde A mit C und B mit C.'].join('|'), 'SSS-Beschreibung (Befehlsform)', st.map(x => x.text));
+ok(st[0].ids.length === 3 && st[4].ids.length === 2, 'Endpunkte A, B gehören zum ersten Schritt, beide Verbindungen zum letzten');
+ok(st.reduce((a, x) => a + x.ids.length, 0) === 8, 'Jedes Objekt steckt in genau einem Schritt');
+ok(st[1].short === 'Kreisbogen um A · r = 4 cm' && st[0].short === 'Strecke AB · 5 cm', 'Kurzformen', [st[0].short, st[1].short]);
+const en = D(sss(), 'en');
+ok(en[0].text === 'Draw the line segment AB with length 5 cm.' && en[3].text === 'The intersection of the two arcs is C.' && en[4].text === 'Join A to C and B to C.', 'Englische Beschreibung', en.map(x => x.text));
+// Umbenennen wirkt sofort
+const ren = sss(); ren[1].label = 'M';
+ok(D(ren)[1].text === 'Zeichne einen Kreisbogen um M mit dem Radius r = 4 cm.' && D(ren)[0].text.includes('Strecke MB'), 'Umbenennen ändert die Beschreibung');
+// Strecke abgreifen
+{
+  const A = pt(pA, 'A'), B = pt(pB, 'B'), s0 = seg(pA, pB, { via: 'ruler' }), Cc = pt({ x: 0, y: 40 }, 'C');
+  const objs = [A, B, s0, Cc, arc({ x: 0, y: 40 }, 50, 0, 1, { t: 'taken', p: [A.id, B.id] })];
+  const t = D(objs);
+  ok(t[t.length - 1].text === 'Greife mit dem Zirkel die Länge von AB ab und zeichne einen Kreisbogen um C.', 'Abgreifen wird als solches beschrieben', t.map(x => x.text));
+  ok(t[2].text === 'Verbinde A mit B.', 'Strecke zwischen vorhandenen Punkten = Verbinden', t[2].text);
+  // Abgegriffener Radius passt nicht mehr (Punkt verschoben) → Zahl
+  B.x = 60;
+  ok(D(objs).pop().text === 'Zeichne einen Kreisbogen um C mit dem Radius r = 5 cm.', 'Veralteter Abgriff fällt auf die Zahl zurück');
+}
+// Senkrechte und Parallele
+{
+  const A = pt(pA, 'A'), B = pt(pB, 'B'), s0 = seg(pA, pB), P = pt({ x: 20, y: -30 }, 'P');
+  const perp = seg({ x: 20, y: -30 }, { x: 20, y: 10 }, { via: 'geo' });
+  const par = seg({ x: -10, y: -30 }, { x: 60, y: -30 }, { via: 'geo' });
+  const t = D([A, B, s0, P, perp, par]);
+  ok(t[4].text === 'Zeichne die Senkrechte zu AB durch P.', 'Senkrechte erkannt', t[4] && t[4].text);
+  ok(t[5].text === 'Zeichne die Parallele zu AB durch P.', 'Parallele zu AB statt Senkrechte zur Hilfslinie', t[5] && t[5].text);
+}
+// Schnittpunkt von Bogen und Strecke ohne Namen, Punkt auf Linie, freier Punkt
+{
+  const A = pt(pA, 'A'), B = pt(pB, 'B'), s0 = seg(pA, pB);
+  const objs = [A, B, s0, arc(pA, 30, -1, 2), pt({ x: 30, y: 0 }, ''), pt({ x: 10, y: 0 }, 'Q'), pt({ x: 5, y: 40 }, 'R')];
+  const t = D(objs).map(x => x.text);
+  ok(t[4] === 'Markiere den Schnittpunkt von der Strecke AB und dem Kreisbogen um A.', 'Unbenannter Schnittpunkt mit Dativ', t[4]);
+  ok(t[5] === 'Markiere auf der Strecke AB den Punkt Q.', 'Punkt auf Strecke', t[5]);
+  ok(t[6] === 'Zeichne einen Punkt R.', 'Freier Punkt', t[6]);
+}
+// Freihand und Text vorweg, Marker zählt nicht als Strecke
+{
+  const objs = [{ id: id(), type: 'stroke', pts: [0, 0, 5, 5], c: '#3b3f45', w: 0.5, al: 1 },
+    { id: id(), type: 'text', x: 0, y: 0, text: 'Planfigur', size: 5, c: '#3b3f45' },
+    seg(pA, pB), { id: id(), type: 'segment', x1: 0, y1: 0, x2: 50, y2: 0, c: '#ffd400', w: 5, al: 0.38 }];
+  const t = D(objs);
+  ok(t.length === 1 && t[0].ids.length === 4 && t[0].text === 'Zeichne eine Strecke der Länge 5 cm.', 'Skizze und Marker hängen am Konstruktionsschritt', t.map(x => [x.text, x.ids.length]));
+  ok(D([objs[0]])[0].text === 'Skizze und Beschriftung.', 'Nur Skizze: ein eigener Schritt');
+}
+ok(D([]).length === 0, 'Leeres Blatt: keine Schritte');
+// Erst verbinden, dann beschriften (häufig im Unterricht)
+{
+  const s0 = seg(pA, pB, { via: 'ruler' }), a1 = arc(pA, 40, -0.2, -1, { t: 'set' }), a2 = arc(pB, 30, -1.8, -1, { t: 'typed' });
+  const objs = [s0, a1, a2, seg(pA, pC), seg(pB, pC), pt(pA, 'A'), pt(pB, 'B'), pt(pC, 'C')];
+  const t = D(objs).map(x => x.text);
+  ok(t.join('|') === ['Zeichne die Strecke AB mit der Länge 5 cm.', 'Zeichne einen Kreisbogen um A mit dem Radius r = 4 cm.',
+    'Zeichne einen Kreisbogen um B mit dem Radius r = 3 cm.', 'Der Schnittpunkt der beiden Kreisbögen ist C.', 'Verbinde A mit C und B mit C.'].join('|'),
+    'Spät beschriftet: C bleibt konstruiert, nicht abgemessen', t);
+  ok(D(objs).reduce((a, x) => a + x.ids.length, 0) === objs.length, 'Auch spät beschriftet: jedes Objekt genau einmal');
+}
+// Mittelsenkrechte: zwei Schnittpunkte derselben Bögen in einem Satz
+{
+  const S = { x: 25, y: -30 }, Tt = { x: 25, y: 30 }, r = Math.hypot(25, 30);
+  const A = pt(pA, 'A'), B = pt(pB, 'B');
+  const objs = [A, B, seg(pA, pB), arc(pA, r, -1.2, 2.4), arc(pB, r, Math.PI - 1.2, 2.4), seg(S, Tt, { via: 'ruler' }), pt(S, 'S'), pt(Tt, 'T')];
+  const t = D(objs).map(x => x.text);
+  ok(t[5] === 'Die Schnittpunkte der beiden Kreisbögen sind S und T.' && t[6] === 'Verbinde S mit T.', 'Mittelsenkrechte: Schnittpunkte zusammengefasst', t);
+  ok(D(objs, 'en')[5].text === 'The intersections of the two arcs are S and T.', 'Mehrzahl auf Englisch');
+}
+// Vollkreis
+ok(D([pt(pA, 'M'), arc(pA, 30, 0, K.TAU)])[1].text === 'Zeichne einen Kreis um M mit dem Radius r = 3 cm.', 'Vollkreis');
+
+/* Verweise überleben das Neunummerieren beim Laden */
+{
+  const A = { id: 'alt7', type: 'point', x: 0, y: 0, label: 'A', ld: 7, c: '#3b3f45' };
+  const B = { id: 'alt9', type: 'point', x: 50, y: 0, label: 'B', ld: 7, c: '#3b3f45' };
+  const C = { id: 'zz', type: 'point', x: 0, y: 40, label: 'C', ld: 7, c: '#3b3f45' };
+  const a1 = { id: 'q', type: 'arc', cx: 0, cy: 40, r: 50, a0: 0, sweep: 1, c: '#3b3f45', w: 0.5, al: 1, m: { rs: { t: 'taken', p: ['alt7', 'alt9'] } } };
+  const a2 = { id: 'q2', type: 'arc', cx: 0, cy: 40, r: 50, a0: 0, sweep: 1, c: '#3b3f45', w: 0.5, al: 1, m: { rs: { t: 'taken', p: ['gibtsnicht', 'alt9'] } } };
+  const raw = { format: 'zirkelwerk', v: 1, objects: [{ type: 'text' }, A, B, C, a1, a2], inst: { compass: { pid: 'alt7', rs: { t: 'taken', p: ['alt7', 'alt9'] } } } };
+  const d2 = K.sanitizeDoc(JSON.parse(JSON.stringify(raw)), 'n', 1);
+  const nA = d2.objects.find(o => o.label === 'A').id, nB = d2.objects.find(o => o.label === 'B').id;
+  const arcs = d2.objects.filter(o => o.type === 'arc');
+  ok(arcs[0].m.rs.t === 'taken' && arcs[0].m.rs.p[0] === nA && arcs[0].m.rs.p[1] === nB, 'Abgriff-Verweis auf neue Kennungen umgeschrieben', arcs[0].m);
+  ok(arcs[1].m.rs.t === 'set', 'Verweis ins Leere wird verworfen');
+  ok(d2.inst.compass.pid === nA && d2.inst.compass.rs.p[0] === nA, 'Zirkelzustand ebenfalls umgeschrieben', d2.inst.compass);
+  ok(D(d2.objects).pop().text.startsWith('Zeichne einen Kreisbogen um C'), 'Nach dem Laden: verworfener Verweis → Zahl');
+  ok(D(d2.objects)[D(d2.objects).length - 2].text.startsWith('Greife'), 'Nach dem Laden: gültiger Abgriff bleibt');
+  const bad = K.sanitizeDoc({ format: 'zirkelwerk', v: 1, objects: [{ type: 'segment', x1: 0, y1: 0, x2: 1, y2: 1, m: { via: '<script>' } }, { type: 'arc', cx: 0, cy: 0, r: 1, a0: 0, sweep: 1, m: { rs: { t: 'taken', p: ['a', { x: 1 }] } } }] }, 'b', 1);
+  ok(!bad.objects[0].m && !bad.objects[1].m, 'Ungültige Metadaten fallen weg');
+}
+
+}
 /* ---------- Umriss ---------- */
 const bb = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10 }, { type: 'point', x: 30, y: 5 }]);
 ok(bb.x0 === -10 && bb.x1 === 30 && bb.y0 === -10 && bb.y1 === 10, 'Umriss');

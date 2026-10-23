@@ -313,6 +313,111 @@ async function main() {
     o = await objs(page);
     ok(o.some(x => x.type === 'text' && x.text === 'c = 5 cm'), 'Text eingefügt');
 
+    /* ================= Stufe 2: Beschreibung und Wiedergabe ================= */
+    /* Abgreifen: Spitze auf A, Mine auf B (Radius = |AB|), sperren, Spitze auf C, Bogen */
+    await page.click('[data-tool="pencil"]');
+    await page.click('[data-inst="compass"]');
+    I = await inst(page);
+    if (I.compass.lock) await page.click('#chipCompass button:first-child');
+    await stroke(page, 'pen', line([I.compass.nx, I.compass.ny], [A.x + 0.9, A.y + 0.7], 12));
+    I = await inst(page);
+    leadX = I.compass.nx + I.compass.r * Math.cos(I.compass.ang); leadY = I.compass.ny + I.compass.r * Math.sin(I.compass.ang);
+    await stroke(page, 'pen', line([leadX, leadY], [B.x - 0.8, B.y + 0.6], 12));
+    I = await inst(page);
+    ok(near(I.compass.r, 50, 1e-9) && I.compass.rs && I.compass.rs.t === 'taken', 'Zirkel greift |AB| = 5 cm ab und merkt es sich', I.compass);
+    await page.click('#chipCompass button:first-child');
+    await stroke(page, 'pen', line([I.compass.nx, I.compass.ny], [C.x + 0.8, C.y - 0.9], 12));
+    await drawArc(page, 0, 40);
+    await page.click('[data-inst="compass"]');
+    let steps = await page.evaluate(() => window.__zw.steps().map(s => s.text));
+    ok(steps[0] === 'Zeichne die Strecke AB mit der Länge 5 cm.', 'Schritt 1: Strecke AB', steps[0]);
+    ok(steps[1] === 'Zeichne einen Kreisbogen um A mit dem Radius r = 4 cm.', 'Schritt 2: Bogen um A', steps[1]);
+    ok(steps[2] === 'Zeichne einen Kreisbogen um B mit dem Radius r = 3 cm.', 'Schritt 3: Bogen um B (Radius eingetippt)', steps[2]);
+    ok(steps[3] === 'Der Schnittpunkt der beiden Kreisbögen ist C.', 'Schritt 4: Schnittpunkt C', steps[3]);
+    ok(steps[steps.length - 1] === 'Greife mit dem Zirkel die Länge von AB ab und zeichne einen Kreisbogen um C.', 'Letzter Schritt: abgegriffen', steps[steps.length - 1]);
+    const nSteps = steps.length;
+
+    /* Leiste */
+    await page.click('#btnProto');
+    ok(await page.isVisible('#protoPanel'), 'Konstruktionsleiste öffnet');
+    ok(await page.locator('#protoList li').count() === nSteps, 'Leiste zeigt alle Schritte', [await page.locator('#protoList li').count(), nSteps]);
+    ok((await page.textContent('#protoList li:first-child')).includes('Strecke AB'), 'Erster Eintrag ist die Strecke AB');
+    ok((await page.textContent('#pbStatus')) === nSteps + ' Schritte', 'Anzahl der Schritte', await page.textContent('#pbStatus'));
+
+    /* Kopieren (Vollversion – in Stufe 1/2 noch frei) */
+    await page.click('#btnDescCopy');
+    await page.waitForTimeout(150);
+    const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+    ok(clip.includes('1. Zeichne die Strecke AB mit der Länge 5 cm.') && clip.includes('4. Der Schnittpunkt der beiden Kreisbögen ist C.'), 'Beschreibung landet nummeriert in der Zwischenablage', clip.slice(0, 120));
+
+    /* Wiedergabe: Schritt für Schritt */
+    const zBefore = await page.evaluate(() => window.__zw.view.zoom);
+    await page.click('#pbNext');
+    let pb = await page.evaluate(() => ({ on: window.__zw.PB.on, anim: !!window.__zw.PB.anim, cur: window.__zw.PB.cur }));
+    ok(pb.on && pb.anim && pb.cur === 0, 'Wiedergabe startet mit animiertem Schritt 1', pb);
+    ok(await page.isVisible('#pbPill'), 'Schwebende Steuerung sichtbar');
+    ok(await page.evaluate(() => getComputedStyle(document.getElementById('toolbar')).pointerEvents === 'none'), 'Werkzeuge während der Wiedergabe gesperrt');
+    await page.waitForTimeout(250);
+    ok(await page.evaluate(() => !!window.__zw.PB.inst.ruler), 'Lineal erscheint für die Strecke');
+    await page.waitForFunction(() => !window.__zw.PB.anim, null, { timeout: 5000 });
+    pb = await page.evaluate(() => ({ cur: window.__zw.PB.cur, cls: document.querySelector('#protoList li.current') && [...document.querySelectorAll('#protoList li')].indexOf(document.querySelector('#protoList li.current')) }));
+    ok(pb.cur === 1 && pb.cls === 0, 'Nach Schritt 1: markiert, Zähler 1', pb);
+    ok((await page.textContent('#pbStatus')) === 'Schritt 1 von ' + nSteps, 'Statuszeile', await page.textContent('#pbStatus'));
+    // Schritt 2: Zirkel fährt zu A und schlägt den Bogen
+    await page.click('#pbNext');
+    await page.waitForTimeout(200);
+    ok(await page.evaluate(() => !!window.__zw.PB.inst.compass && !window.__zw.PB.inst.ruler), 'Zirkel statt Lineal für den Bogen');
+    await page.waitForFunction(() => !window.__zw.PB.anim, null, { timeout: 6000 });
+    const cp = await page.evaluate(() => window.__zw.PB.inst.compass);
+    ok(near(cp.nx, A.x, 1e-6) && near(cp.ny, A.y, 1e-6) && near(cp.r, 40, 1e-6), 'Zirkel steht nach dem Schritt in A mit r = 4 cm', cp);
+    // Zweimal tippen: zweiter Tipp beendet den Schritt sofort
+    await page.click('#pbNext');
+    await page.click('#pbNext');
+    pb = await page.evaluate(() => ({ cur: window.__zw.PB.cur, anim: !!window.__zw.PB.anim }));
+    ok(pb.cur === 3 && !pb.anim, 'Erneutes Tippen beendet den laufenden Schritt sofort', pb);
+    // Bearbeiten ist gesperrt, Verschieben geht
+    const before2 = (await objs(page)).length;
+    await stroke(page, 'pen', line([-60, 30], [-40, 35], 8));
+    ok((await objs(page)).length === before2, 'Während der Wiedergabe entsteht kein Strich');
+    await page.keyboard.press('Meta+z');
+    ok((await objs(page)).length === before2, 'Rückgängig ist während der Wiedergabe gesperrt');
+    // Zurück, Ende, Anfang, Antippen
+    await page.click('#pbPrev');
+    ok(await page.evaluate(() => window.__zw.PB.cur) === 2, 'Zurück: ein Schritt weniger');
+    await page.click('#pbLast');
+    ok(await page.evaluate(() => window.__zw.PB.cur) === nSteps, 'Zum Ende: alles sichtbar');
+    await page.click('#pbFirst');
+    ok(await page.evaluate(() => window.__zw.PB.cur) === 0, 'Zum Anfang: leeres Blatt');
+    await page.locator('#protoList li').nth(3).click();
+    ok(await page.evaluate(() => window.__zw.PB.cur) === 4, 'Antippen eines Schritts springt dorthin');
+    // Abspielen in doppeltem Tempo bis zum Ende
+    await page.click('#pbFirst');
+    await page.click('#pbSpeed');
+    ok((await page.textContent('#pbSpeed')) === '2×', 'Tempo 2×');
+    await page.click('#pbPlay');
+    ok(await page.evaluate(() => window.__zw.PB.playing), 'Abspielen läuft');
+    await page.waitForFunction(n => !window.__zw.PB.playing && window.__zw.PB.cur === n, nSteps, { timeout: 30000 });
+    ok(true, 'Abspielen läuft selbstständig bis zum letzten Schritt');
+    // Leiste schließen: Steuerung bleibt
+    await page.click('#protoPanel header .tb');
+    ok(await page.isVisible('#pbPill') && await page.evaluate(() => window.__zw.PB.on), 'Ohne Leiste bleibt die schwebende Steuerung (Beamer)');
+    await page.keyboard.press('ArrowLeft');
+    ok(await page.evaluate(() => window.__zw.PB.cur) === nSteps - 1, 'Pfeiltaste ← geht zurück');
+    await page.keyboard.press('Escape');
+    ok(!(await page.evaluate(() => window.__zw.PB.on)) && !(await page.isVisible('#pbPill')), 'Escape beendet die Wiedergabe');
+    ok(near(await page.evaluate(() => window.__zw.view.zoom), zBefore, 1e-9), 'Ansicht wie vorher');
+    ok(await page.evaluate(() => getComputedStyle(document.getElementById('toolbar')).pointerEvents) !== 'none', 'Werkzeuge wieder frei');
+    // Sprache bei offener Leiste
+    await page.click('#btnProto');
+    await page.click('[aria-label="Einstellungen"]');
+    await page.click('#choiceLangEn');
+    await page.click('#settingsPanel header .tb');
+    ok((await page.textContent('#protoList li:first-child')).includes('Draw the line segment AB with length 5 cm.'), 'Leiste wechselt mit der Sprache');
+    await page.click('[aria-label="Settings"]');
+    await page.click('#choiceLangDe');
+    await page.click('#settingsPanel header .tb');
+    await page.click('#protoPanel header .tb');
+
     /* ---------- Sprache ---------- */
     await page.click('[aria-label="Einstellungen"]');
     await page.click('#choiceLangEn');

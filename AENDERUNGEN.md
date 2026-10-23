@@ -1,5 +1,22 @@
 # Änderungen
 
+## 0.2.0 – Stufe 2 (Oktober 2026)
+
+- **Konstruktionsleiste** (Symbol oben rechts): alle Schritte nummeriert, wird beim
+  Zeichnen laufend aktualisiert
+- **Animierte Wiedergabe**: Lineal, Geodreieck und Zirkel gleiten an ihren Platz und
+  zeichnen die Konstruktion Schritt für Schritt nach; vor/zurück, Anfang/Ende,
+  Abspielen, Tempo 0,5×/1×/2×, Schritt antippen springt dorthin
+- Schwebende Steuerung für den Beamer (auch bei geschlossener Leiste),
+  Tastatur: ←/→, Leertaste, Esc
+- **Automatische Konstruktionsbeschreibung in Befehlsform** (DE/EN): erkennt Strecken,
+  Kreisbögen und Kreise um benannte Punkte, abgegriffene Längen, Schnittpunkte
+  (auch mehrere, z. B. Mittelsenkrechte), Senkrechte, Parallelen und Verbindungen;
+  stimmt auch, wenn erst gezeichnet und später beschriftet wird
+- Beschreibung kopieren und teilen (Vollversion, derzeit noch frei)
+- Zirkel merkt sich, ob der Radius eingetippt, aufgezogen oder von einer Strecke
+  abgegriffen wurde
+
 ## 0.1.0 – Stufe 1 (Oktober 2026)
 
 Erste Fassung.

@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.1.0 (Stufe 1)
+# Zirkelwerk – Projektwissen, Stand 0.2.0 (Stufe 2)
 
 ## Entscheidungen
 
@@ -33,6 +33,23 @@
   Freihandstriche erzeugen keine Schnittpunkte.
 - **Rückgängig:** Einträge add / del (mit Index zum Zeitpunkt) / mod, rückwärts zurückgespielt.
 
+## Konstruktionsbeschreibung und Wiedergabe (Stufe 2)
+
+- `describe(objects, lang, i18n[lang])` im Kern erzeugt Schritte `{ids, text, short}`.
+  Befehlsform („Zeichne …", „Verbinde …", „Der Schnittpunkt … ist C.").
+- Fast alles wird **aus der Geometrie erschlossen** (Mittelpunkt = benannter Punkt,
+  Schnittpunkt = Punkt auf zwei früheren Linien, Senkrechte/Parallele über Winkel).
+  Ein später beschrifteter Punkt in einem Schnittpunkt gilt als konstruiert.
+- **Mitgeschrieben** wird nur: Strecke `m.via` (ruler/geo, für die Animation) und
+  Bogen `m.rs` = `{t:'set'|'typed'|'taken', p:[idA,idB]}`. `sanitizeDoc` schreibt
+  die Kennungen beim Laden um (Objekte werden neu nummeriert).
+- Satzbausteine in i18n: `d_*` Sätze, `dv_*` Dativ-Satzteile, `s_*` Kurzformen.
+- **Kostenlos:** Leiste (Kurzformen) und Wiedergabe. **Vollversion:** ausformulierte
+  Beschreibung in der Leiste, Kopieren, Teilen (`canDescribe()`).
+- Wiedergabe (`PB`): nur Verschieben/Zoomen, Werkzeuge gesperrt. Jede Animation hat
+  eine Kennung, ein veralteter Lauf beendet sich selbst. Ansicht wird beim Start
+  eingepasst (nur verkleinern, knapp unter 100 % → 100 %) und beim Ende wiederhergestellt.
+
 ## Geräte
 
 - Lineal 20 cm (passt auf jedes iPad bei 100 %), Skala an der Oberkante.
@@ -45,7 +62,7 @@
 
 ## Prüfkette
 
-`node make-legal-pages.js`, `node validate.js`, `node coretest.js`, `node smoketest.js`.
+`node make-legal-pages.js`, `node validate.js`, `node coretest.js`, `node smoketest.js`, `./mutate.sh`.
 CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 
 ## Beim ersten CI-Lauf genau ansehen
@@ -59,4 +76,4 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 
 - In-App-Kauf aktivieren (siehe Kommentar in config.xml; `IAP_ENABLED`, `LIMITS_ACTIVE`).
 - Store-Texte und Bildschirmfotos.
-- Stufe 2: Konstruktionsprotokoll, Schritt-für-Schritt-Wiedergabe, automatische Beschreibung.
+- Stufe 3 (Vorschlag): Kongruenzsätze-Labor, Aufgaben per QR-Code, PDF-Export.

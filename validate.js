@@ -50,7 +50,10 @@ if (packs) {
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
   /* Zusammengesetzte Schlüssel */
   for (const d of ['ipad', 'ipadmini', 'iphone', 'android', 'desktop']) used.add('device_' + d);
-  used.add('paywall_sheets');
+  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('pbCount1'); used.add('ariaPbPause'); used.add('ariaPbPlay');
+  /* Satzbausteine der Konstruktionsbeschreibung (fill('d_…') usw.) */
+  for (const m of js.matchAll(/'((?:d|dv|s)_[A-Za-z0-9]+)'/g)) used.add(m[1]);
+  for (const k of ['d_perp', 'd_par']) used.add(k + 'U');
   for (const k of ['sizeSmall', 'sizeMedium', 'sizeLarge', 'styleMarker', 'styleColor', 'ariaLock', 'ariaUnlock']) used.add(k);
   const missing = [...used].filter(k => !de.includes(k));
   if (missing.length) E('Benutzte, aber nicht definierte Schlüssel: ' + missing.join(', '));
@@ -143,7 +146,7 @@ const iapOn = /const IAP_ENABLED = true/.test(js), limitsOn = /const LIMITS_ACTI
 const pluginOn = /<plugin name="cordova-plugin-purchase"/.test(cfg);
 if (iapOn !== pluginOn) E(`IAP_ENABLED (${iapOn}) passt nicht zum Kauf-Plugin in config.xml (${pluginOn})`);
 if (limitsOn && !iapOn) E('LIMITS_ACTIVE ohne IAP_ENABLED: Nutzer könnten gesperrt werden, ohne kaufen zu können');
-if (!iapOn) W('Kauf noch abgeschaltet (Stufe 1)');
+if (!iapOn) W('In-App-Kauf noch abgeschaltet (vorbereitet)');
 
 /* ---------- 6. Bilder ---------- */
 function pngSize(f) {

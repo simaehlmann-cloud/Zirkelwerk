@@ -45,6 +45,7 @@ async function launch(opts) {
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch();
   const context = await browser.newContext(Object.assign({}, IPAD, opts || {}));
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
   /* maxTouchPoints > 1 macht aus dem Mac-Kennzeichen ein iPad (wie auf dem Gerät). */
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });

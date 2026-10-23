@@ -32,7 +32,8 @@ smoketest.js, testlib.js       Ablauftest im echten Browser (inkl. SSS-Konstrukt
 node make-legal-pages.js   # nach jeder Änderung an einem Rechtstext
 node validate.js           # Übersetzungen, IDs, Versionen, Icons, Rechtstexte
 node coretest.js           # Schnittpunkte, Fangen, Rückgängig, Import-Prüfung
-node smoketest.js          # Bedienabläufe mit Stift, Finger und Maus
+node smoketest.js          # Bedienabläufe mit Stift, Finger und Maus, Wiedergabe
+./mutate.sh                # Gegenprobe: eingebaute Fehler müssen erkannt werden
 ```
 
 Für den Ablauftest einmalig: `npm install --no-save playwright@1.63.0 && npx playwright install chromium`.
