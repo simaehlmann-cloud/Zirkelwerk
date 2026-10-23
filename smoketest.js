@@ -476,6 +476,129 @@ async function main() {
     ok(o.find(x => x.type === 'point').label.length <= 12, 'Beschriftung beim Import gekürzt');
     ok(await page.locator('img[src="x"]').count() === 0, 'Kein eingeschleustes HTML');
 
+
+    {
+    /* ================= Stufe 3a: Kongruenzsätze-Labor ================= */
+    await page.click('#btnLab');
+    ok(await page.isVisible('#labPanel'), 'Labor öffnet');
+    ok((await page.textContent('#labStatus')) === 'Eindeutig konstruierbar.', 'SWS-Vorgabe: eindeutig', await page.textContent('#labStatus'));
+    await page.click('#labKind_ssw');
+    await page.fill('#labIn_c', '6'); await page.fill('#labIn_a', '5'); await page.fill('#labIn_alpha', '40');
+    ok((await page.textContent('#labStatus')).startsWith('Zwei Lösungen') && await page.evaluate(() => document.getElementById('labStatus').classList.contains('warn')), 'SsW mit a < c: Warnung zwei Lösungen');
+    await page.fill('#labIn_a', '2');
+    ok((await page.textContent('#labStatus')).includes('a ist zu kurz'), 'SsW: a zu kurz');
+    await page.fill('#labIn_a', 'x');
+    ok(await page.isDisabled('#btnLabDemo') && (await page.textContent('#labStatus')).startsWith('Bitte alle Werte'), 'Ungültige Eingabe sperrt die Knöpfe');
+    await page.click('#labKind_sss');
+    await page.click('text=Zufallswerte');
+    ok((await page.textContent('#labStatus')) === 'Eindeutig konstruierbar.', 'Zufallswerte SSS sind eindeutig');
+    /* Vorführen SWS */
+    await page.click('#labKind_sws');
+    await page.fill('#labIn_c', '6'); await page.fill('#labIn_b', '4,5'); await page.fill('#labIn_alpha', '50');
+    await page.click('#btnLabDemo');
+    await page.waitForFunction(() => window.__zw.PB.on, null, { timeout: 5000 });
+    ok((await page.textContent('#sheetTitle')) === 'SWS: c = 6 cm, b = 4,5 cm und α = 50°', 'Vorführ-Blatt angelegt', await page.textContent('#sheetTitle'));
+    ok(await page.evaluate(() => window.__zw.PB.playing), 'Vorführen spielt automatisch ab');
+    await page.waitForTimeout(400);
+    const demoSteps = await page.evaluate(() => window.__zw.PB.steps.map(s => s.text));
+    ok(demoSteps[0] === 'Fertige eine Planfigur an und markiere die gegebenen Größen.' && demoSteps[2] === 'Trage in A an AB den Winkel α = 50° an.' && demoSteps[4].startsWith('Der Schnittpunkt von dem freien Schenkel'), 'Vorführung: Planfigur, Winkel antragen, Schnittpunkt', demoSteps);
+    await page.waitForFunction(() => window.__zw.PB.anim && window.__zw.PB.anim.k === 2, null, { timeout: 15000 });
+    await page.waitForTimeout(250);
+    ok(await page.evaluate(() => !!window.__zw.PB.inst.geo), 'Winkel wird mit dem Geodreieck angetragen');
+    await page.click('#pbLast');
+    await page.keyboard.press('Escape');
+    ok(!(await page.evaluate(() => window.__zw.PB.on)), 'Vorführung beendet');
+
+    /* Selbst konstruieren: SSS c = 5, b = 4, a = 3 */
+    await page.click('#btnLab');
+    await page.click('#labKind_sss');
+    await page.fill('#labIn_c', '5'); await page.fill('#labIn_b', '4'); await page.fill('#labIn_a', '3');
+    await page.click('#btnLabSelf');
+    await page.waitForFunction(() => window.__zw.doc.task, null, { timeout: 5000 });
+    ok(await page.isVisible('#taskBar') && (await page.textContent('#taskText')).replace(/\u00a0/g, ' ') === 'Konstruiere das Dreieck ABC mit c = 5 cm, b = 4 cm und a = 3 cm.', 'Aufgabenleiste zeigt die Aufgabe', await page.textContent('#taskText'));
+    ok((await objs(page)).every(o => o.m && o.m.plan), 'Aufgabenblatt enthält nur die Planfigur');
+    await page.click('#taskBar .btn');
+    ok((await page.textContent('#dialogTitle')) === 'Noch nicht ganz' && (await page.textContent('#dialogMessage')).includes('Beschrifte die Eckpunkte mit A, B und C.'), 'Prüfen ohne Konstruktion: Hinweis auf Beschriftung');
+    await page.click('#dialogButtons .btn.primary');
+    // Konstruktion rechts der Planfigur, mit den echten Werkzeugen
+    const cx0 = await page.evaluate(() => { const z = window.__zw; return z.s2w(z.view && 0, 0); });
+    const vc = await page.evaluate(() => { const z = window.__zw; const r = document.getElementById('cvBase').getBoundingClientRect(); return z.s2w(r.width * 0.55, r.height * 0.65); });
+    const P0 = { x: Math.round(vc.x), y: Math.round(vc.y) };
+    await page.click('[data-inst="ruler"]');
+    await page.evaluate(([p]) => { const r = window.__zw.doc.inst.ruler; r.rot = 0; r.x = p.x + 100 - 10; r.y = p.y + 20; }, [P0]);
+    const e2 = await page.evaluate(() => rulerEdges(window.__zw.doc.inst.ruler)[0]);
+    await stroke(page, 'pen', [[P0.x + 0.3, e2.ay - 1], [P0.x + 25, e2.ay - 1.2], [P0.x + 50.2, e2.ay - 0.8]]);
+    let so = (await objs(page)).filter(o => o.type === 'segment');
+    const sA = { x: so[0].x1, y: so[0].y1 }, sB = { x: so[0].x2, y: so[0].y2 };
+    ok(near(Math.hypot(sB.x - sA.x, sB.y - sA.y), 50, 1e-9), 'Schüler zeichnet c = 5 cm am Lineal');
+    await page.click('[data-inst="ruler"]');
+    await page.click('[data-tool="point"]');
+    await stroke(page, 'pen', [[sA.x + 0.6, sA.y]]); await stroke(page, 'pen', [[sB.x - 0.6, sB.y]]);
+    await page.click('[data-tool="pencil"]');
+    await page.click('[data-inst="compass"]');
+    let Ic = (await inst(page)).compass;
+    if (Ic.lock) await page.click('#chipCompass button:first-child');
+    await stroke(page, 'pen', line([Ic.nx, Ic.ny], [sA.x + 0.7, sA.y - 0.5], 10));
+    Ic = (await inst(page)).compass;
+    let lx = Ic.nx + Ic.r * Math.cos(Ic.ang), ly = Ic.ny + Ic.r * Math.sin(Ic.ang);
+    await stroke(page, 'pen', line([lx, ly], [sA.x + 30.3, sA.y - 26.4], 10));
+    await page.click('#chipCompass button:first-child');
+    await drawArc(page, 0, 30);   // C liegt von A aus bei −37°, die Mine steht bei −41°
+    await page.click('#chipCompass button:nth-child(2)');
+    await page.fill('#dialogInput', '3'); await page.keyboard.press('Enter');
+    Ic = (await inst(page)).compass;
+    await stroke(page, 'pen', line([Ic.nx, Ic.ny], [sB.x - 0.6, sB.y + 0.6], 10));
+    Ic = (await inst(page)).compass;
+    lx = Ic.nx + Ic.r * Math.cos(Ic.ang); ly = Ic.ny + Ic.r * Math.sin(Ic.ang);
+    await stroke(page, 'pen', line([lx, ly], [sB.x - 8, sB.y - 29], 10));
+    await drawArc(page, 0, -60);
+    await page.click('[data-inst="compass"]');
+    const arcsS = (await objs(page)).filter(o => o.type === 'arc');
+    const X = await page.evaluate(([a, b]) => arcArc(a, b), [arcsS[0], arcsS[1]]);
+    ok(X.length >= 1, 'Schülerbögen schneiden sich', X.length);
+    const Cs = X.reduce((p, q) => (q.y < p.y ? q : p), X[0]);
+    await page.click('[data-tool="point"]');
+    await stroke(page, 'pen', [[Cs.x + 1, Cs.y + 0.8]]);
+    await page.click('#taskBar .btn');
+    ok((await page.textContent('#dialogMessage')).includes('Zeichne noch die Seite(n) BC und AC.'), 'Prüfen: fehlende Seiten werden genannt', await page.textContent('#dialogMessage'));
+    await page.click('#dialogButtons .btn.primary');
+    // Seiten AC und BC am Lineal (Kante genau durch beide Punkte gelegt)
+    await page.click('[data-tool="pencil"]');
+    await page.click('[data-inst="ruler"]');
+    for (const [P, Q] of [[sA, Cs], [sB, Cs]]) {
+      await page.evaluate(([P, Q]) => {
+        const r = window.__zw.doc.inst.ruler, rot = Math.atan2(Q.y - P.y, Q.x - P.x);
+        const lx = -60, W = RULER.wid / 2, c = Math.cos(rot), s = Math.sin(rot);
+        r.rot = rot; r.x = P.x - (lx * c + W * s); r.y = P.y - (lx * s - W * c);
+      }, [P, Q]);
+      const ed = await page.evaluate(() => rulerEdges(window.__zw.doc.inst.ruler)[0]);
+      const out = (pt, d) => [pt.x + ed.nx * 1 + (Q.x - P.x) * d, pt.y + ed.ny * 1 + (Q.y - P.y) * d];
+      await stroke(page, 'pen', [out(P, 0.01), out(P, 0.5), out(Q, 0.01)]);
+    }
+    await page.click('[data-inst="ruler"]');
+    await page.click('#taskBar .btn');
+    ok((await page.textContent('#dialogTitle')) === '✓ Richtig!', 'Richtige Schülerkonstruktion wird bestätigt', [await page.textContent('#dialogTitle'), await page.textContent('#dialogMessage')]);
+    /* Lösung ansehen → eigenes Blatt mit Vorführung */
+    await page.click('text=Lösung ansehen');
+    await page.waitForFunction(() => window.__zw.PB.on, null, { timeout: 5000 });
+    ok((await page.textContent('#sheetTitle')).startsWith('Lösung SSS: c = 5 cm'), 'Lösung als eigenes Blatt');
+    ok(!(await page.isVisible('#taskBar')), 'Aufgabenleiste während der Wiedergabe verborgen');
+    await page.keyboard.press('Escape');
+    // zurück zur Aufgabe und Aufgabe entfernen
+    await page.click('#btnSheets');
+    await page.locator('.sheet', { hasText: 'Aufgabe SSS' }).locator('button').first().click();
+    await page.waitForFunction(() => window.__zw.doc.task, null, { timeout: 3000 });
+    await page.click('#taskBar .tb');
+    await page.click('#dialogButtons .btn.danger');
+    ok(!(await page.isVisible('#taskBar')) && !(await page.evaluate(() => window.__zw.doc.task)), 'Aufgabe entfernt');
+    /* Englische Satznamen */
+    await page.click('[aria-label="Einstellungen"]'); await page.click('#choiceLangEn'); await page.click('#settingsPanel header .tb');
+    await page.click('#btnLab');
+    ok((await page.textContent('#labKind_sws')) === 'SAS' && (await page.textContent('#labKind_ssw')) === 'SSA', 'Englisch: SAS, SSA');
+    await page.click('#labPanel header .tb');
+    await page.click('[aria-label="Settings"]'); await page.click('#choiceLangDe'); await page.click('#settingsPanel header .tb');
+
+    }
     ok(errors.length === 0, 'Keine Skriptfehler im Browser', errors);
   } catch (e) { fails.push("ABBRUCH: " + e.message); failed++; } finally {
     await browser.close();

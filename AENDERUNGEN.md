@@ -1,5 +1,23 @@
 # Änderungen
 
+## 0.3.0 – Stufe 3a (Oktober 2026)
+
+- **Kongruenzsätze-Labor** (Dreieck-Symbol oben, Vollversion): SSS, SWS, WSW, SsW;
+  Werte eingeben oder Zufallswerte; Anzeige „eindeutig / zwei Lösungen / nicht
+  konstruierbar" mit Begründung
+- **Vorführen**: neues Blatt mit Planfigur (Gegebenes rot) und Konstruktion, die sofort
+  animiert abläuft; Winkel werden wie im Unterricht angetragen (Nullpunkt in den
+  Scheitel, Markierung, anlegen, Schenkel zeichnen)
+- Sonderfälle sichtbar: SsW mit zwei Lösungen (C₁, C₂), verletzte Dreiecksungleichung,
+  α + β ≥ 180°, zu kurze Seite – jeweils mit Erklärung auf dem Blatt
+- **Selbst konstruieren**: Blatt mit Planfigur und Aufgabenleiste; „Prüfen" vergleicht
+  die gegebenen Größen (Toleranz 1,5 mm / 1,5°), meldet fehlende Beschriftung oder
+  Seiten; Spiegelbild zählt als richtig; „Lösung ansehen" spielt die Lösung ab
+- Beschreibung: „Trage in A an AB den Winkel α = 50° an.", „freier Schenkel",
+  „Fertige eine Planfigur an …"
+- Umriss von Kreisbögen genau berechnet (Ansicht, Vorschaubilder)
+- Datenschutzerklärung: Blätter können eine gestellte Aufgabe enthalten
+
 ## 0.2.0 – Stufe 2 (Oktober 2026)
 
 - **Konstruktionsleiste** (Symbol oben rechts): alle Schritte nummeriert, wird beim

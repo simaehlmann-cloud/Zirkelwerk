@@ -50,10 +50,16 @@ if (packs) {
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
   /* Zusammengesetzte Schlüssel */
   for (const d of ['ipad', 'ipadmini', 'iphone', 'android', 'desktop']) used.add('device_' + d);
-  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('pbCount1'); used.add('ariaPbPause'); used.add('ariaPbPlay');
+  used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab');
+  for (const k of ['sss', 'sws', 'wsw', 'ssw']) { used.add('lab_desc_' + k); used.add('lab_kind_' + k); }
+  for (const k of ['ineq', 'angles', 'short']) used.add('lab_none_' + k);
+  for (const k of ['ineq', 'angles', 'short', 'two']) used.add('note_' + k);
+  for (const k of ['lab_sheetTask', 'lab_sheetSolution', 'lab_sheetDemo']) used.add(k); used.add('pbCount1'); used.add('ariaPbPause'); used.add('ariaPbPlay');
   /* Satzbausteine der Konstruktionsbeschreibung (fill('d_…') usw.) */
   for (const m of js.matchAll(/'((?:d|dv|s)_[A-Za-z0-9]+)'/g)) used.add(m[1]);
   for (const k of ['d_perp', 'd_par']) used.add(k + 'U');
+  /* Zugriff über das Sprachpaket im Kern: T.lab_planTitle usw. */
+  for (const m of js.matchAll(/\bT\.([A-Za-z0-9_]+)/g)) used.add(m[1]);
   for (const k of ['sizeSmall', 'sizeMedium', 'sizeLarge', 'styleMarker', 'styleColor', 'ariaLock', 'ariaUnlock']) used.add(k);
   const missing = [...used].filter(k => !de.includes(k));
   if (missing.length) E('Benutzte, aber nicht definierte Schlüssel: ' + missing.join(', '));

@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.2.0 (Stufe 2)
+# Zirkelwerk – Projektwissen, Stand 0.3.0 (Stufe 3a)
 
 ## Entscheidungen
 
@@ -50,6 +50,20 @@
   eine Kennung, ein veralteter Lauf beendet sich selbst. Ansicht wird beim Start
   eingepasst (nur verkleinern, knapp unter 100 % → 100 %) und beim Ende wiederhergestellt.
 
+## Kongruenzsätze-Labor (Stufe 3a)
+
+- Konvention: c = AB unten, A links, B rechts, C oben; a = BC, b = AC, α bei A, β bei B.
+- Grundvarianten: SSS (c, b, a), SWS (c, b, α), WSW (c, α, β), SsW (c, a, α).
+- Kern: `solveTriangle` (Gründe ohne Lösung: ineq/angles/short), `labRandom(kind, rng)`,
+  `labConstruction` (Objekte zum Vorführen), `labPlan` (Planfigur, `m.plan`),
+  `checkTask` (Toleranz 1,5 mm / 1,5°, Spiegelbild ok), `sanitizeTask`.
+- Neue Metadaten: Strecke `m.angle = {deg, sym}` (freier Schenkel), Strich/Text `m.plan`,
+  Blatt `task = {kind, given}` (mm, Grad).
+- Blätter aus dem Labor: Planfigur links, Konstruktion bei (0|0).
+- Vollversion: Labor (`canUseLab()`). Prüfen einer Aufgabe ist kostenlos (für QR-Aufgaben in 3c).
+- Entscheidungen 3b/3c: PDF mit Karo und Beschreibung nur auf Wunsch (Vollversion);
+  QR-Aufgaben nur bei installierter App, ohne Webseite; öffnen kostenlos, erstellen Vollversion.
+
 ## Geräte
 
 - Lineal 20 cm (passt auf jedes iPad bei 100 %), Skala an der Oberkante.
@@ -76,4 +90,4 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 
 - In-App-Kauf aktivieren (siehe Kommentar in config.xml; `IAP_ENABLED`, `LIMITS_ACTIVE`).
 - Store-Texte und Bildschirmfotos.
-- Stufe 3 (Vorschlag): Kongruenzsätze-Labor, Aufgaben per QR-Code, PDF-Export.
+- Stufe 3b: PDF-Export. Stufe 3c: Aufgaben per QR-Code.

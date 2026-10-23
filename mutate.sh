@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.2.0"' 'version="0.2.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="200"' 'android-versionCode="201"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.2.0" "zirkelwerk-0.1.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.3.0"' 'version="0.3.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="300"' 'android-versionCode="301"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.3.0" "zirkelwerk-0.2.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -63,6 +63,15 @@ pruefe "Bezug ohne Namensvorrang"   coretest.js index.html "if (segName(s1)) rel
 pruefe "Verweise nicht umgeschrieben" coretest.js index.html "o.m.rs = (a && b) ? { t: 'taken', p: [a, b] } : { t: 'set' };" ""
 pruefe "Abgriff ohne Längenprüfung" coretest.js index.html "Math.abs(dist(pa.x, pa.y, pb.x, pb.y) - o.r) < DESC_EPS" "true"
 pruefe "Schnittpunkte nicht zusammengefasst" coretest.js index.html "last.on[0].id === on[0].id && last.on[1].id === on[1].id && last.ps.length < 4" "false"
+pruefe "SsW: zweite Lösung verloren" coretest.js index.html "let ts = [m + s, m - s].filter(t => t > 1e-6);" "let ts = [m + s].filter(t => t > 1e-6);"
+pruefe "Grenzfall a + b = c erlaubt" coretest.js index.html "if (a + b <= c + e || a + c <= b + e || b + c <= a + e)" "if (a + b < c - e || a + c < b - e || b + c < a - e)"
+pruefe "Prüfung ohne Toleranz"       coretest.js index.html "const LAB_TOL = { side: 1.5, angle: 1.5 };" "const LAB_TOL = { side: 40, angle: 40 };"
+pruefe "Fehlende Seite unbemerkt"   coretest.js index.html "if (missingSides.length) issues.push({ k: 'sides', list: missingSides });" ""
+pruefe "Winkel antragen unerkannt"  coretest.js index.html "if (isRay(o) && (a0 || b0)) {" "if (false) {"
+pruefe "Planfigur zerfällt"         coretest.js index.html "if (last && last.kind === 'plan' && !pending.length) assign(last, o.id);" ""
+pruefe "Bogen-Umriss = Vollkreis"   coretest.js index.html "if (!(Math.abs(o.sweep) < TAU - 1e-7)) { add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); }" "{ add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); } if (false) {}"
+pruefe "Zufall SsW mehrdeutig"      coretest.js index.html "a: c + pick(5, 25, 5) };" "a: c - pick(5, 15, 5) };"
+pruefe "Aufgabe ungeprüft geladen"  coretest.js index.html "return labValid(t.kind, given) ? { kind: t.kind, given } : null;" "return { kind: t.kind, given };"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

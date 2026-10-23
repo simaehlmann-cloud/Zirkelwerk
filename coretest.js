@@ -20,7 +20,7 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   intersections, dedupePoints, snapCandidates, findSnap, snapToCurve, objectDistance, topObjectAt, nextLabel,
   bestLabelDir, fmtLen, fmtDeg, fmtNum, parseNum, History, applyEntry, revertEntry,
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
-  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm };`, ctx);
+  compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
 {
@@ -345,10 +345,116 @@ ok(D([pt(pA, 'M'), arc(pA, 30, 0, K.TAU)])[1].text === 'Zeichne einen Kreis um M
 }
 
 }
+
+/* ---------- Kongruenzsätze-Labor ---------- */
+{
+  const D = (objs, lang) => K.describe(objs, lang || 'de', I18N[lang || 'de']);
+  const S = (k, g) => K.solveTriangle(k, g);
+  let r = S('sss', { c: 50, b: 40, a: 30 });
+  ok(r.sols.length === 1 && near(r.sols[0].C.x, 32, 1e-9) && near(r.sols[0].C.y, -24, 1e-9), 'SSS 3-4-5: C = (32 | −24), oberhalb von AB', r.sols[0] && r.sols[0].C);
+  ok(near(r.sols[0].gamma, 90, 1e-9), 'SSS 3-4-5: rechter Winkel bei C');
+  ok(S('sss', { c: 80, b: 40, a: 30 }).reason === 'ineq', 'SSS: Dreiecksungleichung verletzt');
+  ok(S('sss', { c: 70, b: 40, a: 30 }).reason === 'ineq', 'SSS: Grenzfall a + b = c ist kein Dreieck');
+  r = S('sws', { c: 60, b: 45, alpha: 50 });
+  ok(r.sols.length === 1 && near(r.sols[0].b, 45, 1e-9) && near(r.sols[0].alpha, 50, 1e-9), 'SWS: b und α wie gegeben');
+  r = S('wsw', { c: 60, alpha: 50, beta: 60 });
+  ok(r.sols.length === 1 && near(r.sols[0].alpha, 50, 1e-9) && near(r.sols[0].beta, 60, 1e-9) && near(r.sols[0].gamma, 70, 1e-9), 'WSW: Winkel stimmen, γ = 70°');
+  ok(S('wsw', { c: 60, alpha: 100, beta: 80 }).reason === 'angles', 'WSW: α + β = 180° geht nicht');
+  r = S('ssw', { c: 50, a: 60, alpha: 50 });
+  ok(r.sols.length === 1 && near(r.sols[0].a, 60, 1e-9), 'SsW mit a > c: eindeutig');
+  r = S('ssw', { c: 60, a: 50, alpha: 40 });
+  ok(r.sols.length === 2 && r.sols.every(t => near(t.a, 50, 1e-9) && near(t.alpha, 40, 1e-9)), 'SsW mit a < c: zwei Lösungen', r.sols.length);
+  ok(S('ssw', { c: 60, a: 30, alpha: 40 }).reason === 'short', 'SsW: a zu kurz');
+  const tan = S('ssw', { c: 60, a: 60 * Math.sin(40 * K.DEG), alpha: 40 });
+  ok(tan.sols.length === 1 && near(tan.sols[0].gamma, 90, 1e-6), 'SsW Grenzfall: genau ein rechtwinkliges Dreieck');
+  ok(S('sws', { c: 60, b: 45 }).reason === 'invalid' && S('xyz', {}).reason === 'invalid', 'Fehlende Werte erkannt');
+
+  /* Zufallswerte: immer eindeutig und passend für das iPad */
+  let seed = 7; const rng = () => { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
+  let bad = 0;
+  for (const k of ['sss', 'sws', 'wsw', 'ssw']) for (let n = 0; n < 150; n++) {
+    const g = K.labRandom(k, rng), sol = S(k, g);
+    if (sol.sols.length !== 1 || -sol.sols[0].C.y > 85 || !K.labValid(k, g)) bad++;
+    if (Object.values(g).some(v => v % 5 !== 0)) bad++;   // glatte Werte: halbe cm bzw. 5°
+  }
+  ok(bad === 0, '600 Zufallsaufgaben: alle eindeutig, glatt und passend', bad);
+  let monotone = 0;
+  for (const k of ['sss', 'sws', 'wsw', 'ssw']) {
+    const seen = new Set();
+    for (let n = 0; n < 60; n++) seen.add(JSON.stringify(K.labRandom(k, rng)));
+    if (seen.size < 15) monotone++;
+  }
+  ok(monotone === 0, 'Zufallswerte wechseln wirklich ab (kein ständiger Ersatzwert)', monotone);
+  const gtx = K.labGivenText('sws', { c: 60, b: 45, alpha: 50 }, 'de', I18N.de);
+  ok(gtx.replace(/\u00a0/g, ' ') === 'c = 6 cm, b = 4,5 cm und α = 50°', 'Gegebene Größen als Text', gtx);
+  ok(gtx.includes('b\u00a0=\u00a04,5\u00a0cm'), 'Angaben mit geschützten Leerzeichen (kein Umbruch in „b = 4,5 cm“)');
+
+  /* Vorführen: Objekte + Beschreibung je Satz */
+  const ids = list => list.map((o, i) => Object.assign({ id: 'L' + i }, o));
+  const text = (k, g) => { const c = K.labConstruction(k, g); return { st: D(ids(c.objects)), c }; };
+  let t = text('sss', { c: 60, b: 50, a: 40 });
+  ok(t.st.map(x => x.text).join('|') === ['Zeichne die Strecke AB mit der Länge 6 cm.', 'Zeichne einen Kreisbogen um A mit dem Radius r = 5 cm.',
+    'Zeichne einen Kreisbogen um B mit dem Radius r = 4 cm.', 'Der Schnittpunkt der beiden Kreisbögen ist C.', 'Verbinde A mit C und B mit C.'].join('|'), 'Labor SSS: Beschreibung', t.st.map(x => x.text));
+  t = text('sws', { c: 60, b: 45, alpha: 50 });
+  ok(t.st.map(x => x.text).join('|') === ['Zeichne die Strecke AB mit der Länge 6 cm.', 'Trage in A an AB den Winkel α = 50° an.',
+    'Zeichne einen Kreisbogen um A mit dem Radius r = 4,5 cm.', 'Der Schnittpunkt von dem freien Schenkel und dem Kreisbogen um A ist C.', 'Verbinde B mit C.'].join('|'), 'Labor SWS: Beschreibung', t.st.map(x => x.text));
+  t = text('wsw', { c: 60, alpha: 50, beta: 60 });
+  ok(t.st.map(x => x.text).join('|') === ['Zeichne die Strecke AB mit der Länge 6 cm.', 'Trage in A an AB den Winkel α = 50° an.',
+    'Trage in B an AB den Winkel β = 60° an.', 'Der Schnittpunkt der beiden freien Schenkel ist C.'].join('|'), 'Labor WSW: Beschreibung', t.st.map(x => x.text));
+  t = text('ssw', { c: 60, a: 50, alpha: 40 });
+  ok(t.c.note === 'note_two' && t.st[3].text === 'Die Schnittpunkte von dem freien Schenkel und dem Kreisbogen um B sind C₁ und C₂.' && t.st[4].text === 'Verbinde B mit C₁ und B mit C₂.', 'Labor SsW: zwei Lösungen beschrieben', t.st.map(x => x.text));
+  ok(K.labConstruction('sss', { c: 80, b: 40, a: 30 }).note === 'note_ineq' && K.labConstruction('wsw', { c: 60, alpha: 100, beta: 90 }).note === 'note_angles' && K.labConstruction('ssw', { c: 60, a: 20, alpha: 40 }).note === 'note_short', 'Nicht konstruierbar: passender Hinweis');
+  const en2 = D(ids(K.labConstruction('wsw', { c: 60, alpha: 50, beta: 60 }).objects), 'en');
+  ok(en2[1].text === 'At A, construct the angle α = 50° on AB.' && en2[3].text === 'The intersection of the two free arms is C.', 'Labor auf Englisch', en2.map(x => x.text));
+  /* Jede Konstruktion: jedes Objekt genau einmal, C exakt dort, wo die Lösung liegt */
+  let lost = 0;
+  for (const [k, g] of [['sss', { c: 60, b: 50, a: 40 }], ['sws', { c: 60, b: 45, alpha: 50 }], ['wsw', { c: 60, alpha: 50, beta: 60 }], ['ssw', { c: 50, a: 60, alpha: 50 }], ['ssw', { c: 60, a: 50, alpha: 40 }]]) {
+    const c = K.labConstruction(k, g), objs = ids(c.objects);
+    if (D(objs).reduce((a, x) => a + x.ids.length, 0) !== objs.length) lost++;
+    const chk = K.checkTask({ kind: k, given: g }, objs);
+    if (!chk.ok) lost += 100;
+  }
+  ok(lost === 0, 'Vorgeführte Konstruktionen bestehen die eigene Prüfung', lost);
+
+  /* Planfigur: eigener erster Schritt */
+  const g1 = { c: 60, b: 45, alpha: 50 }, c1 = K.labConstruction('sws', g1);
+  const planObjs = K.labPlan('sws', g1, c1.sols, { x: -90, y: -10 }, 'de', I18N.de);
+  ok(planObjs.every(o => o.m && o.m.plan) && ['Gegeben:', 'c = 6 cm', 'b = 4,5 cm', 'α = 50°'].every(x => planObjs.some(o => o.type === 'text' && o.text.replace(/\u00a0/g, ' ') === x)), 'Planfigur mit gegebenen Größen');
+  const withPlan = D(ids(planObjs.concat(c1.objects)));
+  ok(withPlan[0].text === 'Fertige eine Planfigur an und markiere die gegebenen Größen.' && withPlan[0].ids.length === planObjs.length && withPlan[1].text.startsWith('Zeichne die Strecke AB'), 'Planfigur ist Schritt 1', withPlan.slice(0, 2).map(x => x.text));
+  ok(planObjs.filter(o => o.type === 'stroke' && o.c === '#d0342c').length === 3, 'Gegebenes rot: b, c und Winkelbogen α');
+
+  /* Prüfen einer Schülerkonstruktion */
+  const task = { kind: 'sws', given: g1 };
+  const student = ids(c1.objects);
+  ok(K.checkTask(task, student).ok, 'Richtige Konstruktion besteht');
+  const mirrored = student.map(o => o.type === 'point' ? Object.assign({}, o, { y: -o.y }) : o.type === 'segment' ? Object.assign({}, o, { y1: -o.y1, y2: -o.y2 }) : o);
+  ok(K.checkTask(task, mirrored).ok, 'Gespiegeltes Dreieck ist auch richtig (Kongruenz)');
+  const off = student.map(o => o.label === 'C' ? Object.assign({}, o, { x: o.x + 3 }) : o);
+  const r2 = K.checkTask(task, off);
+  ok(!r2.ok && r2.issues.some(i => i.k === 'side' && i.key === 'b') && r2.issues.some(i => i.k === 'angle' && i.key === 'alpha'), 'Verschobenes C: b und α werden bemängelt', r2.issues);
+  ok(K.checkTask(task, student.filter(o => o.label !== 'B'))  .issues[0].k === 'missing', 'Fehlende Beschriftung erkannt');
+  const noBC = student.filter(o => !(o.type === 'segment' && o.m && o.m.via === 'ruler' && o.x1 !== 0));
+  ok(K.checkTask(task, noBC).issues.some(i => i.k === 'sides' && i.list.includes('BC')), 'Fehlende Seite BC erkannt');
+  ok(K.checkTask({ kind: 'sss', given: { c: 80, b: 40, a: 30 } }, []).impossible === 'ineq', 'Unlösbare Aufgabe wird erkannt');
+  ok(K.checkTask({ kind: 'ssw', given: { c: 60, a: 50, alpha: 40 } }, ids(K.labConstruction('ssw', { c: 60, a: 50, alpha: 40 }).objects)).second === true, 'SsW: Hinweis auf zweite Lösung');
+
+  /* Aufgabe und Metadaten überstehen Speichern und Laden */
+  ok(K.sanitizeTask({ kind: 'sws', given: { c: 60, b: 45, alpha: 50, x: 1 } }).given.x === undefined, 'Aufgabe: fremde Felder fallen weg');
+  ok(K.sanitizeTask({ kind: 'sws', given: { c: 60, b: 45, alpha: 500 } }) === null && K.sanitizeTask({ kind: 'evil' }) === null, 'Aufgabe: ungültige Werte abgelehnt');
+  const dd = K.sanitizeDoc({ format: 'zirkelwerk', v: 1, task: task, objects: c1.objects.concat(planObjs) }, 'q', 1);
+  ok(dd.task && dd.task.kind === 'sws' && dd.objects.some(o => o.m && o.m.angle && o.m.angle.sym === 'α') && dd.objects.some(o => o.m && o.m.plan), 'Aufgabe, Winkel- und Planfigur-Angaben bleiben erhalten');
+  ok(D(dd.objects.slice(0, c1.objects.length)).map(x => x.text)[1] === 'Trage in A an AB den Winkel α = 50° an.', 'Nach dem Laden: Winkel antragen erkannt');
+}
+
 /* ---------- Umriss ---------- */
 const bb = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10 }, { type: 'point', x: 30, y: 5 }]);
 ok(bb.x0 === -10 && bb.x1 === 30 && bb.y0 === -10 && bb.y1 === 10, 'Umriss');
 ok(K.boundsOf([]) === null, 'Leeres Blatt hat keinen Umriss');
+const ba = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -0.3, sweep: 0.6 }]);
+ok(near(ba.x1, 10) && ba.x0 > 9 && Math.abs(ba.y0) < 3.1 && Math.abs(ba.y1) < 3.1, 'Kurzer Bogen: Umriss nur um den gezeichneten Teil', ba);
+const bb2 = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -Math.PI * 0.75, sweep: Math.PI * 0.5 }]);
+ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: höchster Punkt erfasst', bb2);
 
 /* ---------- Ausgabe ---------- */
 console.log(`Zirkelwerk-Kerntest: ${passed} bestanden, ${failed} fehlgeschlagen`);

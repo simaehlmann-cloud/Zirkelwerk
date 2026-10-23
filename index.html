@@ -349,6 +349,35 @@ body.playing #protoList li.done::before { background: var(--accent-soft); color:
 body.playing #toolbar { opacity: .35; pointer-events: none; }
 body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 
+/* ---------------- Kongruenzsätze-Labor ---------------- */
+.lab-kinds .btn { min-width: 76px; font-size: 17px; }
+.lab-grid { display: grid; gap: 10px; margin: 14px 0; }
+.lab-row { display: grid; grid-template-columns: 44px 1fr 36px; align-items: center; gap: 10px; }
+.lab-name { font-size: 20px; font-weight: 700; text-align: center; font-style: italic; }
+.lab-row input {
+  height: 48px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--chrome); color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums;
+}
+.lab-row input:focus { outline: none; border-color: var(--accent); }
+.lab-unit { color: var(--ink-soft); font-weight: 600; }
+.lab-status { margin: 14px 0; padding: 12px 14px; border-radius: 12px; line-height: 1.45; font-weight: 550; }
+.lab-status.ok { background: rgba(30,138,76,.12); color: #17703d; }
+.lab-status.warn { background: rgba(224,123,0,.14); color: #9a5600; }
+.lab-status.err { background: rgba(192,57,43,.12); color: var(--danger); }
+:root[data-theme="dark"] .lab-status.ok { color: #6fd39a; }
+:root[data-theme="dark"] .lab-status.warn { color: #ffb45e; }
+@media (prefers-color-scheme: dark) { :root[data-theme="auto"] .lab-status.ok { color: #6fd39a; } :root[data-theme="auto"] .lab-status.warn { color: #ffb45e; } }
+.lab-actions { justify-content: flex-end; }
+#taskBar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 24px); display: flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 16px; border-radius: 16px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  z-index: 5;
+}
+#taskText { font-weight: 600; line-height: 1.35; }
+#taskBar .btn { min-height: 40px; white-space: nowrap; }
+
 /* ---------------- Meldung ---------------- */
 #toast {
   position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
@@ -386,6 +415,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
     <button class="tb" id="zoomLabel" onclick="zoomReset()" data-i18n-aria="ariaZoomReset" aria-label="Originalgröße">100 %</button>
     <button class="tb" data-icon="plus" onclick="zoomStep(1)" data-i18n-aria="ariaZoomIn" aria-label="Vergrößern"></button>
   </div>
+  <button class="tb" id="btnLab" data-icon="lab" onclick="openLab()" data-i18n-aria="ariaLab" aria-label="Kongruenzsätze-Labor"></button>
   <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
   <button class="tb" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Kurzanleitung"></button>
   <button class="tb" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
@@ -411,6 +441,11 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   <canvas id="cvBase"></canvas>
   <canvas id="cvOver"></canvas>
   <div id="chips"></div>
+  <div id="taskBar" hidden>
+    <span id="taskText"></span>
+    <button class="btn primary" onclick="checkCurrentTask()" data-i18n="btnCheck">Prüfen</button>
+    <button class="tb" data-icon="more" onclick="taskMenu()" data-i18n-aria="ariaTaskMore" aria-label="Aufgabe"></button>
+  </div>
 </main>
 
 
@@ -561,6 +596,33 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   </div>
 </div>
 
+<!-- Kongruenzsätze-Labor -->
+<div id="labPanel" class="panel" hidden onclick="if(event.target===this)closePanel('labPanel')">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="labTitle">
+    <header>
+      <h2 id="labTitle" data-i18n="labTitle">Kongruenzsätze-Labor</h2>
+      <button class="tb" data-icon="close" onclick="closePanel('labPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <p class="hint" style="margin-top:0" data-i18n="labIntro">Wähle einen Kongruenzsatz und gib die Größen ein – oder lass dir Zufallswerte geben.</p>
+      <div class="seg lab-kinds" style="margin-top:14px">
+        <button class="btn" id="labKind_sss" onclick="labSelectKind('sss')" data-i18n="lab_kind_sss">SSS</button>
+        <button class="btn" id="labKind_sws" onclick="labSelectKind('sws')" data-i18n="lab_kind_sws">SWS</button>
+        <button class="btn" id="labKind_wsw" onclick="labSelectKind('wsw')" data-i18n="lab_kind_wsw">WSW</button>
+        <button class="btn" id="labKind_ssw" onclick="labSelectKind('ssw')" data-i18n="lab_kind_ssw">SsW</button>
+      </div>
+      <p class="hint" id="labDesc"></p>
+      <div class="lab-grid" id="labInputs"></div>
+      <div class="seg"><button class="btn" onclick="labRandomize()"><span data-icon="dice"></span><span data-i18n="btnRandom">Zufallswerte</span></button></div>
+      <p id="labStatus" class="lab-status"></p>
+      <div class="seg lab-actions">
+        <button class="btn" id="btnLabSelf" onclick="labSelf()" data-i18n="btnLabSelf">Selbst konstruieren</button>
+        <button class="btn primary" id="btnLabDemo" onclick="labDemo()" data-i18n="btnLabDemo">Vorführen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Kurzanleitung -->
 <div id="helpPanel" class="panel" hidden onclick="if(event.target===this)closePanel('helpPanel')">
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -572,6 +634,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       <div class="help-item"><div class="ic" data-icon="compass"></div><div><strong data-i18n="helpCompassT">Zirkel</strong><p data-i18n="helpCompass">Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="geo"></div><div><strong data-i18n="helpGeoT">Geodreieck und Lineal</strong><p data-i18n="helpGeo">Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="lab"></div><div><strong data-i18n="helpLabT">Kongruenzsätze-Labor</strong><p data-i18n="helpLab">Über das Dreieck-Symbol oben: SSS, SWS, WSW oder SsW wählen, Werte eingeben oder Zufallswerte nehmen. „Vorführen“ konstruiert das Dreieck mit Animation, „Selbst konstruieren“ stellt die Aufgabe und prüft am Ende.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.</p></div></div>
@@ -722,6 +785,45 @@ const i18n = {
     helpProtoT: 'Konstruktion abspielen',
     helpProto: 'Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.',
 
+    /* Kongruenzsätze-Labor */
+    ariaLab: 'Kongruenzsätze-Labor', labTitle: 'Kongruenzsätze-Labor',
+    lab_kind_sss: 'SSS', lab_kind_sws: 'SWS', lab_kind_wsw: 'WSW', lab_kind_ssw: 'SsW',
+    labIntro: 'Wähle einen Kongruenzsatz und gib die Größen ein – oder lass dir Zufallswerte geben.',
+    lab_desc_sss: 'drei Seiten', lab_desc_sws: 'zwei Seiten und der eingeschlossene Winkel',
+    lab_desc_wsw: 'eine Seite und die beiden anliegenden Winkel', lab_desc_ssw: 'zwei Seiten und der Gegenwinkel der größeren Seite',
+    btnRandom: 'Zufallswerte', btnLabDemo: 'Vorführen', btnLabSelf: 'Selbst konstruieren',
+    lab_ok: 'Eindeutig konstruierbar.',
+    lab_two: 'Zwei Lösungen: Weil a kleiner als c ist, schneidet der Kreisbogen um B den freien Schenkel zweimal.',
+    lab_none_ineq: 'Nicht konstruierbar: Die beiden kürzeren Seiten sind zusammen nicht länger als die längste.',
+    lab_none_angles: 'Nicht konstruierbar: α + β muss kleiner als 180° sein.',
+    lab_none_short: 'Nicht konstruierbar: a ist zu kurz, der Kreisbogen um B erreicht den freien Schenkel nicht.',
+    lab_invalid: 'Bitte alle Werte eingeben: Seiten von 0,5 bis 20 cm, Winkel von 1° bis 179°.',
+    lab_planTitle: 'Planfigur', lab_given: 'Gegeben:',
+    lab_task: 'Konstruiere das Dreieck ABC mit {given}.',
+    lab_sheetDemo: '{kind}: {given}', lab_sheetTask: 'Aufgabe {kind}: {given}', lab_sheetSolution: 'Lösung {kind}: {given}',
+    lab_selfHint: 'Konstruiere das Dreieck und beschrifte die Ecken mit A, B und C. Dann „Prüfen" tippen.',
+    note_ineq: 'Die Kreisbögen schneiden sich nicht.\nDie beiden kürzeren Seiten sind zusammen nicht länger als die längste – es gibt kein Dreieck.',
+    note_angles: 'Die freien Schenkel schneiden sich nicht oberhalb von AB.\nα + β ist nicht kleiner als 180° – es gibt kein Dreieck.',
+    note_short: 'Der Kreisbogen um B erreicht den freien Schenkel nicht.\nDie Seite a ist zu kurz – es gibt kein Dreieck.',
+    note_two: 'Der Kreisbogen um B schneidet den freien Schenkel zweimal: zwei verschiedene Dreiecke.\nSsW ist nur eindeutig, wenn der Winkel der größeren Seite gegenüberliegt.',
+    btnCheck: 'Prüfen', ariaTaskMore: 'Aufgabe', btnShowSolution: 'Lösung ansehen', btnRemoveTask: 'Aufgabe entfernen',
+    chk_okTitle: 'Richtig!', chk_ok: 'Das Dreieck passt zu den gegebenen Größen.',
+    chk_second: 'Übrigens: Mit diesen Größen gibt es noch ein zweites Dreieck.',
+    chk_failTitle: 'Noch nicht ganz',
+    chk_missing: 'Beschrifte die Eckpunkte mit {list}.',
+    chk_degenerate: 'A, B und C liegen auf einer Geraden – das ist noch kein Dreieck.',
+    chk_side: 'Die Seite {key} ist {got} lang, gegeben sind {want}.',
+    chk_angle: 'Der Winkel {key} ist {got} groß, gegeben sind {want}.',
+    chk_sides: 'Zeichne noch die Seite(n) {list}.',
+    chk_impTitle: 'Diese Aufgabe hat keine Lösung',
+    paywall_lab: 'Das Kongruenzsätze-Labor gehört zur Vollversion.',
+    helpLabT: 'Kongruenzsätze-Labor',
+    helpLab: 'Über das Dreieck-Symbol oben: SSS, SWS, WSW oder SsW wählen, Werte eingeben oder Zufallswerte nehmen. „Vorführen" konstruiert das Dreieck mit Animation, „Selbst konstruieren" stellt die Aufgabe und prüft am Ende.',
+    d_plan: 'Fertige eine Planfigur an und markiere die gegebenen Größen.', s_plan: 'Planfigur',
+    d_angle: 'Trage in {p} an {s} den Winkel {w} = {d} an.', d_angleU: 'Trage in {p} den Winkel {w} = {d} an.', s_angle: 'Winkel',
+    dv_ray: 'dem freien Schenkel',
+    d_crossRays: 'Der Schnittpunkt der beiden freien Schenkel ist {p}.', d_crossRaysU: 'Markiere den Schnittpunkt der beiden freien Schenkel.',
+
     /* Konstruktionsbeschreibung: d_* Sätze, dv_* Satzteile im Dativ, s_* Kurzformen */
     d_and: ' und ', s_around: 'um',
     d_seg: 'Zeichne die Strecke {n} mit der Länge {l}.',
@@ -847,6 +949,44 @@ const i18n = {
     paywall_describe: 'The written-out construction description for copying and sharing is part of the full version.',
     helpProtoT: 'Play back a construction',
     helpProto: 'The button at the top right opens the list of all construction steps. Press ▶ to play the construction step by step – the ruler, set square and compass draw it for you. Ideal for showing on a projector.',
+
+    ariaLab: 'Congruence lab', labTitle: 'Congruence lab',
+    lab_kind_sss: 'SSS', lab_kind_sws: 'SAS', lab_kind_wsw: 'ASA', lab_kind_ssw: 'SSA',
+    labIntro: 'Choose a congruence condition and enter the given parts – or let the app pick random values.',
+    lab_desc_sss: 'three sides', lab_desc_sws: 'two sides and the included angle',
+    lab_desc_wsw: 'one side and the two adjacent angles', lab_desc_ssw: 'two sides and the angle opposite the longer side',
+    btnRandom: 'Random values', btnLabDemo: 'Demonstrate', btnLabSelf: 'Construct myself',
+    lab_ok: 'Can be constructed uniquely.',
+    lab_two: 'Two solutions: because a is shorter than c, the arc around B meets the free arm twice.',
+    lab_none_ineq: 'Cannot be constructed: the two shorter sides together are not longer than the longest.',
+    lab_none_angles: 'Cannot be constructed: α + β must be less than 180°.',
+    lab_none_short: 'Cannot be constructed: a is too short, the arc around B does not reach the free arm.',
+    lab_invalid: 'Please enter all values: sides from 0.5 to 20 cm, angles from 1° to 179°.',
+    lab_planTitle: 'Plan figure', lab_given: 'Given:',
+    lab_task: 'Construct the triangle ABC with {given}.',
+    lab_sheetDemo: '{kind}: {given}', lab_sheetTask: 'Task {kind}: {given}', lab_sheetSolution: 'Solution {kind}: {given}',
+    lab_selfHint: 'Construct the triangle and label the vertices A, B and C. Then tap “Check”.',
+    note_ineq: 'The arcs do not intersect.\nThe two shorter sides together are not longer than the longest – there is no triangle.',
+    note_angles: 'The free arms do not meet above AB.\nα + β is not less than 180° – there is no triangle.',
+    note_short: 'The arc around B does not reach the free arm.\nSide a is too short – there is no triangle.',
+    note_two: 'The arc around B meets the free arm twice: two different triangles.\nSSA is only unique if the angle is opposite the longer side.',
+    btnCheck: 'Check', ariaTaskMore: 'Task', btnShowSolution: 'Show solution', btnRemoveTask: 'Remove task',
+    chk_okTitle: 'Correct!', chk_ok: 'The triangle matches the given parts.',
+    chk_second: 'By the way: there is a second triangle with these parts.',
+    chk_failTitle: 'Not quite yet',
+    chk_missing: 'Label the vertices {list}.',
+    chk_degenerate: 'A, B and C lie on a straight line – that is not a triangle yet.',
+    chk_side: 'Side {key} is {got} long, the given length is {want}.',
+    chk_angle: 'Angle {key} is {got}, the given size is {want}.',
+    chk_sides: 'Still to draw: side(s) {list}.',
+    chk_impTitle: 'This task has no solution',
+    paywall_lab: 'The congruence lab is part of the full version.',
+    helpLabT: 'Congruence lab',
+    helpLab: 'Use the triangle button at the top: choose SSS, SAS, ASA or SSA, enter values or take random ones. “Demonstrate” constructs the triangle with animation, “Construct myself” sets the task and checks it at the end.',
+    d_plan: 'Sketch a plan figure and mark the given parts.', s_plan: 'Plan figure',
+    d_angle: 'At {p}, construct the angle {w} = {d} on {s}.', d_angleU: 'At {p}, construct the angle {w} = {d}.', s_angle: 'Angle',
+    dv_ray: 'the free arm',
+    d_crossRays: 'The intersection of the two free arms is {p}.', d_crossRaysU: 'Mark the intersection of the two free arms.',
 
     d_and: ' and ', s_around: 'centre',
     d_seg: 'Draw the line segment {n} with length {l}.',
@@ -1420,6 +1560,9 @@ function sanitizeObject(o, newId) {
     {
       const seg = { id: newId, type: 'segment', x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, c: col, w, al };
       if (o.m && (o.m.via === 'ruler' || o.m.via === 'geo')) seg.m = { via: o.m.via };
+      if (o.m && o.m.angle && isNum(o.m.angle.deg) && o.m.angle.deg > 0 && o.m.angle.deg < 180) {
+        seg.m = Object.assign(seg.m || {}, { angle: { deg: o.m.angle.deg, sym: cleanStr(o.m.angle.sym, 3) || 'α' } });
+      }
       return seg;
     }
     case 'arc':
@@ -1438,13 +1581,17 @@ function sanitizeObject(o, newId) {
         if (!isNum(x) || !isNum(y) || Math.abs(x) > C || Math.abs(y) > C) return null;
         pts.push(x, y);
       }
-      return { id: newId, type: 'stroke', pts, c: col, w, al };
+      const st = { id: newId, type: 'stroke', pts, c: col, w, al };
+      if (o.m && o.m.plan === true) st.m = { plan: true };
+      return st;
     }
     case 'text': {
       if (!need('x', 'y')) return null;
       const text = cleanStr(o.text, LIMITS.text);
       if (!text.trim()) return null;
-      return { id: newId, type: 'text', x: o.x, y: o.y, text, size: cleanNum(o.size, 2, 40, 5), c: col };
+      const tx = { id: newId, type: 'text', x: o.x, y: o.y, text, size: cleanNum(o.size, 2, 40, 5), c: col };
+      if (o.m && o.m.plan === true) tx.m = { plan: true };
+      return tx;
     }
   }
   return null;
@@ -1490,6 +1637,7 @@ function sanitizeDoc(raw, newDocId, now) {
     created: cleanNum(raw.created, 0, 1e14, now),
     modified: now,
     objects, seq,
+    task: sanitizeTask(raw.task),
     view: { cx: cleanNum(view.cx, -LIMITS.coord, LIMITS.coord, 0), cy: cleanNum(view.cy, -LIMITS.coord, LIMITS.coord, 0), zoom: cleanNum(view.zoom, 0.2, 10, 1) },
     inst
   };
@@ -1546,7 +1694,19 @@ function boundsOf(objects) {
   for (const o of objects) {
     if (o.type === 'point') add(o.x, o.y);
     else if (o.type === 'segment') { add(o.x1, o.y1); add(o.x2, o.y2); }
-    else if (o.type === 'arc') { add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); }
+    else if (o.type === 'arc') {
+      /* Nur der gezeichnete Teil: Endpunkte und die achsenparallelen
+         Extrempunkte, die auf dem Bogen liegen. Ein kurzer Bogen soll die
+         Figur nicht so groß machen wie sein ganzer Kreis. */
+      if (!(Math.abs(o.sweep) < TAU - 1e-7)) { add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); }
+      else {
+        for (const e of arcEnds(o)) add(e.x, e.y);
+        for (let q = 0; q < 4; q++) {
+          const a = q * Math.PI / 2;
+          if (onArc(a, o.a0, o.sweep)) add(o.cx + o.r * Math.cos(a), o.cy + o.r * Math.sin(a));
+        }
+      }
+    }
     else if (o.type === 'stroke') for (let i = 0; i + 1 < o.pts.length; i += 2) add(o.pts[i], o.pts[i + 1]);
     else if (o.type === 'text') { add(o.x, o.y - o.size); add(o.x + String(o.text).length * o.size * 0.6, o.y); }
   }
@@ -1585,7 +1745,9 @@ function describe(objects, lang, T) {
   const onObj = (p, o) => o.type === 'segment'
     ? distToSeg(p.x, p.y, o.x1, o.y1, o.x2, o.y2) < DESC_EPS
     : distToArc(p.x, p.y, o) < DESC_EPS;
+  const isRay = o => o.type === 'segment' && o.m && o.m.angle;
   const dative = o => {
+    if (isRay(o)) return fill('dv_ray');
     if (o.type === 'segment') { const n = segName(o); return n ? fill('dv_segN', { n }) : fill('dv_seg'); }
     const c = centerName(o), full = isFullCircle(o);
     return c ? fill(full ? 'dv_circleN' : 'dv_arcN', { c }) : fill(full ? 'dv_circle' : 'dv_arc');
@@ -1634,6 +1796,13 @@ function describe(objects, lang, T) {
 
   objects.forEach((o, i) => {
     if (assigned.has(o.id)) return;
+    /* Planfigur: alle zusammenhängenden Skizzenteile ein Schritt */
+    if (o.m && o.m.plan) {
+      const last = steps[steps.length - 1];
+      if (last && last.kind === 'plan' && !pending.length) assign(last, o.id);
+      else push({ kind: 'plan', ids: [o.id] });
+      return;
+    }
     if (o.type === 'segment' && isGeo(o)) {
       resolveEarly(o.x1, o.y1, i, o.id);
       resolveEarly(o.x2, o.y2, i, o.id);
@@ -1643,6 +1812,17 @@ function describe(objects, lang, T) {
         if (last && last.kind === 'connect' && last.pairs.length < 3 && !pending.length) {
           assign(last, o.id); last.pairs.push([a0, b0]);
         } else push({ kind: 'connect', ids: [o.id], pairs: [[a0, b0]] });
+        return;
+      }
+      /* Freier Schenkel eines angetragenen Winkels */
+      if (isRay(o) && (a0 || b0)) {
+        const at = a0 || b0;
+        let ref = null;
+        for (let k = i - 1; k >= 0 && !ref; k--) {
+          const s1 = objects[k];
+          if (s1.type === 'segment' && isGeo(s1) && !isRay(s1) && segName(s1) && (same(at, s1.x1, s1.y1) || same(at, s1.x2, s1.y2))) ref = s1;
+        }
+        push({ kind: 'angle', ids: [o.id], o, at, ref });
         return;
       }
       const through = a0 || b0 || named.find(p => assigned.has(p.id) && onObj(p, o)) || null;
@@ -1734,8 +1914,10 @@ function describe(objects, lang, T) {
       case 'cross': {
         const labels = st.ps.map(q => q.label), p = labels[0];
         const bothArcs = st.on[0].type === 'arc' && st.on[1].type === 'arc';
+        const bothRays = isRay(st.on[0]) && isRay(st.on[1]);
         const a = dative(st.on[0]), b = dative(st.on[1]);
         if (labels.length > 1) st.text = fill(bothArcs ? 'd_crossArcs2' : 'd_cross2', { a, b, list: list(labels) });
+        else if (bothRays) st.text = fill(p ? 'd_crossRays' : 'd_crossRaysU', { p });
         else if (bothArcs) st.text = fill(p ? 'd_crossArcs' : 'd_crossArcsU', { p });
         else st.text = fill(p ? 'd_cross' : 'd_crossU', { a, b, p });
         st.short = fill('s_cross') + (p ? ' ' + labels.join(', ') : '');
@@ -1745,6 +1927,16 @@ function describe(objects, lang, T) {
         st.text = fill(o.label ? 'd_on' : 'd_onU', { a: dative(st.on[0]), p: o.label });
         st.short = fill('s_point') + (o.label ? ' ' + o.label : '');
         break;
+      case 'plan':
+        st.text = fill('d_plan');
+        st.short = fill('s_plan');
+        break;
+      case 'angle': {
+        const w = o.m.angle.sym, d = fmtDeg(o.m.angle.deg, lang), sn = st.ref ? segName(st.ref) : null;
+        st.text = fill(sn ? 'd_angle' : 'd_angleU', { p: st.at.label, s: sn, w, d });
+        st.short = fill('s_angle') + ' ' + w + ' = ' + d + ' · ' + st.at.label;
+        break;
+      }
       case 'point':
         st.text = fill(o.label ? 'd_point' : 'd_pointU', { p: o.label });
         st.short = fill('s_point') + (o.label ? ' ' + o.label : '');
@@ -1753,16 +1945,254 @@ function describe(objects, lang, T) {
         st.text = fill('d_other');
         st.short = fill('s_other');
     }
-    delete st.o; delete st.on; delete st.rel; delete st.through; delete st.start; delete st.pairs; delete st.ps;
+    delete st.o; delete st.on; delete st.rel; delete st.through; delete st.start; delete st.pairs; delete st.ps; delete st.at; delete st.ref;
   }
   return steps;
+}
+/* ---------- Kongruenzsätze-Labor ---------- */
+/* Schulkonvention: c = AB unten, A links, B rechts, C oben (y nach unten,
+   „oben" ist also negatives y); a = BC, b = AC, α bei A, β bei B.
+   Längen in mm, Winkel in Grad. Je Satz die übliche Grundvariante. */
+const LAB_KINDS = ['sss', 'sws', 'wsw', 'ssw'];
+const LAB_GIVEN = { sss: ['c', 'b', 'a'], sws: ['c', 'b', 'alpha'], wsw: ['c', 'alpha', 'beta'], ssw: ['c', 'a', 'alpha'] };
+const LAB_RANGE = { side: [5, 200], angle: [1, 179] };
+const LAB_SYM = { alpha: 'α', beta: 'β' };
+function isLabSide(key) { return key === 'a' || key === 'b' || key === 'c'; }
+
+/* Winkel bei P zwischen den Strahlen PQ und PR, in Grad (0..180). */
+function angAt(P, Q, R) {
+  return Math.abs(angDiff(Math.atan2(Q.y - P.y, Q.x - P.x), Math.atan2(R.y - P.y, R.x - P.x))) / DEG;
+}
+
+function labValid(kind, g) {
+  if (!LAB_KINDS.includes(kind) || !g) return false;
+  return LAB_GIVEN[kind].every(k => {
+    const [lo, hi] = isLabSide(k) ? LAB_RANGE.side : LAB_RANGE.angle;
+    return isNum(g[k]) && g[k] >= lo && g[k] <= hi;
+  });
+}
+
+/* Lösungen: { sols: [Dreieck…], reason } – reason erklärt, warum es keine gibt:
+   'ineq' Dreiecksungleichung (SSS), 'angles' α + β ≥ 180° (WSW),
+   'short' a zu kurz (SsW). SsW kann zwei Lösungen haben. */
+function solveTriangle(kind, g) {
+  if (!labValid(kind, g)) return { sols: [], reason: 'invalid' };
+  const A = { x: 0, y: 0 }, B = { x: g.c, y: 0 };
+  const tri = C => ({
+    A, B, C, c: g.c, a: dist(B.x, B.y, C.x, C.y), b: dist(A.x, A.y, C.x, C.y),
+    alpha: angAt(A, B, C), beta: angAt(B, A, C), gamma: angAt(C, A, B)
+  });
+  const onRayA = (t, al) => ({ x: t * Math.cos(al), y: -t * Math.sin(al) });
+  switch (kind) {
+    case 'sss': {
+      const { a, b, c } = g, e = 1e-9;
+      if (a + b <= c + e || a + c <= b + e || b + c <= a + e) return { sols: [], reason: 'ineq' };
+      const x = (b * b - a * a + c * c) / (2 * c);
+      return { sols: [tri({ x, y: -Math.sqrt(Math.max(0, b * b - x * x)) })], reason: null };
+    }
+    case 'sws':
+      return { sols: [tri(onRayA(g.b, g.alpha * DEG))], reason: null };
+    case 'wsw': {
+      if (g.alpha + g.beta >= 180 - 1e-9) return { sols: [], reason: 'angles' };
+      const gamma = (180 - g.alpha - g.beta) * DEG;
+      const b = g.c * Math.sin(g.beta * DEG) / Math.sin(gamma);
+      return { sols: [tri(onRayA(b, g.alpha * DEG))], reason: null };
+    }
+    case 'ssw': {
+      /* C liegt auf dem freien Schenkel von α im Abstand t von A und im
+         Abstand a von B: t² − 2tc·cos α + c² − a² = 0. */
+      const al = g.alpha * DEG, c = g.c, a = g.a;
+      const disc = a * a - c * c * Math.sin(al) * Math.sin(al);
+      if (disc < -1e-9) return { sols: [], reason: 'short' };
+      const s = Math.sqrt(Math.max(0, disc)), m = c * Math.cos(al);
+      let ts = [m + s, m - s].filter(t => t > 1e-6);
+      if (ts.length === 2 && Math.abs(ts[0] - ts[1]) < 1e-6) ts = [ts[0]];
+      if (!ts.length) return { sols: [], reason: 'short' };
+      return { sols: ts.map(t => tri(onRayA(t, al))), reason: null };
+    }
+  }
+  return { sols: [], reason: 'invalid' };
+}
+
+/* Zufallswerte, die eine eindeutige, gut auf ein iPad passende Aufgabe
+   ergeben. rng liefert Zahlen in [0, 1) – austauschbar für Tests. */
+function labRandom(kind, rng) {
+  const pick = (lo, hi, step) => lo + Math.floor(rng() * (Math.round((hi - lo) / step) + 1)) * step;
+  for (let n = 0; n < 500; n++) {
+    let g;
+    if (kind === 'sss') {
+      g = { c: pick(50, 80, 5), b: pick(30, 70, 5), a: pick(30, 70, 5) };
+      if (g.a + g.b < g.c + 10 || Math.abs(g.a - g.b) > g.c - 10) continue;
+    } else if (kind === 'sws') g = { c: pick(40, 80, 5), b: pick(30, 70, 5), alpha: pick(30, 110, 5) };
+    else if (kind === 'wsw') {
+      g = { c: pick(40, 80, 5), alpha: pick(30, 80, 5), beta: pick(30, 80, 5) };
+      if (g.alpha + g.beta > 140) continue;
+    } else {
+      const c = pick(40, 70, 5);
+      g = { c, alpha: pick(30, 80, 5), a: c + pick(5, 25, 5) };
+    }
+    const r = solveTriangle(kind, g);
+    if (r.sols.length !== 1) continue;
+    const C = r.sols[0].C;
+    if (-C.y > 85 || -C.y < 15 || C.x < -30 || C.x > g.c + 30) continue;
+    return g;
+  }
+  return { sss: { c: 60, b: 50, a: 40 }, sws: { c: 60, b: 45, alpha: 50 }, wsw: { c: 60, alpha: 50, beta: 60 }, ssw: { c: 50, a: 60, alpha: 50 } }[kind];
+}
+
+function labGivenText(kind, g, lang, T) {
+  /* Geschützte Leerzeichen: „b = 4,5 cm" wird nie auseinandergerissen. */
+  const nb = s => s.replace(/ /g, '\u00a0');
+  const items = LAB_GIVEN[kind].map(k => nb(isLabSide(k) ? k + ' = ' + fmtCm(g[k], lang) : LAB_SYM[k] + ' = ' + fmtDeg(g[k], lang)));
+  return items.slice(0, -1).join(', ') + (T.d_and || ' und ') + items[items.length - 1];
+}
+
+/* Objekte für „Vorführen": die Konstruktion in Schulreihenfolge, mit den
+   Metadaten, aus denen describe() die Sätze bildet und die Wiedergabe das
+   passende Gerät wählt. Nicht konstruierbare Fälle werden so weit gezeichnet,
+   dass man sieht, woran es scheitert. */
+function labConstruction(kind, g) {
+  const r = solveTriangle(kind, g);
+  const A = { x: 0, y: 0 }, B = { x: g.c, y: 0 };
+  const INK = '#3b3f45', BLUE = '#1f5fbf', RED = '#d0342c', PURPLE = '#7b3fb5';
+  const seg = (p, q, via, extra) => Object.assign({ type: 'segment', x1: p.x, y1: p.y, x2: q.x, y2: q.y, c: INK, w: 0.5, al: 1, m: { via } }, extra || {});
+  const pt = (p, label, ld) => ({ type: 'point', x: p.x, y: p.y, label, ld, c: INK });
+  const arc = (ctr, rad, a0, sweep, col) => ({ type: 'arc', cx: ctr.x, cy: ctr.y, r: rad, a0, sweep, c: col, w: 0.5, al: 1, m: { rs: { t: 'typed' } } });
+  /* Bogen um ctr, der alle Punkte mit etwas Rand überdeckt */
+  const arcOver = (ctr, pts, rad, margin, col) => {
+    const ref = Math.atan2(pts[0].y - ctr.y, pts[0].x - ctr.x);
+    let lo = 0, hi = 0;
+    for (const p of pts) { const d = angDiff(ref, Math.atan2(p.y - ctr.y, p.x - ctr.x)); lo = Math.min(lo, d); hi = Math.max(hi, d); }
+    return arc(ctr, rad, ref + lo - margin, hi - lo + 2 * margin, col);
+  };
+  const ray = (from, dir, len, key) => {
+    /* Beim Antragen markiert man am Geodreieck – der Schenkel soll durch
+       diese Markierung gehen (A misst α, B auf dem Gerät 180° − β). */
+    const phi = key === 'alpha' ? g.alpha : 180 - g.beta;
+    len = Math.max(len, geoDegRayLen(phi) + 4);
+    const s = seg(from, { x: from.x + len * Math.cos(dir), y: from.y + len * Math.sin(dir) }, 'geo');
+    s.m.angle = { deg: g[key], sym: LAB_SYM[key] };
+    return s;
+  };
+  const rayA = len => ray(A, -g.alpha * DEG, len, 'alpha');
+  const rayB = len => ray(B, Math.PI + g.beta * DEG, len, 'beta');
+  /* Bögen in Richtung des anderen Endpunkts – dort müssten sie sich treffen */
+  const towardB = (rad, col) => arc(A, rad, -100 * DEG, 95 * DEG, col);
+  const towardA = (rad, col) => arc(B, rad, -175 * DEG, 95 * DEG, col);
+
+  const out = [seg(A, B, 'ruler'), pt(A, 'A', 3), pt(B, 'B', 1)];
+  const sols = r.sols, C = sols[0] && sols[0].C;
+  let note = null;
+  if (kind === 'sss') {
+    if (C) out.push(arcOver(A, [C], g.b, 0.35, BLUE), arcOver(B, [C], g.a, 0.35, RED), pt(C, 'C', 6), seg(A, C, 'ruler'), seg(B, C, 'ruler'));
+    else { out.push(towardB(g.b, BLUE), towardA(g.a, RED)); note = 'note_ineq'; }
+  } else if (kind === 'sws') {
+    out.push(rayA(g.b + 15), arcOver(A, [C], g.b, 0.3, BLUE), pt(C, 'C', 6), seg(B, C, 'ruler'));
+  } else if (kind === 'wsw') {
+    if (C) out.push(rayA(dist(A.x, A.y, C.x, C.y) + 15), rayB(dist(B.x, B.y, C.x, C.y) + 15), pt(C, 'C', 6));
+    else { out.push(rayA(g.c * 1.1), rayB(g.c * 1.1)); note = 'note_angles'; }
+  } else if (kind === 'ssw') {
+    out.push(rayA((sols.length ? Math.max(...sols.map(s => s.b)) : g.c) + 15));
+    if (sols.length === 1) out.push(arcOver(B, [C], g.a, 0.3, RED), pt(C, 'C', 6), seg(B, C, 'ruler'));
+    else if (sols.length === 2) {
+      out.push(arcOver(B, sols.map(s => s.C), g.a, 0.3, RED), pt(sols[0].C, 'C₁', 6), pt(sols[1].C, 'C₂', 6),
+        seg(B, sols[0].C, 'ruler'), seg(B, sols[1].C, 'ruler', { c: PURPLE }));
+      note = 'note_two';
+    } else { out.push(arc(B, g.a, -175 * DEG, 125 * DEG, RED)); note = 'note_short'; }
+  }
+  return { objects: out, note, sols, reason: r.reason };
+}
+
+/* Planfigur: eine Skizze mit leicht unruhigen Linien, Gegebenes rot.
+   origin = linke untere Ecke der Skizze. Alle Objekte tragen m.plan, damit
+   die Beschreibung sie als einen Schritt „Planfigur" erkennt. */
+function labPlan(kind, g, sols, origin, lang, T) {
+  const RED = '#d0342c', INK = '#3b3f45';
+  const given = new Set(LAB_GIVEN[kind]);
+  const base = sols.length ? sols[0] : { A: { x: 0, y: 0 }, B: { x: 60, y: 0 }, C: { x: 26, y: -38 } };
+  const xs = [base.A.x, base.B.x, base.C.x], ys = [base.A.y, base.B.y, base.C.y];
+  const x0 = Math.min(...xs), y1 = Math.max(...ys);
+  const k = Math.min(38 / (Math.max(...xs) - x0 || 1), 28 / (y1 - Math.min(...ys) || 1));
+  const map = p => ({ x: origin.x + (p.x - x0) * k, y: origin.y + (p.y - y1) * k });
+  const A = map(base.A), B = map(base.B), C = map(base.C);
+  const out = [], plan = { plan: true };
+  let seed = 1;
+  const noise = () => { seed = (seed * 16807) % 2147483647; return (seed / 2147483647) - 0.5; };
+  const wobbly = (p, q, col, w) => {
+    const pts = [], n = 10, len = dist(p.x, p.y, q.x, q.y), nx = -(q.y - p.y) / (len || 1), ny = (q.x - p.x) / (len || 1);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, off = (i === 0 || i === n) ? 0 : noise() * 0.5;
+      pts.push(p.x + (q.x - p.x) * t + nx * off, p.y + (q.y - p.y) * t + ny * off);
+    }
+    out.push({ type: 'stroke', pts, c: col, w, al: 1, m: plan });
+  };
+  const text = (x, y, s, col, size) => out.push({ type: 'text', x, y, text: s, size: size || 3.5, c: col, m: plan });
+  const textC = (p, s, col, size) => text(p.x - s.length * (size || 3.5) * 0.3, p.y + (size || 3.5) * 0.35, s, col, size);
+  const ctr = { x: (A.x + B.x + C.x) / 3, y: (A.y + B.y + C.y) / 3 };
+  const away = (p, d) => { const dx = p.x - ctr.x, dy = p.y - ctr.y, l = hyp(dx, dy) || 1; return { x: p.x + dx / l * d, y: p.y + dy / l * d }; };
+  const sides = [['c', A, B], ['b', A, C], ['a', B, C]];
+  for (const [key, p, q] of sides) wobbly(p, q, given.has(key) ? RED : INK, given.has(key) ? 0.6 : 0.4);
+  /* Winkelbögen nur für gegebene Winkel */
+  const mark = (V, P, Q, key) => {
+    const a1 = Math.atan2(P.y - V.y, P.x - V.x), d = angDiff(a1, Math.atan2(Q.y - V.y, Q.x - V.x)), rad = 6, pts = [];
+    for (let i = 0; i <= 12; i++) { const a = a1 + d * i / 12; pts.push(V.x + rad * Math.cos(a), V.y + rad * Math.sin(a)); }
+    out.push({ type: 'stroke', pts, c: RED, w: 0.4, al: 1, m: plan });
+    const am = a1 + d / 2;
+    textC({ x: V.x + 9.5 * Math.cos(am), y: V.y + 9.5 * Math.sin(am) }, LAB_SYM[key], RED, 3.2);
+  };
+  if (given.has('alpha')) mark(A, B, C, 'alpha');
+  if (given.has('beta')) mark(B, A, C, 'beta');
+  textC(away(A, 4), 'A', INK); textC(away(B, 4), 'B', INK); textC(away(C, 4), 'C', INK);
+  for (const [key, p, q] of sides) {
+    const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    textC(away(m, 3.5), key, given.has(key) ? RED : INK, 3.2);
+  }
+  text(origin.x, origin.y - 28 - 9, T.lab_planTitle || 'Planfigur', INK, 3.5);
+  /* Gegebenes untereinander – eine lange Zeile ragte in die Konstruktion. */
+  text(origin.x, origin.y + 9, T.lab_given || 'Gegeben:', RED, 3.5);
+  LAB_GIVEN[kind].forEach((key, i) => text(origin.x + 2, origin.y + 14 + i * 5,
+    (isLabSide(key) ? key + ' = ' + fmtCm(g[key], lang) : LAB_SYM[key] + ' = ' + fmtDeg(g[key], lang)).replace(/ /g, '\u00a0'), RED, 3.5));
+  return out;
+}
+
+/* Prüfung einer Schülerkonstruktion: Punkte A, B, C suchen, die gegebenen
+   Größen mit Toleranz vergleichen, Seiten auf Vollständigkeit prüfen.
+   Spiegelbild und Lage sind egal – es geht um Kongruenz. */
+const LAB_TOL = { side: 1.5, angle: 1.5 };
+function checkTask(task, objects) {
+  const sol = solveTriangle(task.kind, task.given);
+  if (!sol.sols.length) return { ok: false, impossible: sol.reason, issues: [] };
+  const find = (...ls) => objects.find(o => o.type === 'point' && ls.includes(o.label)) || null;
+  const A = find('A'), B = find('B'), C = find('C', 'C₁', 'C1', 'C₂', 'C2');
+  const missing = [['A', A], ['B', B], ['C', C]].filter(x => !x[1]).map(x => x[0]);
+  if (missing.length) return { ok: false, issues: [{ k: 'missing', list: missing }] };
+  const area2 = Math.abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y));
+  if (area2 < 1) return { ok: false, issues: [{ k: 'degenerate' }] };
+  const meas = { c: dist(A.x, A.y, B.x, B.y), b: dist(A.x, A.y, C.x, C.y), a: dist(B.x, B.y, C.x, C.y), alpha: angAt(A, B, C), beta: angAt(B, A, C) };
+  const issues = [];
+  for (const key of LAB_GIVEN[task.kind]) {
+    const want = task.given[key], got = meas[key];
+    if (Math.abs(got - want) > (isLabSide(key) ? LAB_TOL.side : LAB_TOL.angle)) issues.push({ k: isLabSide(key) ? 'side' : 'angle', key, got, want });
+  }
+  const covers = (P, Q) => objects.some(o => o.type === 'segment' && (o.al == null || o.al >= 1) &&
+    distToSeg(P.x, P.y, o.x1, o.y1, o.x2, o.y2) < 0.5 && distToSeg(Q.x, Q.y, o.x1, o.y1, o.x2, o.y2) < 0.5);
+  const missingSides = [['AB', A, B], ['BC', B, C], ['AC', A, C]].filter(x => !covers(x[1], x[2])).map(x => x[0]);
+  if (missingSides.length) issues.push({ k: 'sides', list: missingSides });
+  return { ok: issues.length === 0, issues, second: sol.sols.length === 2, meas };
+}
+
+function sanitizeTask(t) {
+  if (!t || typeof t !== 'object' || !LAB_KINDS.includes(t.kind) || !t.given || typeof t.given !== 'object') return null;
+  const given = {};
+  for (const k of LAB_GIVEN[t.kind]) given[k] = t.given[k];
+  return labValid(t.kind, given) ? { kind: t.kind, given } : null;
 }
 /* ==CORE-END== */
 
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.3.0';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -1847,7 +2277,8 @@ function applyLanguage() {
   updateTitle();
   renderChipsStatic();
   if (!document.getElementById('settingsPanel').hidden) refreshSettingsUI();
-  if (doc) { if (PB.on) PB.steps = currentSteps(); renderProto(); }
+  if (doc) { if (PB.on) PB.steps = currentSteps(); renderProto(); updateTaskBar(); }
+  if (!document.getElementById('labPanel').hidden) labRender();
   requestRender(false);
 }
 function chooseLanguage(l) { S.lang = l; saveSettings(); applyLanguage(); refreshSettingsUI(); }
@@ -1886,6 +2317,9 @@ const ICONS = {
   play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
   pause: '<rect x="6.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/><rect x="13.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  lab: '<path d="M3 19.5h18L12 4z"/><path d="m8.6 14.2 2.4 2.4 4.4-4.8"/>',
+  dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>',
+  more: '<circle cx="5.5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor"/>',
   share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'
 };
 function iconSvg(name) {
@@ -2046,6 +2480,7 @@ function resizeStage() {
     cv.style.height = stageH + 'px';
   }
   if (keep) setViewCenter(keep.x, keep.y, view.zoom);
+  if (doc) updateTaskBar();
   requestRender(true);
 }
 
@@ -3253,6 +3688,7 @@ async function loadDoc(d) {
   document.getElementById('zoomLabel').textContent = Math.round(view.zoom * 100) + ' %';
   renderChipsStatic();
   renderProto();
+  updateTaskBar();
   requestRender(true);
 }
 
@@ -3936,8 +4372,8 @@ function currentSteps() {
 function canDescribe() { return !LIMITS_ACTIVE || Purchase.owned; }
 
 function protoOpen() { return !document.getElementById('protoPanel').hidden; }
-function openProto() { closeStylePop(); document.getElementById('protoPanel').hidden = false; renderProto(); }
-function closeProto() { document.getElementById('protoPanel').hidden = true; updatePbControls(); }
+function openProto() { closeStylePop(); document.getElementById('protoPanel').hidden = false; renderProto(); updateTaskBar(); }
+function closeProto() { document.getElementById('protoPanel').hidden = true; updatePbControls(); updateTaskBar(); }
 function toggleProto() { protoOpen() ? closeProto() : openProto(); }
 
 let protoRenderPending = false;
@@ -3985,6 +4421,7 @@ function updatePbControls() {
   document.getElementById('pbSpeed').textContent = fmtNum(PB.speed, PB.speed % 1 ? 1 : 0, lang) + '×';
   document.getElementById('pbPill').hidden = !PB.on;
   document.body.classList.toggle('playing', PB.on);
+  updateTaskBar();
 }
 
 function pbEnter() {
@@ -4015,7 +4452,7 @@ function pbExit() {
   renderProto();
   requestRender(true);
 }
-function pbResetInst() { PB.inst = { ruler: null, geo: null, compass: null }; }
+function pbResetInst() { PB.inst = { ruler: null, geo: null, compass: null }; PB.mark = null; }
 function pbAfterJump() { pbResetInst(); requestRender(true); renderProto(); }
 
 function pbNext() {
@@ -4070,6 +4507,7 @@ function pbStartStep(k) {
   const st = PB.steps[k];
   if (!st) return;
   const objs = st.ids.map(id => doc.objects.find(o => o.id === id)).filter(Boolean);
+  PB.mark = null;
   PB.anim = { k, objs, i: -1, done: new Set(), phases: [], ph: 0, t0: 0, partial: null, token: ++pbToken };
   pbNextObj();
   if (PB.anim) { const tok = PB.anim.token; requestAnimationFrame(() => pbLoop(tok)); }
@@ -4119,6 +4557,10 @@ function pbLoop(token) {
 const easeIO = p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
 function pbPhases(o) {
   const setPartial = p => { if (PB.anim) PB.anim.partial = { o, p }; };
+  if (o.type === 'segment' && o.m && o.m.angle) {
+    const steps = pbAnglePhases(o);
+    if (steps) return steps;
+  }
   if (o.type === 'segment') {
     const kind = (o.m && o.m.via === 'geo') ? 'geo' : 'ruler';
     const len = dist(o.x1, o.y1, o.x2, o.y2);
@@ -4136,6 +4578,31 @@ function pbPhases(o) {
   if (o.type === 'stroke') return [{ dur: 600, apply: setPartial }];
   return [{ dur: o.type === 'point' ? 320 : 260, apply: setPartial }];
 }
+/* Winkel antragen wie im Unterricht: Nullpunkt des Geodreiecks in den
+   Scheitel, Hypotenuse auf die Strecke, bei der Gradzahl markieren, dann das
+   Geodreieck an Scheitel und Markierung anlegen und den Schenkel zeichnen. */
+function pbAnglePhases(o) {
+  const V = { x: o.x1, y: o.y1 };
+  const same = (x, y) => Math.abs(x - V.x) < 1e-3 && Math.abs(y - V.y) < 1e-3;
+  const ref = doc.objects.find(s => s.type === 'segment' && !(s.m && s.m.angle) && (same(s.x1, s.y1) || same(s.x2, s.y2)));
+  if (!ref) return null;
+  const rayDir = Math.atan2(o.y2 - o.y1, o.x2 - o.x1);
+  let rot = Math.atan2(ref.y2 - ref.y1, ref.x2 - ref.x1);
+  /* Körper des Geodreiecks (lokal −y) auf die Seite des Schenkels */
+  if (Math.cos(rayDir) * Math.sin(rot) + Math.sin(rayDir) * -Math.cos(rot) < 0) rot += Math.PI;
+  const pose1 = { x: V.x, y: V.y, rot };
+  const lx = Math.cos(rayDir - rot), ly = Math.sin(rayDir - rot);
+  const phi = clamp(Math.atan2(-ly, lx) / DEG, 0, 180);
+  const mark = geoDegPoint(pose1, phi, 0);
+  const len = dist(o.x1, o.y1, o.x2, o.y2);
+  return [
+    pbMovePhase('geo', pose1, 550),
+    { dur: 650, apply: p => { PB.mark = { x: mark.x, y: mark.y, alpha: Math.min(1, p * 2) }; } },
+    pbMovePhase('geo', geoPoseFor(o), 600),
+    { dur: clamp(260 + len * 9, 300, 1400), apply: p => { if (PB.anim) PB.anim.partial = { o, p }; } }
+  ];
+}
+
 /* Gerät an seinen Platz gleiten lassen. Andere Geräte verschwinden; ein
    eben benutztes gleitet von dort weiter, wo es war (wie auf dem Tisch). */
 function pbMovePhase(kind, target, dur) {
@@ -4220,8 +4687,18 @@ function drawPlayback(ctx, k) {
     ctx.restore();
   }
   drawSeg();
+  /* Markierung am Geodreieck beim Winkelantragen */
+  if (PB.mark) {
+    ctx.save();
+    ctx.globalAlpha = PB.mark.alpha == null ? 1 : PB.mark.alpha;
+    ctx.fillStyle = '#d0342c';
+    ctx.beginPath(); ctx.arc(PB.mark.x, PB.mark.y, Math.max(0.6, 2.6 / k), 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#f2b705'; ctx.lineWidth = Math.max(0.3, 1.5 / k);
+    ctx.beginPath(); ctx.arc(PB.mark.x, PB.mark.y, Math.max(1.4, 7 / k), 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
   /* Bleistiftspitze an der wachsenden Linie */
-  if (a && a.partial && a.partial.o.type === 'segment' && a.partial.p < 1) {
+  if (a && a.partial && a.partial.o.type === 'segment' && a.partial.p < 1 && a.partial.p > 0) {
     const o = a.partial.o, p = a.partial.p;
     const x = o.x1 + (o.x2 - o.x1) * p, y = o.y1 + (o.y2 - o.y1) * p;
     ctx.fillStyle = '#1d2a3a';
@@ -4292,6 +4769,202 @@ function shareDescription() {
   }
   if (navigator.share) { navigator.share({ title: sheetName(doc), text }).catch(() => {}); return; }
   deliverFile(safeFileBase(sheetName(doc)) + '.txt', new Blob([text], { type: 'text/plain' }));
+}
+
+/* ---------------------------------------------------------
+   Kongruenzsätze-Labor
+   --------------------------------------------------------- */
+/* Eingaben bleiben als Text gespeichert, so wie getippt (mit Komma oder
+   Punkt); gerechnet wird erst in labRead() – in mm und Grad. */
+const LAB_DEFAULTS = { sss: { c: '6', b: '5', a: '4' }, sws: { c: '6', b: '4,5', alpha: '50' }, wsw: { c: '6', alpha: '50', beta: '60' }, ssw: { c: '5', a: '6', alpha: '50' } };
+const labState = { kind: 'sws', values: clone(LAB_DEFAULTS) };
+function canUseLab() { return !LIMITS_ACTIVE || Purchase.owned; }
+function listJoin(items) {
+  const and = i18n[lang].d_and || ' und ';
+  return items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + and + items[items.length - 1];
+}
+
+function openLab() {
+  if (PB.on) pbExit();
+  if (!canUseLab()) return showPaywall('lab');
+  closeStylePop();
+  labRender();
+  openPanel('labPanel');
+}
+function labSelectKind(kind) { if (LAB_KINDS.includes(kind)) { labState.kind = kind; labRender(); } }
+function labRender() {
+  const kind = labState.kind;
+  for (const k of LAB_KINDS) sel('labKind_' + k, k === kind);
+  document.getElementById('labDesc').textContent = t('lab_desc_' + kind);
+  const box = document.getElementById('labInputs');
+  box.textContent = '';
+  for (const key of LAB_GIVEN[kind]) {
+    const row = document.createElement('label');
+    row.className = 'lab-row';
+    const name = document.createElement('span');
+    name.className = 'lab-name';
+    name.textContent = isLabSide(key) ? key : LAB_SYM[key];
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.inputMode = 'decimal'; inp.autocomplete = 'off'; inp.id = 'labIn_' + key;
+    inp.value = labState.values[kind][key];
+    inp.addEventListener('input', () => { labState.values[kind][key] = inp.value; labUpdateStatus(); });
+    const unit = document.createElement('span');
+    unit.className = 'lab-unit';
+    unit.textContent = isLabSide(key) ? 'cm' : '°';
+    row.append(name, inp, unit);
+    box.appendChild(row);
+  }
+  labUpdateStatus();
+}
+function labRead() {
+  const kind = labState.kind, g = {};
+  for (const key of LAB_GIVEN[kind]) {
+    const n = parseNum(String(labState.values[kind][key] || ''));
+    if (!isNum(n)) return null;
+    g[key] = isLabSide(key) ? Math.round(n * 100) / 10 : n;      // cm → mm, auf 0,1 mm genau
+  }
+  return labValid(kind, g) ? g : null;
+}
+function labUpdateStatus() {
+  const box = document.getElementById('labStatus');
+  const g = labRead();
+  let cls = 'err', msg = t('lab_invalid');
+  if (g) {
+    const r = solveTriangle(labState.kind, g);
+    if (r.sols.length === 1) { cls = 'ok'; msg = t('lab_ok'); }
+    else if (r.sols.length === 2) { cls = 'warn'; msg = t('lab_two'); }
+    else msg = t('lab_none_' + r.reason);
+  }
+  box.className = 'lab-status ' + cls;
+  box.textContent = msg;
+  document.getElementById('btnLabDemo').disabled = !g;
+  document.getElementById('btnLabSelf').disabled = !g;
+}
+function labRandomize() {
+  const kind = labState.kind, g = labRandom(kind, Math.random);
+  for (const key of LAB_GIVEN[kind]) {
+    labState.values[kind][key] = isLabSide(key) ? fmtNum(g[key] / 10, g[key] % 10 ? 1 : 0, lang) : String(g[key]);
+  }
+  labRender();
+}
+
+/* Neues Blatt aus dem Labor. mode: 'demo' (Planfigur + Konstruktion),
+   'solution' (dasselbe, für eine gestellte Aufgabe), 'task' (nur Planfigur,
+   Aufgabe zum Selbstkonstruieren). Planfigur links, Konstruktion bei (0|0). */
+async function createLabSheet(kind, g, mode) {
+  await saveNow();
+  const all = await dbAll();
+  if (!canAddSheet(all.length)) { showPaywall('sheets'); return null; }
+  const T = i18n[lang];
+  const con = labConstruction(kind, g);
+  const xs = [0, g.c].concat(con.sols.map(sl => sl.C.x));
+  const minX = Math.min(...xs);
+  let objs = labPlan(kind, g, con.sols, { x: minX - 62, y: -6 }, lang, T);
+  if (mode !== 'task') {
+    objs = objs.concat(con.objects);
+    if (con.note) wrapText(t(con.note), 46).forEach((line, i) => objs.push({ type: 'text', x: minX, y: 16 + i * 5.5, text: line, size: 3.6, c: '#7b3fb5' }));
+  }
+  const key = mode === 'task' ? 'lab_sheetTask' : mode === 'solution' ? 'lab_sheetSolution' : 'lab_sheetDemo';
+  /* Im Blattnamen normale Leerzeichen – er landet auch in Dateinamen. */
+  const name = t(key, { kind: t('lab_kind_' + kind), given: labGivenText(kind, g, lang, T).replace(/\u00a0/g, ' ') }).slice(0, LIMITS.name);
+  const d = newDoc(uid(), name, Date.now());
+  d.objects = objs.map((o, i) => Object.assign({ id: 'o' + (i + 1) }, o));
+  d.seq = d.objects.length + 1;
+  if (mode === 'task') d.task = { kind, given: Object.assign({}, g) };
+  const b = boundsOf(d.objects);
+  if (mode === 'task') {
+    /* Planfigur oben links, rechts daneben Platz zum Konstruieren */
+    d.view = { cx: b.x0 - 14 + stageW / ppm / 2, cy: b.y0 - 22 + stageH / ppm / 2, zoom: 1 };
+  } else d.view = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom: 1 };
+  d.thumb = makeThumb(d);
+  await dbPut(d);
+  await loadDoc(d);
+  return d;
+}
+/* Hinweise in Zeilen zerlegen, damit sie nicht breiter werden als die Figur. */
+function wrapText(text, max) {
+  const out = [];
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      if (line && (line + ' ' + word).length > max) { out.push(line); line = word; }
+      else line = line ? line + ' ' + word : word;
+    }
+    if (line) out.push(line);
+  }
+  return out;
+}
+async function labDemo() {
+  const g = labRead();
+  if (!g) return;
+  closePanel('labPanel');
+  const d = await createLabSheet(labState.kind, g, 'demo');
+  if (!d) return;
+  openProto();
+  pbToggle();
+}
+async function labSelf() {
+  const g = labRead();
+  if (!g) return;
+  closePanel('labPanel');
+  const d = await createLabSheet(labState.kind, g, 'task');
+  if (!d) return;
+  selectTool('pencil');
+  notify(t('lab_selfHint'));
+}
+
+/* ---------- Aufgabe auf dem Blatt ---------- */
+function updateTaskBar() {
+  const bar = document.getElementById('taskBar');
+  const task = doc && doc.task;
+  bar.hidden = !task || PB.on;
+  if (task) document.getElementById('taskText').textContent = t('lab_task', { given: labGivenText(task.kind, task.given, lang, i18n[lang]) });
+  /* Neben einer offenen Konstruktionsleiste im freien Bereich zentrieren –
+     sonst verdeckt die Leiste den Prüfen- bzw. Menüknopf. */
+  const panelW = protoOpen() ? document.getElementById('protoPanel').offsetWidth : 0;
+  const free = Math.max(200, stageW - panelW), offX = S.toolbarSide === 'right' ? panelW : 0;
+  bar.style.left = (offX + free / 2) + 'px';
+  bar.style.maxWidth = (free - 24) + 'px';
+}
+async function checkCurrentTask() {
+  if (!doc || !doc.task || PB.on) return;
+  const res = checkTask(doc.task, doc.objects);
+  let title;
+  const lines = [];
+  if (res.impossible) { title = t('chk_impTitle'); lines.push(t('lab_none_' + res.impossible)); }
+  else if (res.ok) { title = '✓ ' + t('chk_okTitle'); lines.push(t('chk_ok')); if (res.second) lines.push(t('chk_second')); }
+  else {
+    title = t('chk_failTitle');
+    for (const is of res.issues) {
+      if (is.k === 'missing') lines.push(t('chk_missing', { list: listJoin(is.list) }));
+      else if (is.k === 'degenerate') lines.push(t('chk_degenerate'));
+      else if (is.k === 'side') lines.push(t('chk_side', { key: is.key, got: fmtCm(is.got, lang), want: fmtCm(is.want, lang) }));
+      else if (is.k === 'angle') lines.push(t('chk_angle', { key: LAB_SYM[is.key], got: fmtDeg(is.got, lang), want: fmtDeg(is.want, lang) }));
+      else if (is.k === 'sides') lines.push(t('chk_sides', { list: listJoin(is.list) }));
+    }
+  }
+  const a = await openDialog({
+    title, message: lines.join('\n'),
+    buttons: [{ label: t('btnShowSolution'), value: 'sol' }, { label: t('btnOk'), value: 'ok', kind: 'primary' }]
+  });
+  if (a === 'sol') showTaskSolution();
+}
+async function showTaskSolution() {
+  if (!doc || !doc.task) return;
+  const task = doc.task;
+  const d = await createLabSheet(task.kind, task.given, 'solution');
+  if (!d) return;
+  openProto();
+  pbToggle();
+}
+async function taskMenu() {
+  if (!doc || !doc.task) return;
+  const a = await openDialog({
+    title: t('ariaTaskMore'), message: document.getElementById('taskText').textContent,
+    buttons: [{ label: t('btnRemoveTask'), value: 'remove', kind: 'danger' }, { label: t('btnShowSolution'), value: 'sol' }, { label: t('btnCancel'), value: null }]
+  });
+  if (a === 'sol') showTaskSolution();
+  else if (a === 'remove') { doc.task = null; updateTaskBar(); scheduleSave(false); }
 }
 
 /* ---------------------------------------------------------
