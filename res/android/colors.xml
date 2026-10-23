@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hintergrund des adaptiven App-Icons, gleiche Farbe wie in make-icons.py (INK).
+         Eigenes Präfix, damit nichts mit Cordovas eigenen Ressourcen kollidiert. -->
+    <color name="zirkelwerk_icon_background">#234e8c</color>
+</resources>

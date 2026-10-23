@@ -1,0 +1,5 @@
+/* App name below the icon for all languages except German */
+"CFBundleDisplayName" = "Compasswork";
+"CFBundleName" = "Compasswork";
+"NSPhotoLibraryAddUsageDescription" = "Compasswork saves a picture of your drawing to your photo library when you ask it to. Existing photos are not read.";
+"NSPhotoLibraryUsageDescription" = "Compasswork saves a picture of your drawing to your photo library when you ask it to. Existing photos are neither read nor changed.";

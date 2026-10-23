@@ -1,0 +1,5 @@
+/* App-Name unter dem Icon auf Geräten mit deutscher Sprache */
+"CFBundleDisplayName" = "Zirkelwerk";
+"CFBundleName" = "Zirkelwerk";
+"NSPhotoLibraryAddUsageDescription" = "Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden nicht gelesen.";
+"NSPhotoLibraryUsageDescription" = "Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden weder gelesen noch verändert.";
