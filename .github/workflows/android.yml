@@ -83,7 +83,12 @@ jobs:
 
           cd build
           cordova platform add "android@${CORDOVA_ANDROID}"
-          cordova clean android
+          # Kein "cordova clean android": Das löscht neben dem Gradle-Ausgabeordner
+          # auch alle per <resource-file> kopierten Dateien (cleanFileResources),
+          # also values-de/strings.xml und zirkelwerk_colors.xml. Erst der nächste
+          # build hätte sie wieder angelegt – die Prüfung danach schlug deshalb fehl.
+          # Das Projekt ist frisch angelegt, es gibt nichts aufzuräumen.
+          cordova prepare android
 
       - name: Erzeugtes Projekt bestätigen
         working-directory: build
@@ -106,7 +111,19 @@ jobs:
             echo "::error::$DE fehlt oder enthält nicht 'Zirkelwerk'."
             exit 1
           fi
-          grep -o '<string name="app_name">[^<]*' platforms/android/app/src/main/res/values/strings.xml
+          # Grundname für alle anderen Sprachen. cordova-android 15 schreibt ihn
+          # nach values/cdv_strings.xml (ältere Fassungen: values/strings.xml).
+          EN=$(ls platforms/android/app/src/main/res/values/cdv_strings.xml \
+                  platforms/android/app/src/main/res/values/strings.xml 2>/dev/null | head -1)
+          if [ -n "$EN" ] && grep -q '<string name="app_name">Compasswork<' "$EN"; then
+            echo "Grundname Compasswork in $EN."
+          else
+            echo "::error::Englischer Grundname 'Compasswork' nicht gefunden (values/cdv_strings.xml)."
+            exit 1
+          fi
+          # Farbe für den Icon-Hintergrund, sonst bricht aapt beim Bauen ab
+          test -f platforms/android/app/src/main/res/values/zirkelwerk_colors.xml \
+            || { echo "::error::zirkelwerk_colors.xml fehlt."; exit 1; }
 
       - name: Debug-APK bauen
         working-directory: build
