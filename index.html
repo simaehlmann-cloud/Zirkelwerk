@@ -1,0 +1,3577 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="auto">
+<head>
+<meta charset="UTF-8">
+<!-- user-scalable=no: Zoomen übernimmt die Zeichenfläche selbst. Ohne diese
+     Angabe zoomt iOS bei einem Doppeltipp die ganze Oberfläche und die
+     Werkzeugleiste verschwindet aus dem Bild. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#faf8f3">
+<meta name="format-detection" content="telephone=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' gap: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title data-i18n="appName">Zirkelwerk</title>
+<style>
+/* =========================================================
+   Farben. Papier bleibt in beiden Modi hell – wie ein Heft.
+   Nur die Bedienoberfläche wechselt.
+   ========================================================= */
+:root {
+  --chrome: #faf8f3;
+  --chrome-2: #f1ede4;
+  --line: #ddd6c8;
+  --ink: #1d2a3a;
+  --ink-soft: #5d6878;
+  --accent: #234e8c;
+  --accent-soft: #dfe8f5;
+  --pencil: #f2b705;
+  --danger: #c0392b;
+  --paper: #ffffff;
+  --grid: #c3d3e4;
+  --panel: #ffffff;
+  --shadow: 0 6px 24px rgba(20, 30, 50, .16);
+  --tool-w: 78px;
+  --top-h: 52px;
+}
+:root[data-theme="dark"] {
+  --chrome: #1c1f26; --chrome-2: #262a33; --line: #383d48;
+  --ink: #e9ecf1; --ink-soft: #a3abb8; --accent: #8db4f0; --accent-soft: #2b3a52;
+  --panel: #23272f; --shadow: 0 6px 24px rgba(0, 0, 0, .5);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] {
+    --chrome: #1c1f26; --chrome-2: #262a33; --line: #383d48;
+    --ink: #e9ecf1; --ink-soft: #a3abb8; --accent: #8db4f0; --accent-soft: #2b3a52;
+    --panel: #23272f; --shadow: 0 6px 24px rgba(0, 0, 0, .5);
+  }
+}
+
+* { box-sizing: border-box; }
+/* hidden muss gewinnen – sonst überstimmen display:flex-Regeln das Attribut. */
+[hidden] { display: none !important; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--chrome); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  /* Langes Drücken darf weder Text markieren noch die Lupe oder das
+     Kontextmenü von iOS öffnen – das stört beim Zeichnen mit dem Stift. */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+input, textarea { -webkit-user-select: text; user-select: text; font: inherit; }
+
+/* ---------------- Kopfleiste ---------------- */
+#topbar {
+  position: fixed; left: 0; right: 0; top: 0;
+  height: calc(var(--top-h) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0 calc(8px + env(safe-area-inset-left));
+  display: flex; align-items: center; gap: 6px;
+  background: var(--chrome); border-bottom: 1px solid var(--line);
+  z-index: 20;
+}
+.tb {
+  min-width: 44px; height: 44px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: none; border-radius: 10px; background: transparent;
+}
+.tb:active { background: var(--chrome-2); }
+.tb:disabled { opacity: .35; cursor: default; }
+.tb svg { width: 24px; height: 24px; }
+#sheetTitle {
+  max-width: 34vw; height: 40px; padding: 0 12px;
+  border: none; border-radius: 10px; background: transparent;
+  font-weight: 650; font-size: 17px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#sheetTitle:active { background: var(--chrome-2); }
+.spacer { flex: 1; }
+.zoomgrp { display: inline-flex; align-items: center; background: var(--chrome-2); border-radius: 12px; }
+.zoomgrp .tb { min-width: 40px; }
+#zoomLabel { min-width: 64px; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+
+/* ---------------- Werkzeugleiste ---------------- */
+#toolbar {
+  position: fixed; left: 0; bottom: 0;
+  top: calc(var(--top-h) + env(safe-area-inset-top));
+  width: calc(var(--tool-w) + env(safe-area-inset-left));
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  background: var(--chrome); border-right: 1px solid var(--line);
+  overflow-y: auto; z-index: 15;
+  scrollbar-width: none;
+}
+#toolbar::-webkit-scrollbar { display: none; }
+body.tools-right #toolbar {
+  left: auto; right: 0; border-right: none; border-left: 1px solid var(--line);
+  width: calc(var(--tool-w) + env(safe-area-inset-right));
+  padding-left: 6px; padding-right: calc(6px + env(safe-area-inset-right));
+}
+.tool {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 56px; padding: 6px 2px;
+  border: none; border-radius: 12px; background: transparent;
+}
+.tool svg { width: 26px; height: 26px; }
+.tool .lb { font-size: 11px; line-height: 1.1; color: var(--ink-soft); text-align: center; }
+.tool:active { background: var(--chrome-2); }
+.tool.active { background: var(--accent-soft); color: var(--accent); }
+.tool.active .lb { color: var(--accent); font-weight: 650; }
+/* Gelbe Kante wie der Lack eines Bleistifts: zeigt eingeblendete Geräte. */
+.tool.on::after {
+  content: ""; position: absolute; right: 9px; top: 7px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--pencil); box-shadow: 0 0 0 2px var(--chrome);
+}
+.tool.on { color: var(--ink); }
+.sep { height: 1px; margin: 4px 8px; background: var(--line); flex: none; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid var(--chrome); box-shadow: 0 0 0 1.5px var(--line);
+}
+
+/* ---------------- Zeichenfläche ---------------- */
+#stage {
+  position: fixed; right: 0; bottom: 0;
+  top: calc(var(--top-h) + env(safe-area-inset-top));
+  left: calc(var(--tool-w) + env(safe-area-inset-left));
+  overflow: hidden; background: var(--paper);
+  /* Ohne touch-action:none schickt iOS Wisch- und Zoomgesten an die
+     Seite statt an die Zeichenfläche. */
+  touch-action: none;
+}
+body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-inset-right)); }
+#stage canvas { position: absolute; left: 0; top: 0; touch-action: none; }
+#cvOver { pointer-events: none; }
+#chips { position: absolute; inset: 0; pointer-events: none; }
+.chip {
+  position: absolute; transform: translate(-50%, -50%);
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; border-radius: 22px;
+  background: rgba(29, 42, 58, .88); color: #fff;
+  font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  box-shadow: 0 3px 12px rgba(0,0,0,.2);
+  pointer-events: auto; white-space: nowrap;
+}
+.chip button {
+  min-width: 40px; height: 36px; padding: 0 10px;
+  border: none; border-radius: 18px; background: transparent; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.chip button:active { background: rgba(255,255,255,.18); }
+.chip button.on { background: var(--pencil); color: #1d2a3a; }
+.chip svg { width: 20px; height: 20px; }
+.chip.live { pointer-events: none; }
+
+/* ---------------- Farbwahl ---------------- */
+.pop {
+  position: fixed; z-index: 30;
+  padding: 12px; border-radius: 16px;
+  background: var(--panel); box-shadow: var(--shadow); border: 1px solid var(--line);
+}
+.pop h4 { margin: 4px 4px 8px; font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+.pop .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.pop .row:last-child { margin-bottom: 0; }
+.colorbtn {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--panel); box-shadow: 0 0 0 1.5px var(--line);
+}
+.colorbtn.sel { box-shadow: 0 0 0 3px var(--accent); }
+.widthbtn {
+  width: 56px; height: 40px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.widthbtn.sel { border-color: var(--accent); background: var(--accent-soft); }
+.widthbtn i { display: block; width: 30px; border-radius: 4px; background: var(--ink); }
+
+/* ---------------- Panels (Blätter, Einstellungen, Hilfe) ---------------- */
+.panel {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(15, 22, 34, .45);
+}
+.panel[hidden] { display: none; }
+.card {
+  width: min(760px, 100%); max-height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--panel); border-radius: 18px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 12px 12px 20px; border-bottom: 1px solid var(--line);
+}
+.card header h2 { margin: 0; flex: 1; font-size: 20px; }
+.card .body {
+  padding: 16px 20px 24px; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  -webkit-user-select: text; user-select: text;
+}
+.card section { margin-bottom: 22px; }
+.card h3 { margin: 0 0 8px; font-size: 15px; color: var(--ink-soft); text-transform: none; }
+.card p { line-height: 1.5; }
+.hint { color: var(--ink-soft); font-size: 14px; margin: 6px 0 0; line-height: 1.45; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  min-height: 44px; padding: 0 16px;
+  border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--chrome); font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn:active { filter: brightness(.95); }
+.btn.sel { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary { color: #10203a; }
+@media (prefers-color-scheme: dark) { :root[data-theme="auto"] .btn.primary { color: #10203a; } }
+.btn.danger { color: var(--danger); }
+.btn svg { width: 20px; height: 20px; }
+
+.sheets { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.sheet {
+  position: relative; border: 1.5px solid var(--line); border-radius: 14px;
+  background: var(--chrome); overflow: hidden; text-align: left; padding: 0;
+}
+.sheet.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sheet .thumb { display: block; width: 100%; aspect-ratio: 3 / 2; background: #fff; object-fit: contain; }
+.sheet .meta { padding: 8px 44px 10px 12px; }
+.sheet .name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet .date { font-size: 13px; color: var(--ink-soft); }
+.sheet .more {
+  position: absolute; right: 4px; bottom: 6px; width: 40px; height: 40px;
+  border: none; border-radius: 10px; background: transparent; font-size: 22px; line-height: 1;
+}
+.sheet .more:active { background: var(--chrome-2); }
+.toolbar-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+
+.switch-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.switch-row .txt { flex: 1; }
+.switch-row small { display: block; color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+
+.help-item { display: flex; gap: 14px; margin-bottom: 16px; }
+.help-item .ic { flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.help-item .ic svg { width: 26px; height: 26px; }
+.help-item p { margin: 2px 0 0; }
+
+/* ---------------- Kalibrierung ---------------- */
+#calibArea { position: relative; height: 200px; margin: 12px 0; border-radius: 12px; background: #fff; overflow: hidden; border: 1px solid var(--line); }
+#calibCard { position: absolute; left: 24px; top: 24px; border: 2px solid #234e8c; border-radius: 3mm; background: rgba(35,78,140,.08); }
+#calibRuler { position: absolute; left: 24px; bottom: 16px; height: 34px; }
+.calib-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.calib-ctl input[type=range] { flex: 1; min-width: 180px; height: 44px; }
+
+/* ---------------- Dialog ---------------- */
+#dialog { z-index: 60; }
+#dialog .card { width: min(460px, 100%); }
+#dialogBody { padding: 20px; }
+#dialogTitle { margin: 0 0 8px; font-size: 19px; }
+#dialogMessage { margin: 0 0 12px; line-height: 1.45; color: var(--ink-soft); white-space: pre-line; }
+#dialogInput {
+  width: 100%; height: 48px; padding: 0 14px; margin-bottom: 14px;
+  border: 1.5px solid var(--line); border-radius: 12px; background: var(--chrome); color: var(--ink);
+  font-size: 18px;
+}
+#dialogInput:focus { outline: none; border-color: var(--accent); }
+#dialogExtra:empty { display: none; }
+#dialogExtra { margin-bottom: 14px; }
+#dialogButtons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.labelpos { display: grid; grid-template-columns: repeat(3, 48px); gap: 6px; }
+.labelpos button { height: 44px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--chrome); font-size: 18px; }
+.labelpos button.sel { border-color: var(--accent); background: var(--accent-soft); }
+.labelpos button.mid { visibility: hidden; }
+
+/* ---------------- Meldung ---------------- */
+#toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 20px); opacity: 0;
+  max-width: min(560px, calc(100% - 32px));
+  padding: 12px 18px; border-radius: 14px;
+  background: #1d2a3a; color: #fff; font-weight: 550; line-height: 1.4;
+  box-shadow: var(--shadow); z-index: 70; pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.error { background: var(--danger); }
+
+/* Schmale Fenster (Split View, iPhone): Leiste kompakter, Beschriftung weg. */
+@media (max-width: 640px), (max-height: 560px) {
+  :root { --tool-w: 58px; }
+  .tool { min-height: 46px; }
+  .tool .lb { display: none; }
+  #sheetTitle { max-width: 26vw; font-size: 15px; }
+  #zoomLabel { min-width: 52px; }
+}
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <button class="tb" id="btnSheets" data-icon="sheets" onclick="openSheets()" data-i18n-aria="ariaSheets" aria-label="Blätter"></button>
+  <button id="sheetTitle" onclick="renameCurrentSheet()" data-i18n-aria="ariaRename" aria-label="Blatt umbenennen"></button>
+  <div class="spacer"></div>
+  <button class="tb" id="btnUndo" data-icon="undo" onclick="undo()" data-i18n-aria="ariaUndo" aria-label="Rückgängig" disabled></button>
+  <button class="tb" id="btnRedo" data-icon="redo" onclick="redo()" data-i18n-aria="ariaRedo" aria-label="Wiederholen" disabled></button>
+  <div class="spacer"></div>
+  <div class="zoomgrp">
+    <button class="tb" data-icon="minus" onclick="zoomStep(-1)" data-i18n-aria="ariaZoomOut" aria-label="Verkleinern"></button>
+    <button class="tb" id="zoomLabel" onclick="zoomReset()" data-i18n-aria="ariaZoomReset" aria-label="Originalgröße">100 %</button>
+    <button class="tb" data-icon="plus" onclick="zoomStep(1)" data-i18n-aria="ariaZoomIn" aria-label="Vergrößern"></button>
+  </div>
+  <button class="tb" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Kurzanleitung"></button>
+  <button class="tb" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
+</header>
+
+<nav id="toolbar">
+  <button class="tool" data-tool="hand" onclick="selectTool('hand')"><span data-icon="hand"></span><span class="lb" data-i18n="toolHand">Hand</span></button>
+  <button class="tool" data-tool="pencil" onclick="selectTool('pencil')"><span data-icon="pencil"></span><span class="lb" data-i18n="toolPencil">Bleistift</span></button>
+  <button class="tool" data-tool="marker" onclick="selectTool('marker')"><span data-icon="marker"></span><span class="lb" data-i18n="toolMarker">Marker</span></button>
+  <button class="tool" data-tool="eraser" onclick="selectTool('eraser')"><span data-icon="eraser"></span><span class="lb" data-i18n="toolEraser">Radierer</span></button>
+  <div class="sep"></div>
+  <button class="tool" data-tool="point" onclick="selectTool('point')"><span data-icon="point"></span><span class="lb" data-i18n="toolPoint">Punkt</span></button>
+  <button class="tool" data-tool="text" onclick="selectTool('text')"><span data-icon="text"></span><span class="lb" data-i18n="toolText">Text</span></button>
+  <div class="sep"></div>
+  <button class="tool" data-inst="ruler" onclick="toggleInstrument('ruler')"><span data-icon="ruler"></span><span class="lb" data-i18n="instRuler">Lineal</span></button>
+  <button class="tool" data-inst="geo" onclick="toggleInstrument('geo')"><span data-icon="geo"></span><span class="lb" data-i18n="instGeo">Geodreieck</span></button>
+  <button class="tool" data-inst="compass" onclick="toggleInstrument('compass')"><span data-icon="compass"></span><span class="lb" data-i18n="instCompass">Zirkel</span></button>
+  <div class="sep"></div>
+  <button class="tool" id="btnStyle" onclick="toggleStylePop()"><span class="swatch" id="styleSwatch"></span><span class="lb" data-i18n="toolStyle">Farbe</span></button>
+</nav>
+
+<main id="stage">
+  <canvas id="cvBase"></canvas>
+  <canvas id="cvOver"></canvas>
+  <div id="chips"></div>
+</main>
+
+<div id="stylePop" class="pop" hidden>
+  <h4 id="stylePopTitle" data-i18n="styleColor">Farbe</h4>
+  <div class="row" id="colorRow"></div>
+  <div id="widthBlock">
+    <h4 data-i18n="styleWidth">Strichstärke</h4>
+    <div class="row" id="widthRow"></div>
+  </div>
+</div>
+
+<!-- Blätter -->
+<div id="sheetsPanel" class="panel" hidden onclick="if(event.target===this)closePanel('sheetsPanel')">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="sheetsTitle">
+    <header>
+      <h2 id="sheetsTitle" data-i18n="sheetsTitle">Meine Blätter</h2>
+      <button class="tb" data-icon="close" onclick="closePanel('sheetsPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <div class="toolbar-row">
+        <button class="btn primary" onclick="newSheet()"><span data-icon="plus"></span><span data-i18n="btnNewSheet">Neues Blatt</span></button>
+        <button class="btn" onclick="importSheet()"><span data-icon="import"></span><span data-i18n="btnImport">Importieren</span></button>
+      </div>
+      <div class="sheets" id="sheetList"></div>
+      <p class="hint" id="sheetsHint" data-i18n="sheetsHint">Blätter werden nur auf diesem Gerät gespeichert. Exportiere wichtige Blätter als Datei, um sie zu sichern oder weiterzugeben.</p>
+    </div>
+  </div>
+</div>
+<input type="file" id="importInput" accept=".zirkelwerk,.json,application/json" hidden>
+
+<!-- Einstellungen -->
+<div id="settingsPanel" class="panel" hidden onclick="if(event.target===this)closePanel('settingsPanel')">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <header>
+      <h2 id="settingsTitle" data-i18n="settingsTitle">Einstellungen</h2>
+      <button class="tb" data-icon="close" onclick="closePanel('settingsPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <section>
+        <h3 data-i18n="setLanguage">Sprache</h3>
+        <div class="seg">
+          <button class="btn" id="choiceLangDe" onclick="chooseLanguage('de')">🇩🇪 Deutsch</button>
+          <button class="btn" id="choiceLangEn" onclick="chooseLanguage('en')">🇬🇧 English</button>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="setTheme">Darstellung</h3>
+        <div class="seg">
+          <button class="btn" id="choiceThemeAuto" onclick="chooseSetting('theme','auto')" data-i18n="themeAuto">Automatisch</button>
+          <button class="btn" id="choiceThemeLight" onclick="chooseSetting('theme','light')" data-i18n="themeLight">Hell</button>
+          <button class="btn" id="choiceThemeDark" onclick="chooseSetting('theme','dark')" data-i18n="themeDark">Dunkel</button>
+        </div>
+        <p class="hint" data-i18n="themeHint">Das Papier bleibt immer hell – wie im Heft.</p>
+      </section>
+      <section>
+        <h3 data-i18n="setPaper">Papier</h3>
+        <div class="seg">
+          <button class="btn" id="choicePaperGrid" onclick="chooseSetting('paper','grid')" data-i18n="paperGrid">Kariert (5 mm)</button>
+          <button class="btn" id="choicePaperBlank" onclick="chooseSetting('paper','blank')" data-i18n="paperBlank">Blanko</button>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="setPoints">Punkte zeichnen als</h3>
+        <div class="seg">
+          <button class="btn" id="choicePointCross" onclick="chooseSetting('pointStyle','cross')" data-i18n="pointCross">Kreuz ×</button>
+          <button class="btn" id="choicePointDot" onclick="chooseSetting('pointStyle','dot')" data-i18n="pointDot">Punkt •</button>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="setDrawing">Zeichnen</h3>
+        <div class="switch-row">
+          <div class="txt"><strong data-i18n="setSnap">Einrasten</strong><small data-i18n="setSnapHint">Punkte, Schnittpunkte, ganze Millimeter und ganze Grad werden genau getroffen. Ausgeschaltet zeichnest du frei wie im Heft.</small></div>
+          <button class="btn" id="toggleSnap" onclick="toggleSetting('snap')"></button>
+        </div>
+        <h3 style="margin-top:14px" data-i18n="setPen">Apple Pencil</h3>
+        <div class="seg">
+          <button class="btn" id="choicePenAuto" onclick="chooseSetting('penOnly','auto')" data-i18n="penAuto">Automatisch</button>
+          <button class="btn" id="choicePenOn" onclick="chooseSetting('penOnly','on')" data-i18n="penOn">Nur Stift zeichnet</button>
+          <button class="btn" id="choicePenOff" onclick="chooseSetting('penOnly','off')" data-i18n="penOff">Finger zeichnet auch</button>
+        </div>
+        <p class="hint" data-i18n="penHint">Automatisch: Sobald du mit dem Stift zeichnest, verschieben Finger nur noch das Blatt und die Geräte. So entstehen keine Striche, wenn die Hand aufliegt.</p>
+        <h3 style="margin-top:14px" data-i18n="setToolbar">Werkzeugleiste</h3>
+        <div class="seg">
+          <button class="btn" id="choiceSideLeft" onclick="chooseSetting('toolbarSide','left')" data-i18n="sideLeft">Links</button>
+          <button class="btn" id="choiceSideRight" onclick="chooseSetting('toolbarSide','right')" data-i18n="sideRight">Rechts (für Linkshänder)</button>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="setScale">Echte Größe</h3>
+        <p class="hint" id="scaleInfo"></p>
+        <div class="seg" style="margin-top:10px">
+          <button class="btn" onclick="openCalibration()"><span data-icon="ruler"></span><span data-i18n="btnCalibrate">Kalibrieren</span></button>
+          <button class="btn" id="btnCalibReset" onclick="resetCalibration()" data-i18n="btnCalibReset">Kalibrierung zurücksetzen</button>
+        </div>
+      </section>
+      <section id="purchaseSection" hidden>
+        <h3 data-i18n="setFull">Vollversion</h3>
+        <p class="hint" id="purchaseState"></p>
+        <div class="seg" style="margin-top:10px">
+          <button class="btn primary" id="btnBuy" onclick="buyFull()" data-i18n="btnBuy">Vollversion freischalten</button>
+          <button class="btn" onclick="restorePurchases()" data-i18n="btnRestore">Käufe wiederherstellen</button>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="setAbout">Über</h3>
+        <p class="hint" id="aboutLine"></p>
+        <div class="seg" style="margin-top:10px">
+          <button class="btn" onclick="openLegal('impressum')" data-i18n="btnImprint">Impressum</button>
+          <button class="btn" onclick="openLegal('datenschutz')" data-i18n="btnPrivacy">Datenschutz</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Kurzanleitung -->
+<div id="helpPanel" class="panel" hidden onclick="if(event.target===this)closePanel('helpPanel')">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <header>
+      <h2 id="helpTitle" data-i18n="helpTitle">Kurzanleitung</h2>
+      <button class="tb" data-icon="close" onclick="closePanel('helpPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <div class="help-item"><div class="ic" data-icon="compass"></div><div><strong data-i18n="helpCompassT">Zirkel</strong><p data-i18n="helpCompass">Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="geo"></div><div><strong data-i18n="helpGeoT">Geodreieck und Lineal</strong><p data-i18n="helpGeo">Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Kalibrierung -->
+<div id="calibPanel" class="panel" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="calibTitle">
+    <header>
+      <h2 id="calibTitle" data-i18n="calibTitle">Echte Größe einstellen</h2>
+      <button class="tb" data-icon="close" onclick="closeCalibration(false)" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <p data-i18n="calibText">Lege eine Karte im Scheckkartenformat (z. B. Bibliotheks- oder Krankenkassenkarte) auf den Rahmen und stelle den Regler so ein, dass Karte und Rahmen gleich breit sind. Alternativ ein Lineal an die Skala halten.</p>
+      <div id="calibArea"><div id="calibCard"></div><canvas id="calibRuler"></canvas></div>
+      <div class="calib-ctl">
+        <button class="btn" onclick="calibNudge(-1)">−</button>
+        <input type="range" id="calibRange" min="250" max="900" step="1" oninput="calibInput()">
+        <button class="btn" onclick="calibNudge(1)">+</button>
+      </div>
+      <div class="seg" style="margin-top:16px; justify-content:flex-end">
+        <button class="btn" onclick="closeCalibration(false)" data-i18n="btnCancel">Abbrechen</button>
+        <button class="btn primary" onclick="closeCalibration(true)" data-i18n="btnSave">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dialog -->
+<div id="dialog" class="panel" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <div id="dialogBody">
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogMessage"></p>
+      <input id="dialogInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
+      <div id="dialogExtra"></div>
+      <div id="dialogButtons"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+/* =========================================================
+   Sprachpakete. validate.js prüft: gleiche Schlüssel in DE und EN,
+   keine leeren Texte, jeder benutzte Schlüssel ist definiert.
+   ========================================================= */
+const i18n = {
+  de: {
+    appName: 'Zirkelwerk',
+    ariaSheets: 'Meine Blätter', ariaRename: 'Blatt umbenennen', ariaUndo: 'Rückgängig', ariaRedo: 'Wiederholen',
+    ariaZoomOut: 'Verkleinern', ariaZoomReset: 'Echte Größe (100 %)', ariaZoomIn: 'Vergrößern',
+    ariaHelp: 'Kurzanleitung', ariaSettings: 'Einstellungen', ariaClose: 'Schließen',
+    ariaSheetActions: 'Weitere Aktionen', ariaColor: 'Farbe wählen', ariaWidth: 'Strichstärke wählen',
+    ariaLock: 'Radius festhalten', ariaUnlock: 'Radius freigeben', ariaRadius: 'Radius eingeben',
+    ariaFullCircle: 'Ganzen Kreis zeichnen', ariaAngle: 'Winkel eingeben', ariaLabelPos: 'Lage der Beschriftung',
+
+    toolHand: 'Hand', toolPencil: 'Bleistift', toolMarker: 'Marker', toolEraser: 'Radierer',
+    toolPoint: 'Punkt', toolText: 'Text', toolStyle: 'Farbe',
+    instRuler: 'Lineal', instGeo: 'Geodreieck', instCompass: 'Zirkel',
+    styleColor: 'Farbe', styleWidth: 'Strichstärke', styleMarker: 'Markerfarbe',
+
+    sheetsTitle: 'Meine Blätter', btnNewSheet: 'Neues Blatt', btnImport: 'Importieren',
+    sheetsHint: 'Blätter werden nur auf diesem Gerät gespeichert. Exportiere wichtige Blätter als Datei, um sie zu sichern oder weiterzugeben.',
+    untitled: 'Ohne Titel', defaultSheetName: 'Blatt {n}', copyOf: '{name} (Kopie)',
+    btnRename: 'Umbenennen', btnDuplicate: 'Duplizieren', btnExport: 'Als Datei exportieren', btnDelete: 'Löschen',
+    dlgRenameTitle: 'Blatt umbenennen',
+    dlgDeleteTitle: 'Blatt löschen?', dlgDeleteMsg: '„{name}“ wird endgültig gelöscht.',
+
+    settingsTitle: 'Einstellungen', setLanguage: 'Sprache', setTheme: 'Darstellung',
+    themeAuto: 'Automatisch', themeLight: 'Hell', themeDark: 'Dunkel',
+    themeHint: 'Das Papier bleibt immer hell – wie im Heft.',
+    setPaper: 'Papier', paperGrid: 'Kariert (5 mm)', paperBlank: 'Blanko',
+    setPoints: 'Punkte zeichnen als', pointCross: 'Kreuz ×', pointDot: 'Punkt •',
+    setDrawing: 'Zeichnen', setSnap: 'Einrasten',
+    setSnapHint: 'Punkte, Schnittpunkte, ganze Millimeter und ganze Grad werden genau getroffen. Ausgeschaltet zeichnest du frei wie im Heft.',
+    on: 'Ein', off: 'Aus',
+    setPen: 'Apple Pencil', penAuto: 'Automatisch', penOn: 'Nur Stift zeichnet', penOff: 'Finger zeichnet auch',
+    penHint: 'Automatisch: Sobald du mit dem Stift zeichnest, verschieben Finger nur noch das Blatt und die Geräte. So entstehen keine Striche, wenn die Hand aufliegt.',
+    setToolbar: 'Werkzeugleiste', sideLeft: 'Links', sideRight: 'Rechts (für Linkshänder)',
+    setScale: 'Echte Größe', btnCalibrate: 'Kalibrieren', btnCalibReset: 'Kalibrierung zurücksetzen',
+    scaleDetected: 'Erkannt: {device}. Bei 100 % entspricht 1 cm auf dem Bildschirm 1 cm in echt.',
+    scaleEstimated: 'Dieses Gerät ließ sich nicht sicher erkennen. Für genaue Zentimeter bitte einmal kalibrieren.',
+    scaleCalibrated: 'Von dir kalibriert. Bei 100 % entspricht 1 cm auf dem Bildschirm 1 cm in echt.',
+    device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android-Gerät', device_desktop: 'Computer',
+    setFull: 'Vollversion', btnBuy: 'Vollversion freischalten', btnRestore: 'Käufe wiederherstellen',
+    fullInfo: 'Die Vollversion schaltet alle Funktionen dauerhaft frei – einmal kaufen, kein Abo.',
+    fullOwned: 'Die Vollversion ist freigeschaltet. Danke!',
+    setAbout: 'Über', aboutLine: 'Zirkelwerk {version} · Wisdompeak Apps – Simon Mählmann',
+    btnImprint: 'Impressum', btnPrivacy: 'Datenschutz',
+
+    helpTitle: 'Kurzanleitung',
+    helpCompassT: 'Zirkel',
+    helpCompass: 'Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.',
+    helpGeoT: 'Geodreieck und Lineal',
+    helpGeo: 'Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.',
+    helpPointT: 'Punkte und Beschriftung',
+    helpPoint: 'Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.',
+    helpNavT: 'Blatt bewegen',
+    helpNav: 'Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.',
+    helpPenT: 'Apple Pencil',
+    helpPen: 'Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.',
+
+    calibTitle: 'Echte Größe einstellen',
+    calibText: 'Lege eine Karte im Scheckkartenformat (z. B. Bibliotheks- oder Krankenkassenkarte) auf den Rahmen und stelle den Regler so ein, dass Karte und Rahmen gleich breit sind. Alternativ ein Lineal an die Skala halten.',
+    btnCancel: 'Abbrechen', btnSave: 'Speichern', btnOk: 'OK', btnLater: 'Später', btnShowFull: 'Ansehen',
+
+    dlgRadiusTitle: 'Radius', dlgRadiusMsg: 'Radius in Zentimetern. Der Zirkel bleibt danach fest eingestellt.',
+    dlgAngleTitle: 'Drehwinkel', dlgAngleMsg: 'Winkel in Grad, gemessen gegen den Uhrzeigersinn.',
+    dlgTextNew: 'Text einfügen', dlgTextEdit: 'Text bearbeiten', phText: 'z. B. c = 5 cm',
+    sizeSmall: 'Klein', sizeMedium: 'Mittel', sizeLarge: 'Groß',
+    dlgPointTitle: 'Punkt', phLabel: 'Name des Punkts', dlgPointPos: 'Lage der Beschriftung',
+
+    paywallTitle: 'Vollversion',
+    paywall_sheets: 'In der kostenlosen Fassung kannst du {n} Blätter speichern. Mit der Vollversion sind es beliebig viele.',
+
+    msgRadiusZero: 'Zieh den Zirkel zuerst auf.',
+    msgRadiusInvalid: 'Bitte einen Radius zwischen 0 und {max} cm eingeben.',
+    msgAngleInvalid: 'Bitte eine Zahl eingeben.',
+    msgSaveFailed: 'Speichern ist fehlgeschlagen. Exportiere das Blatt sicherheitshalber als Datei.',
+    msgNoStorage: 'Dieses Gerät erlaubt kein dauerhaftes Speichern. Blätter gehen beim Schließen verloren – bitte als Datei exportieren.',
+    msgImportTooLarge: 'Die Datei ist zu groß.',
+    msgImportInvalid: 'Diese Datei ist kein Zirkelwerk-Blatt.',
+    msgImportNewer: 'Dieses Blatt stammt aus einer neueren Version. Bitte aktualisiere die App.',
+    msgImported: '„{name}“ wurde importiert.',
+    msgShareFailed: 'Teilen hat nicht geklappt.',
+    msgExportFailed: 'Export ist fehlgeschlagen.',
+    msgCalibSaved: 'Gespeichert. 100 % zeigt jetzt die echte Größe.',
+    msgCalibHint: 'Tipp: Unter Einstellungen → Echte Größe kannst du einstellen, dass 1 cm auf dem Bildschirm genau 1 cm ist.',
+    msgStoreUnavailable: 'Der Store ist gerade nicht erreichbar. Bitte später erneut versuchen.',
+    msgPurchaseFailed: 'Der Kauf konnte nicht abgeschlossen werden.',
+    msgRestored: 'Die Vollversion wurde wiederhergestellt.',
+    msgNothingToRestore: 'Für diese Apple-ID bzw. dieses Google-Konto wurde kein Kauf gefunden.'
+  },
+
+  en: {
+    appName: 'Compasswork',
+    ariaSheets: 'My sheets', ariaRename: 'Rename sheet', ariaUndo: 'Undo', ariaRedo: 'Redo',
+    ariaZoomOut: 'Zoom out', ariaZoomReset: 'Actual size (100 %)', ariaZoomIn: 'Zoom in',
+    ariaHelp: 'Quick guide', ariaSettings: 'Settings', ariaClose: 'Close',
+    ariaSheetActions: 'More actions', ariaColor: 'Choose colour', ariaWidth: 'Choose line width',
+    ariaLock: 'Lock radius', ariaUnlock: 'Unlock radius', ariaRadius: 'Enter radius',
+    ariaFullCircle: 'Draw full circle', ariaAngle: 'Enter angle', ariaLabelPos: 'Label position',
+
+    toolHand: 'Hand', toolPencil: 'Pencil', toolMarker: 'Marker', toolEraser: 'Eraser',
+    toolPoint: 'Point', toolText: 'Text', toolStyle: 'Colour',
+    instRuler: 'Ruler', instGeo: 'Set square', instCompass: 'Compass',
+    styleColor: 'Colour', styleWidth: 'Line width', styleMarker: 'Marker colour',
+
+    sheetsTitle: 'My sheets', btnNewSheet: 'New sheet', btnImport: 'Import',
+    sheetsHint: 'Sheets are stored on this device only. Export important sheets as a file to back them up or share them.',
+    untitled: 'Untitled', defaultSheetName: 'Sheet {n}', copyOf: '{name} (copy)',
+    btnRename: 'Rename', btnDuplicate: 'Duplicate', btnExport: 'Export as file', btnDelete: 'Delete',
+    dlgRenameTitle: 'Rename sheet',
+    dlgDeleteTitle: 'Delete sheet?', dlgDeleteMsg: '“{name}” will be deleted permanently.',
+
+    settingsTitle: 'Settings', setLanguage: 'Language', setTheme: 'Appearance',
+    themeAuto: 'Automatic', themeLight: 'Light', themeDark: 'Dark',
+    themeHint: 'The paper always stays light – just like an exercise book.',
+    setPaper: 'Paper', paperGrid: 'Squared (5 mm)', paperBlank: 'Blank',
+    setPoints: 'Draw points as', pointCross: 'Cross ×', pointDot: 'Dot •',
+    setDrawing: 'Drawing', setSnap: 'Snapping',
+    setSnapHint: 'Points, intersections, whole millimetres and whole degrees are hit exactly. Switched off, you draw freely as on paper.',
+    on: 'On', off: 'Off',
+    setPen: 'Apple Pencil', penAuto: 'Automatic', penOn: 'Only the pencil draws', penOff: 'Fingers draw too',
+    penHint: 'Automatic: as soon as you draw with the pencil, fingers only move the sheet and the instruments. Your resting hand won’t leave marks.',
+    setToolbar: 'Toolbar', sideLeft: 'Left', sideRight: 'Right (for left-handers)',
+    setScale: 'Actual size', btnCalibrate: 'Calibrate', btnCalibReset: 'Reset calibration',
+    scaleDetected: 'Detected: {device}. At 100 %, 1 cm on screen is 1 cm in reality.',
+    scaleEstimated: 'This device could not be identified reliably. Please calibrate once for exact centimetres.',
+    scaleCalibrated: 'Calibrated by you. At 100 %, 1 cm on screen is 1 cm in reality.',
+    device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android device', device_desktop: 'computer',
+    setFull: 'Full version', btnBuy: 'Unlock full version', btnRestore: 'Restore purchases',
+    fullInfo: 'The full version unlocks all features permanently – one purchase, no subscription.',
+    fullOwned: 'The full version is unlocked. Thank you!',
+    setAbout: 'About', aboutLine: 'Compasswork {version} · Wisdompeak Apps – Simon Mählmann',
+    btnImprint: 'Legal notice', btnPrivacy: 'Privacy',
+
+    helpTitle: 'Quick guide',
+    helpCompassT: 'Compass',
+    helpCompass: 'Drag the needle to set the compass down. Drag the lead to open it or to take a length from a line. Turn the handle on top to draw an arc. The lock keeps the radius fixed.',
+    helpGeoT: 'Set square and ruler',
+    helpGeo: 'Move with one finger, rotate with two – or use the round arrow. Run the pencil along an edge to draw a straight line.',
+    helpPointT: 'Points and labels',
+    helpPoint: 'Points snap to intersections and are named automatically. Tap a point again to rename it. On the ruler or set square, the point snaps to the scale.',
+    helpNavT: 'Moving the sheet',
+    helpNav: 'Pan and zoom with two fingers. “100 %” shows the sheet at actual size: 1 cm on screen is 1 cm.',
+    helpPenT: 'Apple Pencil',
+    helpPen: 'The pencil draws, fingers move the sheet and the instruments. You can change this in the settings.',
+
+    calibTitle: 'Set actual size',
+    calibText: 'Place a credit-card-sized card (e.g. a library or health insurance card) on the frame and move the slider until card and frame are the same width. Or hold a ruler against the scale.',
+    btnCancel: 'Cancel', btnSave: 'Save', btnOk: 'OK', btnLater: 'Later', btnShowFull: 'Show me',
+
+    dlgRadiusTitle: 'Radius', dlgRadiusMsg: 'Radius in centimetres. The compass stays locked afterwards.',
+    dlgAngleTitle: 'Rotation', dlgAngleMsg: 'Angle in degrees, measured anticlockwise.',
+    dlgTextNew: 'Add text', dlgTextEdit: 'Edit text', phText: 'e.g. c = 5 cm',
+    sizeSmall: 'Small', sizeMedium: 'Medium', sizeLarge: 'Large',
+    dlgPointTitle: 'Point', phLabel: 'Name of the point', dlgPointPos: 'Label position',
+
+    paywallTitle: 'Full version',
+    paywall_sheets: 'The free version stores {n} sheets. The full version stores as many as you like.',
+
+    msgRadiusZero: 'Open the compass first.',
+    msgRadiusInvalid: 'Please enter a radius between 0 and {max} cm.',
+    msgAngleInvalid: 'Please enter a number.',
+    msgSaveFailed: 'Saving failed. To be safe, export the sheet as a file.',
+    msgNoStorage: 'This device does not allow permanent storage. Sheets will be lost when you close the app – please export them as files.',
+    msgImportTooLarge: 'The file is too large.',
+    msgImportInvalid: 'This file is not a Compasswork sheet.',
+    msgImportNewer: 'This sheet comes from a newer version. Please update the app.',
+    msgImported: '“{name}” has been imported.',
+    msgShareFailed: 'Sharing did not work.',
+    msgExportFailed: 'Export failed.',
+    msgCalibSaved: 'Saved. 100 % now shows the actual size.',
+    msgCalibHint: 'Tip: under Settings → Actual size you can make 1 cm on screen exactly 1 cm.',
+    msgStoreUnavailable: 'The store is not reachable right now. Please try again later.',
+    msgPurchaseFailed: 'The purchase could not be completed.',
+    msgRestored: 'The full version has been restored.',
+    msgNothingToRestore: 'No purchase was found for this Apple ID or Google account.'
+  }
+};
+
+/* =========================================================
+   KERN – reine Geometrie und Datenhaltung, ohne DOM.
+   coretest.js schneidet genau diesen Block heraus und prüft
+   ihn in Node. Deshalb hier keine Zugriffe auf window,
+   document oder Einstellungen.
+   ========================================================= */
+/* ==CORE-BEGIN== */
+const TAU = Math.PI * 2;
+const EPS = 1e-9;
+const DEG = Math.PI / 180;
+
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function hyp(x, y) { return Math.sqrt(x * x + y * y); }
+function dist(ax, ay, bx, by) { return hyp(bx - ax, by - ay); }
+function isNum(v) { return typeof v === 'number' && Number.isFinite(v); }
+
+/* Winkel auf [0, 2π). */
+function normAng(a) { a %= TAU; return a < 0 ? a + TAU : a; }
+
+/* Kürzeste vorzeichenbehaftete Drehung von a nach b, in (-π, π]. */
+function angDiff(a, b) {
+  let d = (b - a) % TAU;
+  if (d > Math.PI) d -= TAU;
+  else if (d <= -Math.PI) d += TAU;
+  return d;
+}
+
+/* Liegt die Richtung theta auf dem Bogen, der bei a0 beginnt und sich um
+   sweep (Vorzeichen = Drehsinn) erstreckt? Ein Wert knapp unter 2π nach
+   normAng ist in Wahrheit ein Wert knapp unter 0 – sonst fiele der
+   Anfangspunkt des Bogens durch Rundung heraus. */
+function onArc(theta, a0, sweep) {
+  if (Math.abs(sweep) >= TAU - 1e-7) return true;
+  let d = sweep >= 0 ? normAng(theta - a0) : normAng(a0 - theta);
+  if (d > TAU - 1e-7) d = 0;
+  return d <= Math.abs(sweep) + 1e-7;
+}
+
+function projParam(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  return l2 < EPS ? 0 : ((px - ax) * dx + (py - ay) * dy) / l2;
+}
+function nearestOnSeg(px, py, ax, ay, bx, by) {
+  const t = clamp(projParam(px, py, ax, ay, bx, by), 0, 1);
+  return { x: ax + t * (bx - ax), y: ay + t * (by - ay), t };
+}
+function distToSeg(px, py, ax, ay, bx, by) {
+  const n = nearestOnSeg(px, py, ax, ay, bx, by);
+  return dist(px, py, n.x, n.y);
+}
+
+function isFullCircle(arc) { return Math.abs(arc.sweep) >= TAU - 1e-7; }
+function arcPoint(arc, a) { return { x: arc.cx + arc.r * Math.cos(a), y: arc.cy + arc.r * Math.sin(a) }; }
+function arcEnds(arc) { return [arcPoint(arc, arc.a0), arcPoint(arc, arc.a0 + arc.sweep)]; }
+
+function nearestOnArc(px, py, arc) {
+  const dx = px - arc.cx, dy = py - arc.cy;
+  const th = (Math.abs(dx) < EPS && Math.abs(dy) < EPS) ? arc.a0 : Math.atan2(dy, dx);
+  if (onArc(th, arc.a0, arc.sweep)) return arcPoint(arc, th);
+  const [e1, e2] = arcEnds(arc);
+  return dist(px, py, e1.x, e1.y) <= dist(px, py, e2.x, e2.y) ? e1 : e2;
+}
+function distToArc(px, py, arc) {
+  const n = nearestOnArc(px, py, arc);
+  return dist(px, py, n.x, n.y);
+}
+
+function distToPolyline(px, py, pts) {
+  if (!pts || pts.length < 2) return Infinity;
+  if (pts.length < 4) return dist(px, py, pts[0], pts[1]);
+  let best = Infinity;
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const d = distToSeg(px, py, pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/* ---------- Schnittpunkte ---------- */
+function segSeg(ax, ay, bx, by, cx, cy, dx, dy) {
+  const r1x = bx - ax, r1y = by - ay, r2x = dx - cx, r2y = dy - cy;
+  const den = r1x * r2y - r1y * r2x;
+  /* Parallele und deckungsgleiche Strecken haben keinen einzelnen
+     Schnittpunkt. Gemeinsame Endpunkte rasten trotzdem ein, weil
+     Endpunkte eigene Fangpunkte sind. */
+  if (Math.abs(den) < 1e-12 * (hyp(r1x, r1y) * hyp(r2x, r2y) + 1)) return null;
+  const t = ((cx - ax) * r2y - (cy - ay) * r2x) / den;
+  const u = ((cx - ax) * r1y - (cy - ay) * r1x) / den;
+  const tol = 1e-9;
+  if (t < -tol || t > 1 + tol || u < -tol || u > 1 + tol) return null;
+  return { x: ax + t * r1x, y: ay + t * r1y };
+}
+
+/* Parameter t, für die A + t(B − A) auf dem Kreis liegt. Ein leicht
+   negativer Diskriminant ist bei einer Tangente reine Rechenungenauigkeit. */
+function lineCircleT(ax, ay, bx, by, cx, cy, r) {
+  const dx = bx - ax, dy = by - ay, fx = ax - cx, fy = ay - cy;
+  const a = dx * dx + dy * dy;
+  if (a < EPS) return [];
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  let disc = b * b - 4 * a * c;
+  if (disc < 0) {
+    if (disc > -1e-9 * Math.max(1, b * b, Math.abs(4 * a * c))) disc = 0;
+    else return [];
+  }
+  const s = Math.sqrt(disc);
+  if (s === 0) return [-b / (2 * a)];
+  return [(-b - s) / (2 * a), (-b + s) / (2 * a)];
+}
+
+function segArc(s, arc) {
+  const out = [];
+  for (const t of lineCircleT(s.x1, s.y1, s.x2, s.y2, arc.cx, arc.cy, arc.r)) {
+    if (t < -1e-9 || t > 1 + 1e-9) continue;
+    const x = s.x1 + t * (s.x2 - s.x1), y = s.y1 + t * (s.y2 - s.y1);
+    if (onArc(Math.atan2(y - arc.cy, x - arc.cx), arc.a0, arc.sweep)) out.push({ x, y });
+  }
+  return out;
+}
+
+function circleCircle(c1x, c1y, r1, c2x, c2y, r2) {
+  const d = dist(c1x, c1y, c2x, c2y);
+  if (d < EPS) return [];
+  const tol = 1e-9 * Math.max(1, r1 + r2);
+  if (d > r1 + r2 + tol || d < Math.abs(r1 - r2) - tol) return [];
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+  const h2 = r1 * r1 - a * a;
+  const h = h2 > 0 ? Math.sqrt(h2) : 0;
+  const ux = (c2x - c1x) / d, uy = (c2y - c1y) / d;
+  const mx = c1x + a * ux, my = c1y + a * uy;
+  if (h < 1e-9) return [{ x: mx, y: my }];
+  return [{ x: mx - h * uy, y: my + h * ux }, { x: mx + h * uy, y: my - h * ux }];
+}
+
+function arcArc(p, q) {
+  return circleCircle(p.cx, p.cy, p.r, q.cx, q.cy, q.r).filter(pt =>
+    onArc(Math.atan2(pt.y - p.cy, pt.x - p.cx), p.a0, p.sweep) &&
+    onArc(Math.atan2(pt.y - q.cy, pt.x - q.cx), q.a0, q.sweep));
+}
+
+/* Alle Schnittpunkte zwischen Strecken und Bögen. Freihandstriche zählen
+   nicht – sie sind Skizze, keine Konstruktion. Quadratisch, aber ein
+   Konstruktionsblatt hat selten mehr als ein paar hundert Linien; ab
+   MAX_INTERSECT_OBJECTS wird die Suche abgebrochen, damit die App nie
+   hängt. */
+const MAX_INTERSECT_OBJECTS = 800;
+function intersections(objects) {
+  const geo = objects.filter(o => o.type === 'segment' || o.type === 'arc');
+  if (geo.length > MAX_INTERSECT_OBJECTS) return [];
+  const out = [];
+  for (let i = 0; i < geo.length; i++) {
+    for (let j = i + 1; j < geo.length; j++) {
+      const a = geo[i], b = geo[j];
+      let pts;
+      if (a.type === 'segment' && b.type === 'segment') {
+        const p = segSeg(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2);
+        pts = p ? [p] : [];
+      } else if (a.type === 'segment') pts = segArc(a, b);
+      else if (b.type === 'segment') pts = segArc(b, a);
+      else pts = arcArc(a, b);
+      for (const p of pts) out.push(p);
+    }
+  }
+  return dedupePoints(out, 1e-4);
+}
+
+/* Doppelte Punkte über ein Raster aussortieren: jeder Punkt wird nur mit
+   den neun Nachbarzellen verglichen. Der frühere Vergleich jeder mit jedem
+   brauchte bei vollen Blättern Sekunden. */
+function dedupePoints(pts, tol) {
+  const out = [], grid = new Map();
+  const key = (i, j) => i + ',' + j;
+  outer: for (const p of pts) {
+    const i = Math.floor(p.x / tol), j = Math.floor(p.y / tol);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const cell = grid.get(key(i + di, j + dj));
+      if (cell) for (const q of cell) if (Math.abs(p.x - q.x) < tol && Math.abs(p.y - q.y) < tol) continue outer;
+    }
+    out.push(p);
+    const k = key(i, j);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(p);
+  }
+  return out;
+}
+
+/* ---------- Fangpunkte ---------- */
+/* Rangfolge bei gleichem Abstand: gesetzte Punkte vor Schnittpunkten vor
+   Endpunkten. Der Faktor bevorzugt sie, ohne einen deutlich näheren
+   Kandidaten zu überstimmen. */
+const SNAP_WEIGHT = { point: 0.75, cross: 0.9, end: 1, center: 1.05 };
+
+function snapCandidates(objects, inters) {
+  const out = [];
+  for (const o of objects) {
+    if (o.type === 'point') out.push({ x: o.x, y: o.y, kind: 'point', id: o.id });
+    else if (o.type === 'segment') {
+      out.push({ x: o.x1, y: o.y1, kind: 'end' }, { x: o.x2, y: o.y2, kind: 'end' });
+    } else if (o.type === 'arc') {
+      if (!isFullCircle(o)) {
+        const [e1, e2] = arcEnds(o);
+        out.push({ x: e1.x, y: e1.y, kind: 'end' }, { x: e2.x, y: e2.y, kind: 'end' });
+      }
+      /* Einstichloch des Zirkels: auf echtem Papier sichtbar, deshalb ein
+         Fangpunkt – sonst trifft man den Mittelpunkt später nie wieder. */
+      out.push({ x: o.cx, y: o.cy, kind: 'center' });
+    }
+  }
+  for (const p of inters) out.push({ x: p.x, y: p.y, kind: 'cross' });
+  return out;
+}
+
+function findSnap(px, py, cands, tol) {
+  let best = null, bestScore = Infinity;
+  for (const c of cands) {
+    const d = dist(px, py, c.x, c.y);
+    if (d > tol) continue;
+    const score = d * (SNAP_WEIGHT[c.kind] || 1);
+    if (score < bestScore) { bestScore = score; best = c; }
+  }
+  return best;
+}
+
+/* Nächster Punkt auf einer Strecke oder einem Bogen („Punkt auf Linie"). */
+function snapToCurve(px, py, objects, tol) {
+  let best = null, bestD = tol;
+  for (const o of objects) {
+    let n = null;
+    if (o.type === 'segment') n = nearestOnSeg(px, py, o.x1, o.y1, o.x2, o.y2);
+    else if (o.type === 'arc') n = nearestOnArc(px, py, o);
+    if (!n) continue;
+    const d = dist(px, py, n.x, n.y);
+    if (d <= bestD) { bestD = d; best = { x: n.x, y: n.y, kind: 'curve' }; }
+  }
+  return best;
+}
+
+/* ---------- Trefferprüfung (Radierer, Antippen) ---------- */
+function objectDistance(o, px, py) {
+  switch (o.type) {
+    case 'point': return dist(px, py, o.x, o.y);
+    case 'segment': return distToSeg(px, py, o.x1, o.y1, o.x2, o.y2) - (o.w || 0) / 2;
+    case 'arc': return distToArc(px, py, o) - (o.w || 0) / 2;
+    case 'stroke': return distToPolyline(px, py, o.pts) - (o.w || 0) / 2;
+    case 'text': {
+      /* Grobe Box: Breite ≈ 0,6 × Schriftgröße je Zeichen. Genau genug zum
+         Antippen und Radieren; gemessen wird erst beim Zeichnen. */
+      const w = Math.max(1, String(o.text).length) * o.size * 0.6, h = o.size;
+      const dx = Math.max(o.x - px, 0, px - (o.x + w));
+      const dy = Math.max(o.y - h - py, 0, py - o.y);
+      return hyp(dx, dy);
+    }
+  }
+  return Infinity;
+}
+
+function topObjectAt(objects, px, py, tol, types) {
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const o = objects[i];
+    if (types && !types.includes(o.type)) continue;
+    if (objectDistance(o, px, py) <= tol) return o;
+  }
+  return null;
+}
+
+/* ---------- Beschriftung ---------- */
+function nextLabel(used) {
+  const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let n = 0; n < 1000; n++) {
+    for (const ch of L) {
+      const s = n ? ch + n : ch;
+      if (!used.has(s)) return s;
+    }
+  }
+  return '?';
+}
+
+/* Legt die Beschriftung dorthin, wo am meisten Platz ist: acht Richtungen,
+   jeweils der Abstand zur nächsten Linie in etwa Beschriftungsentfernung.
+   Gibt den Index 0..7 zurück (0 = rechts, im Uhrzeigersinn). */
+const LABEL_DIRS = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+function bestLabelDir(objects, x, y, selfId) {
+  let best = 7, bestD = -1;
+  const order = [7, 5, 1, 3, 0, 6, 4, 2];   // bei Gleichstand: schräg oben rechts zuerst
+  for (const i of order) {
+    const [dx, dy] = LABEL_DIRS[i];
+    const k = (dx && dy) ? 0.7071 : 1;
+    const lx = x + dx * k * 4, ly = y + dy * k * 4;
+    let dmin = Infinity;
+    for (const o of objects) {
+      if (o.id === selfId || o.type === 'text') continue;
+      const d = objectDistance(o, lx, ly);
+      if (d < dmin) dmin = d;
+    }
+    if (dmin > bestD + 0.25) { bestD = dmin; best = i; }
+  }
+  return best;
+}
+
+/* ---------- Zahlen ---------- */
+function fmtNum(v, dec, lang) {
+  let s = (Math.abs(v) < 0.5 * Math.pow(10, -dec) ? 0 : v).toFixed(dec);
+  return lang === 'de' ? s.replace('.', ',') : s;
+}
+function fmtLen(mm, lang) { return fmtNum(mm / 10, 1, lang) + ' cm'; }
+function fmtDeg(deg, lang) {
+  const r = Math.round(deg * 10) / 10;
+  return fmtNum(r, Math.abs(r - Math.round(r)) < 1e-9 ? 0 : 1, lang) + '°';
+}
+function parseNum(str) {
+  if (typeof str !== 'string') return NaN;
+  const s = str.trim().replace(/\s/g, '').replace(',', '.');
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+  return Number(s);
+}
+function roundTo(v, step) { return Math.round(v / step) * step; }
+
+/* ---------- Rückgängig / Wiederholen ---------- */
+/* Einträge:
+     {t:'add', items:[obj]}                Objekte angefügt
+     {t:'del', items:[{obj, index}]}       in dieser Reihenfolge entfernt,
+                                           index jeweils zum Zeitpunkt des Entfernens
+     {t:'mod', before:[obj], after:[obj]}  Objekte ersetzt (gleiche id)
+   Rückgängig läuft die Liste rückwärts – so stimmt jeder gespeicherte
+   Index wieder, auch wenn ein Radierstrich viele Objekte nacheinander
+   entfernt hat. */
+function indexById(arr, id) {
+  for (let i = 0; i < arr.length; i++) if (arr[i].id === id) return i;
+  return -1;
+}
+function applyEntry(objs, e) {
+  if (e.t === 'add') for (const o of e.items) objs.push(o);
+  else if (e.t === 'del') {
+    for (const it of e.items) { const i = indexById(objs, it.obj.id); if (i >= 0) objs.splice(i, 1); }
+  } else if (e.t === 'mod') {
+    for (const o of e.after) { const i = indexById(objs, o.id); if (i >= 0) objs[i] = o; }
+  }
+}
+function revertEntry(objs, e) {
+  if (e.t === 'add') {
+    for (let k = e.items.length - 1; k >= 0; k--) {
+      const i = indexById(objs, e.items[k].id); if (i >= 0) objs.splice(i, 1);
+    }
+  } else if (e.t === 'del') {
+    for (let k = e.items.length - 1; k >= 0; k--) {
+      const it = e.items[k];
+      objs.splice(clamp(it.index, 0, objs.length), 0, it.obj);
+    }
+  } else if (e.t === 'mod') {
+    for (const o of e.before) { const i = indexById(objs, o.id); if (i >= 0) objs[i] = o; }
+  }
+}
+class History {
+  constructor(limit) { this.limit = limit || 300; this.undoStack = []; this.redoStack = []; }
+  push(e) {
+    if (!e || (e.items && !e.items.length)) return;
+    this.undoStack.push(e);
+    if (this.undoStack.length > this.limit) this.undoStack.shift();
+    this.redoStack.length = 0;
+  }
+  canUndo() { return this.undoStack.length > 0; }
+  canRedo() { return this.redoStack.length > 0; }
+  undo(objs) { const e = this.undoStack.pop(); if (!e) return false; revertEntry(objs, e); this.redoStack.push(e); return true; }
+  redo(objs) { const e = this.redoStack.pop(); if (!e) return false; applyEntry(objs, e); this.undoStack.push(e); return true; }
+  clear() { this.undoStack.length = 0; this.redoStack.length = 0; }
+}
+
+/* ---------- Geräte: Lage und Kanten ---------- */
+/* Alle Maße in Millimetern. Lokale Koordinaten: x entlang des Geräts,
+   y nach unten (wie der Bildschirm). */
+const RULER = { len: 212, wid: 40, zero: -100, ticks: 200 };
+const GEO = { h: 80, scale: 70 };
+
+function locToWorld(inst, lx, ly) {
+  const c = Math.cos(inst.rot), s = Math.sin(inst.rot);
+  return { x: inst.x + lx * c - ly * s, y: inst.y + lx * s + ly * c };
+}
+function worldToLoc(inst, wx, wy) {
+  const c = Math.cos(inst.rot), s = Math.sin(inst.rot);
+  const dx = wx - inst.x, dy = wy - inst.y;
+  return { x: dx * c + dy * s, y: -dx * s + dy * c };
+}
+function dirToWorld(inst, lx, ly) {
+  const c = Math.cos(inst.rot), s = Math.sin(inst.rot);
+  return { x: lx * c - ly * s, y: lx * s + ly * c };
+}
+
+function makeEdge(inst, ax, ay, bx, by, nx, ny, id, scale) {
+  const a = locToWorld(inst, ax, ay), b = locToWorld(inst, bx, by), n = dirToWorld(inst, nx, ny);
+  return { id, ax: a.x, ay: a.y, bx: b.x, by: b.y, nx: n.x, ny: n.y, scale: scale || null };
+}
+function rulerEdges(r) {
+  const L = RULER.len / 2, W = RULER.wid / 2;
+  return [
+    makeEdge(r, -L, -W, L, -W, 0, -1, 'top', 'mm'),
+    makeEdge(r, -L, W, L, W, 0, 1, 'bottom', null)
+  ];
+}
+function geoEdges(g) {
+  const h = GEO.h, k = Math.SQRT1_2;
+  return [
+    makeEdge(g, -h, 0, h, 0, 0, 1, 'hyp', 'mm'),
+    makeEdge(g, h, 0, 0, -h, k, -k, 'right', 'deg'),
+    makeEdge(g, 0, -h, -h, 0, -k, -k, 'left', 'deg')
+  ];
+}
+function rulerContains(r, wx, wy) {
+  const l = worldToLoc(r, wx, wy);
+  return Math.abs(l.x) <= RULER.len / 2 && Math.abs(l.y) <= RULER.wid / 2;
+}
+function geoContains(g, wx, wy) {
+  const l = worldToLoc(g, wx, wy);
+  return l.y <= 0 && l.y >= -GEO.h && Math.abs(l.x) <= GEO.h + l.y;
+}
+
+/* Liegt p im Kantenstreifen? s > 0 heißt außerhalb des Geräts.
+   Gemessen in Weltmaß; die Breiten kommen vom Aufrufer, der sie aus
+   Bildschirmpixeln umrechnet. */
+function edgeHit(edges, px, py, outBand, inBand) {
+  let best = null;
+  for (const e of edges) {
+    const t = projParam(px, py, e.ax, e.ay, e.bx, e.by);
+    if (t < -0.02 || t > 1.02) continue;
+    const s = (px - e.ax) * e.nx + (py - e.ay) * e.ny;
+    if (s > outBand || s < -inBand) continue;
+    if (!best || Math.abs(s) < Math.abs(best.s)) best = { edge: e, t: clamp(t, 0, 1), s };
+  }
+  return best;
+}
+function edgePoint(e, t) { return { x: e.ax + t * (e.bx - e.ax), y: e.ay + t * (e.by - e.ay) }; }
+function edgeLen(e) { return dist(e.ax, e.ay, e.bx, e.by); }
+
+/* Position auf einer Skalenkante auf ganze Millimeter bzw. ganze Grad
+   setzen. Gibt den Weltpunkt und den Skalenwert zurück. */
+function snapOnScale(kind, inst, edge, t) {
+  const p = edgePoint(edge, t);
+  const l = worldToLoc(inst, p.x, p.y);
+  if (kind === 'ruler' && edge.id === 'top') {
+    const v = clamp(Math.round(l.x - RULER.zero), 0, RULER.ticks);
+    const w = locToWorld(inst, RULER.zero + v, -RULER.wid / 2);
+    return { x: w.x, y: w.y, value: v, unit: 'mm' };
+  }
+  if (kind === 'geo' && edge.id === 'hyp') {
+    const v = clamp(Math.round(l.x), -GEO.h, GEO.h);
+    const w = locToWorld(inst, v, 0);
+    return { x: w.x, y: w.y, value: Math.abs(v), unit: 'mm' };
+  }
+  if (kind === 'geo' && (edge.id === 'right' || edge.id === 'left')) {
+    /* Winkel vom Nullpunkt aus, gemessen gegen die rechte Hälfte der
+       Hypotenuse; auf dem Gerät nach oben (lokal −y). */
+    let deg = Math.atan2(-l.y, l.x) / DEG;
+    deg = clamp(Math.round(deg), 0, 180);
+    const w = geoDegPoint(inst, deg, 0);
+    return { x: w.x, y: w.y, value: deg, unit: 'deg' };
+  }
+  return { x: p.x, y: p.y, value: null, unit: null };
+}
+
+/* Punkt auf der Kathete zum Winkel deg (0..180), um inset nach innen
+   versetzt (entlang des Strahls vom Nullpunkt). */
+function geoDegRayLen(deg) {
+  const phi = deg * DEG, c = Math.cos(phi), s = Math.sin(phi);
+  const den = deg <= 90 ? (c + s) : (s - c);
+  return GEO.h / Math.max(den, 1e-9);
+}
+function geoDegPoint(inst, deg, inset) {
+  const phi = deg * DEG, tlen = geoDegRayLen(deg) - (inset || 0);
+  return locToWorld(inst, tlen * Math.cos(phi), -tlen * Math.sin(phi));
+}
+
+/* ---------- Zirkel ---------- */
+const COMPASS = { minR: 0, maxR: 200, legExtra: 35, grip: 16 };
+function compassParts(c) {
+  const lx = c.nx + c.r * Math.cos(c.ang), ly = c.ny + c.r * Math.sin(c.ang);
+  const half = c.r / 2, leg = half + COMPASS.legExtra;
+  const d = Math.sqrt(leg * leg - half * half);
+  /* Senkrechte zur Spitze-Mine-Richtung. Bei y nach unten zeigt (sin, −cos)
+     auf die „obere" Seite, wenn der Zirkel nach rechts geöffnet ist. */
+  const px = Math.sin(c.ang), py = -Math.cos(c.ang);
+  const mx = (c.nx + lx) / 2, my = (c.ny + ly) / 2;
+  const hx = mx + px * d, hy = my + py * d;
+  return { lx, ly, hx, hy, gx: hx + px * COMPASS.grip, gy: hy + py * COMPASS.grip, px, py };
+}
+
+/* ---------- Echte Größe ---------- */
+/* Bildschirmpunkte (CSS-px) je Millimeter. iPads haben seit Jahren 264 ppi
+   bei Faktor 2, also 132 Punkte je Zoll – außer dem iPad mini (326 ppi,
+   163 Punkte je Zoll). Nur bekannte Bildschirmmaße gelten als sicher; eine
+   geänderte Anzeigegröße („Mehr Platz") ergibt unbekannte Maße und führt
+   zur Empfehlung, einmal zu kalibrieren. */
+const IPAD_SIZES = ['744x1133', '810x1080', '820x1180', '834x1112', '834x1194', '834x1210', '1024x1366', '1032x1376'];
+function detectScale(info) {
+  const ua = info.ua || '';
+  const short = Math.min(info.sw, info.sh), long = Math.max(info.sw, info.sh);
+  const key = short + 'x' + long;
+  const isIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && (info.maxTouch || 0) > 1);
+  if (isIPad) {
+    if (key === '744x1133') return { ppm: 163 / 25.4, device: 'ipadmini', sure: true };
+    if (key === '768x1024') return { ppm: 132 / 25.4, device: 'ipad', sure: false };   // iPad 9,7" oder alter mini
+    return { ppm: 132 / 25.4, device: 'ipad', sure: IPAD_SIZES.includes(key) };
+  }
+  if (/iPhone|iPod/.test(ua)) return { ppm: 163 / 25.4, device: 'iphone', sure: false };
+  if (/Android/.test(ua)) return { ppm: 160 / 25.4, device: 'android', sure: false };
+  return { ppm: 96 / 25.4, device: 'desktop', sure: false };
+}
+
+/* ---------- Blätter: Prüfung beim Laden und Importieren ---------- */
+/* Eine importierte Datei ist fremde Eingabe. Alles wird neu aufgebaut:
+   unbekannte Felder fallen weg, Zahlen müssen endlich und in vernünftigen
+   Grenzen sein, Texte werden gekürzt, Farben müssen #rrggbb sein. */
+const DOC_FORMAT = 'zirkelwerk';
+const DOC_VERSION = 1;
+const LIMITS = { objects: 20000, strokePts: 40000, text: 300, name: 80, coord: 1e6 };
+
+function cleanColor(c, fallback) { return (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c.toLowerCase() : fallback; }
+function cleanNum(v, lo, hi, fallback) { return isNum(v) ? clamp(v, lo, hi) : fallback; }
+function cleanStr(v, max) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max) : ''; }
+
+function sanitizeObject(o, newId) {
+  if (!o || typeof o !== 'object') return null;
+  const C = LIMITS.coord, col = cleanColor(o.c, '#3b3f45');
+  const w = cleanNum(o.w, 0.05, 20, 0.5), al = cleanNum(o.al, 0.05, 1, 1);
+  const need = (...k) => k.every(n => isNum(o[n]) && Math.abs(o[n]) <= C);
+  switch (o.type) {
+    case 'point':
+      if (!need('x', 'y')) return null;
+      return { id: newId, type: 'point', x: o.x, y: o.y, label: cleanStr(o.label, 12), ld: cleanNum(Math.round(o.ld), 0, 7, 7), c: col };
+    case 'segment':
+      if (!need('x1', 'y1', 'x2', 'y2')) return null;
+      return { id: newId, type: 'segment', x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2, c: col, w, al };
+    case 'arc':
+      if (!need('cx', 'cy', 'r', 'a0', 'sweep') || o.r <= 0) return null;
+      return { id: newId, type: 'arc', cx: o.cx, cy: o.cy, r: o.r, a0: o.a0, sweep: clamp(o.sweep, -TAU, TAU), c: col, w, al };
+    case 'stroke': {
+      if (!Array.isArray(o.pts) || o.pts.length < 2 || o.pts.length > LIMITS.strokePts) return null;
+      const pts = [];
+      for (let i = 0; i + 1 < o.pts.length; i += 2) {
+        const x = o.pts[i], y = o.pts[i + 1];
+        if (!isNum(x) || !isNum(y) || Math.abs(x) > C || Math.abs(y) > C) return null;
+        pts.push(x, y);
+      }
+      return { id: newId, type: 'stroke', pts, c: col, w, al };
+    }
+    case 'text': {
+      if (!need('x', 'y')) return null;
+      const text = cleanStr(o.text, LIMITS.text);
+      if (!text.trim()) return null;
+      return { id: newId, type: 'text', x: o.x, y: o.y, text, size: cleanNum(o.size, 2, 40, 5), c: col };
+    }
+  }
+  return null;
+}
+
+function sanitizeDoc(raw, newDocId, now) {
+  if (!raw || typeof raw !== 'object') throw new Error('notadoc');
+  if (raw.format !== DOC_FORMAT) throw new Error('format');
+  if (!isNum(raw.v) || raw.v > DOC_VERSION) throw new Error('version');
+  if (!Array.isArray(raw.objects)) throw new Error('objects');
+  if (raw.objects.length > LIMITS.objects) throw new Error('toolarge');
+  let seq = 1;
+  const objects = [];
+  for (const o of raw.objects) {
+    const clean = sanitizeObject(o, 'o' + seq);
+    if (clean) { objects.push(clean); seq++; }
+  }
+  const view = raw.view && typeof raw.view === 'object' ? raw.view : {};
+  return {
+    format: DOC_FORMAT, v: DOC_VERSION,
+    id: newDocId,
+    name: cleanStr(raw.name, LIMITS.name).trim() || '',
+    created: cleanNum(raw.created, 0, 1e14, now),
+    modified: now,
+    objects, seq,
+    view: { cx: cleanNum(view.cx, -LIMITS.coord, LIMITS.coord, 0), cy: cleanNum(view.cy, -LIMITS.coord, LIMITS.coord, 0), zoom: cleanNum(view.zoom, 0.2, 10, 1) },
+    inst: sanitizeInst(raw.inst)
+  };
+}
+
+function defaultInst() {
+  return {
+    ruler: { on: false, x: 0, y: 40, rot: 0 },
+    geo: { on: false, x: 0, y: 60, rot: 0 },
+    compass: { on: false, nx: -20, ny: 0, r: 40, ang: 0, lock: false },
+    order: ['ruler', 'geo', 'compass']
+  };
+}
+function sanitizeInst(raw) {
+  const d = defaultInst();
+  if (!raw || typeof raw !== 'object') return d;
+  const C = LIMITS.coord;
+  for (const k of ['ruler', 'geo']) {
+    const s = raw[k];
+    if (s && typeof s === 'object') {
+      d[k].on = !!s.on;
+      d[k].x = cleanNum(s.x, -C, C, d[k].x);
+      d[k].y = cleanNum(s.y, -C, C, d[k].y);
+      d[k].rot = cleanNum(s.rot, -1e3, 1e3, 0);
+    }
+  }
+  const c = raw.compass;
+  if (c && typeof c === 'object') {
+    d.compass.on = !!c.on;
+    d.compass.nx = cleanNum(c.nx, -C, C, d.compass.nx);
+    d.compass.ny = cleanNum(c.ny, -C, C, d.compass.ny);
+    d.compass.r = cleanNum(c.r, COMPASS.minR, COMPASS.maxR, d.compass.r);
+    d.compass.ang = cleanNum(c.ang, -1e3, 1e3, 0);
+    d.compass.lock = !!c.lock;
+  }
+  if (Array.isArray(raw.order) && raw.order.length === 3 &&
+      ['ruler', 'geo', 'compass'].every(k => raw.order.includes(k))) d.order = raw.order.slice();
+  return d;
+}
+
+function newDoc(id, name, now) {
+  return {
+    format: DOC_FORMAT, v: DOC_VERSION, id, name: name || '',
+    created: now, modified: now, objects: [], seq: 1,
+    view: { cx: 0, cy: 0, zoom: 1 }, inst: defaultInst()
+  };
+}
+
+function boundsOf(objects) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const add = (x, y) => { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; };
+  for (const o of objects) {
+    if (o.type === 'point') add(o.x, o.y);
+    else if (o.type === 'segment') { add(o.x1, o.y1); add(o.x2, o.y2); }
+    else if (o.type === 'arc') { add(o.cx - o.r, o.cy - o.r); add(o.cx + o.r, o.cy + o.r); }
+    else if (o.type === 'stroke') for (let i = 0; i + 1 < o.pts.length; i += 2) add(o.pts[i], o.pts[i + 1]);
+    else if (o.type === 'text') { add(o.x, o.y - o.size); add(o.x + String(o.text).length * o.size * 0.6, o.y); }
+  }
+  return x0 === Infinity ? null : { x0, y0, x1, y1 };
+}
+/* ==CORE-END== */
+
+/* =========================================================
+   APP – Oberfläche, Eingabe, Speicher
+   ========================================================= */
+const APP_VERSION = '0.1.0';
+const BUNDLE_ID = 'de.zirkelwerk.app';
+const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
+const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
+
+/* Stufe 1: Die Kauflogik ist vorbereitet, aber nichts ist gesperrt.
+   LIMITS_ACTIVE schaltet die Grenzen der kostenlosen Fassung ein,
+   IAP_ENABLED den Kaufbereich in den Einstellungen. Beides erst, wenn
+   cordova-plugin-purchase in der config.xml steht und das Produkt in
+   App Store Connect und der Play Console angelegt ist. */
+const LIMITS_ACTIVE = false;
+const IAP_ENABLED = false;
+const FREE_SHEETS = 3;
+
+const PENCIL_COLORS = ['#3b3f45', '#1f5fbf', '#d0342c', '#1e8a4c', '#e07b00', '#7b3fb5'];
+const MARKER_COLORS = ['#ffd400', '#7ee36b', '#ff7ac8', '#6cc6ff', '#ffad5c'];
+const PENCIL_WIDTHS = [0.3, 0.5, 0.9];
+const MARKER_WIDTH = 5;
+const MARKER_ALPHA = 0.38;
+const ZOOM_MIN = 0.2, ZOOM_MAX = 8;
+
+/* Fangradien in Bildschirmpixeln. Finger sind ungenauer als Stift und Maus. */
+const TOL = { pen: 14, touch: 22, mouse: 12 };
+
+/* ---------------------------------------------------------
+   Einstellungen
+   --------------------------------------------------------- */
+const SETTINGS_KEY = 'zw.settings';
+const DEFAULTS = {
+  lang: null, theme: 'auto', paper: 'grid', pointStyle: 'cross', snap: true,
+  penOnly: 'auto', penSeen: false, toolbarSide: 'left', ppm: null,
+  tool: 'pencil', pencilC: '#3b3f45', pencilW: 0.5, markerC: '#ffd400',
+  lastDoc: null, helpSeen: false, calibHint: false
+};
+const ENUMS = {
+  theme: ['auto', 'light', 'dark'], paper: ['grid', 'blank'], pointStyle: ['cross', 'dot'],
+  penOnly: ['auto', 'on', 'off'], toolbarSide: ['left', 'right'],
+  tool: ['hand', 'pencil', 'marker', 'eraser', 'point', 'text'], lang: ['de', 'en']
+};
+
+function loadSettings() {
+  let raw = {};
+  try { raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { raw = {}; }
+  const s = Object.assign({}, DEFAULTS);
+  for (const k of Object.keys(DEFAULTS)) {
+    if (!(k in raw)) continue;
+    const v = raw[k];
+    if (ENUMS[k]) { if (ENUMS[k].includes(v)) s[k] = v; }
+    else if (typeof DEFAULTS[k] === 'boolean') s[k] = !!v;
+    else if (k === 'ppm') s[k] = (isNum(v) && v >= 2 && v <= 12) ? v : null;
+    else if (k === 'pencilC') s[k] = PENCIL_COLORS.includes(v) ? v : DEFAULTS.pencilC;
+    else if (k === 'markerC') s[k] = MARKER_COLORS.includes(v) ? v : DEFAULTS.markerC;
+    else if (k === 'pencilW') s[k] = PENCIL_WIDTHS.includes(v) ? v : DEFAULTS.pencilW;
+    else if (k === 'lastDoc') s[k] = typeof v === 'string' ? v : null;
+  }
+  return s;
+}
+let S = loadSettings();
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch (e) { /* privater Modus: dann eben nicht */ } }
+
+/* ---------------------------------------------------------
+   Sprache
+   --------------------------------------------------------- */
+let lang = 'de';
+function t(key, vars) {
+  const pack = i18n[lang] || i18n.de;
+  let s = (key in pack) ? pack[key] : (key in i18n.de ? i18n.de[key] : key);
+  if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(String(vars[k]));
+  return s;
+}
+function detectLang() {
+  const langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+  return String(langs[0] || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+function applyLanguage() {
+  lang = S.lang || detectLang();
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const v = t(el.dataset.i18nAria); el.setAttribute('aria-label', v); el.title = v;
+  });
+  document.title = t('appName');
+  updateTitle();
+  renderChipsStatic();
+  if (!document.getElementById('settingsPanel').hidden) refreshSettingsUI();
+  requestRender(false);
+}
+function chooseLanguage(l) { S.lang = l; saveSettings(); applyLanguage(); refreshSettingsUI(); }
+
+/* ---------------------------------------------------------
+   Symbole (eigene SVGs, keine Fremdbibliothek)
+   --------------------------------------------------------- */
+const ICONS = {
+  sheets: '<rect x="4" y="3" width="13" height="17" rx="2"/><path d="M8 7h6M8 11h6M8 15h4"/><path d="M19 7v12a2 2 0 0 1-2 2H8"/>',
+  undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-2"/>',
+  redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h2"/>',
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10.5V4a1.5 1.5 0 0 1 3 0v6.5"/><path d="M14 10.5V5.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5.6-2.8L3.3 15a1.6 1.6 0 0 1 2.4-2.1L8 15"/>',
+  pencil: '<path d="M4 20l1.2-4.6L16 4.6a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14 6.6l3.4 3.4"/><path d="M4 20l4.6-1.2"/>',
+  marker: '<path d="M9 15l-3 3v2h4l3-3"/><path d="M9 15l6-9.5a2 2 0 0 1 2.8-.6l1.3.9a2 2 0 0 1 .5 2.8L13 17z"/><path d="M4 21h16" opacity=".5"/>',
+  eraser: '<path d="M16.5 3.8 20.2 7.5a1.8 1.8 0 0 1 0 2.5L11 19.2H6.8L3.8 16.2a1.8 1.8 0 0 1 0-2.5L14 3.8a1.8 1.8 0 0 1 2.5 0z"/><path d="M9 8.6l6.4 6.4"/><path d="M11 19.2h9"/>',
+  point: '<path d="M6 13l6 6M12 13l-6 6"/><path d="M14 10l2.6-7h.8L20 10M15 7.6h4"/>',
+  text: '<path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/>',
+  ruler: '<rect x="2.5" y="8" width="19" height="8" rx="1.2"/><path d="M6 8v3M9 8v2M12 8v3M15 8v2M18 8v3"/>',
+  geo: '<path d="M2.5 18h19L12 8.5z"/><path d="M12 18v-9.5" stroke-dasharray="1.5 1.5"/><path d="M8 18a4 4 0 0 1 8 0"/>',
+  compass: '<circle cx="12" cy="4.5" r="1.6"/><path d="M12 2v1"/><path d="M11.2 6 6 20"/><path d="M12.8 6 18 20"/><path d="M8.2 14h7.6"/>',
+  import: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  exportI: '<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
+  circle: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'
+};
+function iconSvg(name) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+}
+function applyIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    if (el.dataset.iconDone) return;
+    el.insertAdjacentHTML('afterbegin', iconSvg(el.dataset.icon));
+    el.dataset.iconDone = '1';
+  });
+}
+
+/* ---------------------------------------------------------
+   Speicher: IndexedDB, notfalls nur im Arbeitsspeicher
+   --------------------------------------------------------- */
+/* Bewusst nicht localStorage: iOS darf den WebView-Speicher bei
+   Platzmangel räumen, und localStorage ist auf wenige MB begrenzt.
+   IndexedDB hält auch viele Blätter mit Vorschaubildern. Fällt sie aus
+   (privates Surfen, gesperrter Speicher), arbeitet die App weiter und
+   sagt einmal deutlich, dass nichts dauerhaft gespeichert wird. */
+const DB = { db: null, ok: false, mem: new Map(), warned: false };
+function dbOpen() {
+  return new Promise(resolve => {
+    let req;
+    try { req = window.indexedDB && indexedDB.open('zirkelwerk', 1); } catch (e) { req = null; }
+    if (!req) return resolve(false);
+    const timer = setTimeout(() => resolve(false), 4000);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('docs')) db.createObjectStore('docs', { keyPath: 'id' });
+    };
+    req.onsuccess = () => {
+      clearTimeout(timer);
+      DB.db = req.result; DB.ok = true;
+      DB.db.onversionchange = () => { DB.db.close(); DB.ok = false; };
+      resolve(true);
+    };
+    req.onerror = () => { clearTimeout(timer); resolve(false); };
+    req.onblocked = () => { clearTimeout(timer); resolve(false); };
+  });
+}
+function dbTx(mode, fn) {
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = DB.db.transaction('docs', mode);
+      const store = tx.objectStore('docs');
+      let result;
+      const r = fn(store);
+      if (r) r.onsuccess = () => { result = r.result; };
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('abort'));
+    } catch (e) { reject(e); }
+  });
+}
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+async function dbAll() {
+  if (!DB.ok) return [...DB.mem.values()].map(clone);
+  return (await dbTx('readonly', s => s.getAll())) || [];
+}
+async function dbGet(id) {
+  if (!DB.ok) return DB.mem.has(id) ? clone(DB.mem.get(id)) : null;
+  return (await dbTx('readonly', s => s.get(id))) || null;
+}
+async function dbPut(d) {
+  if (!DB.ok) { DB.mem.set(d.id, clone(d)); return; }
+  await dbTx('readwrite', s => s.put(d));
+}
+async function dbDel(id) {
+  if (!DB.ok) { DB.mem.delete(id); return; }
+  await dbTx('readwrite', s => s.delete(id));
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+/* ---------------------------------------------------------
+   Zustand
+   --------------------------------------------------------- */
+let doc = null;
+const hist = new History(300);
+let snapCache = null;            // { cands } – verfällt bei jeder Änderung
+let contentDirty = false;        // Inhalt geändert → Datum und Vorschau neu
+let saveTimer = null;
+let saving = null;
+
+const view = { ox: 0, oy: 0, zoom: 1 };
+let detected = { ppm: 132 / 25.4, device: 'ipad', sure: false };
+let ppm = detected.ppm;
+let stageW = 800, stageH = 600, dpr = 1;
+let stageRect = { left: 0, top: 0 };
+
+const stage = () => document.getElementById('stage');
+let cvBase, cvOver, ctxBase, ctxOver;
+
+function sc() { return ppm * view.zoom; }
+function w2s(x, y) { const k = sc(); return { x: (x - view.ox) * k, y: (y - view.oy) * k }; }
+function s2w(x, y) { const k = sc(); return { x: view.ox + x / k, y: view.oy + y / k }; }
+function mm(px) { return px / sc(); }
+
+function viewCenter() { return s2w(stageW / 2, stageH / 2); }
+function setViewCenter(cx, cy, zoom) {
+  view.zoom = clamp(zoom, ZOOM_MIN, ZOOM_MAX);
+  const k = sc();
+  view.ox = cx - stageW / 2 / k;
+  view.oy = cy - stageH / 2 / k;
+}
+function zoomAt(sx, sy, newZoom) {
+  const w = s2w(sx, sy);
+  view.zoom = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
+  const k = sc();
+  view.ox = w.x - sx / k;
+  view.oy = w.y - sy / k;
+  viewChanged();
+}
+function zoomStep(dir) {
+  const z = view.zoom, f = dir > 0 ? 1.25 : 0.8;
+  let nz = z * f;
+  /* Beim Durchlaufen von 100 % dort anhalten – die echte Größe soll man
+     mit den Knöpfen genau treffen. */
+  if ((z < 1 && nz > 1) || (z > 1 && nz < 1)) nz = 1;
+  zoomAt(stageW / 2, stageH / 2, nz);
+}
+function zoomReset() { zoomAt(stageW / 2, stageH / 2, 1); }
+function viewChanged() {
+  document.getElementById('zoomLabel').textContent = Math.round(view.zoom * 100) + ' %';
+  if (doc) { const c = viewCenter(); doc.view = { cx: c.x, cy: c.y, zoom: view.zoom }; scheduleSave(false); }
+  requestRender(true);
+}
+
+/* ---------------------------------------------------------
+   Zeichnen
+   --------------------------------------------------------- */
+let rafPending = false, dirtyBase = true;
+function requestRender(base) {
+  if (base) dirtyBase = true;
+  if (!rafPending) { rafPending = true; requestAnimationFrame(frame); }
+}
+function frame() {
+  rafPending = false;
+  if (!ctxBase) return;
+  if (dirtyBase) { renderBase(); dirtyBase = false; }
+  renderOver();
+  updateChips();
+}
+
+function resizeStage() {
+  const el = stage();
+  const r = el.getBoundingClientRect();
+  const keep = doc ? viewCenter() : null;
+  stageW = Math.max(1, Math.round(r.width));
+  stageH = Math.max(1, Math.round(r.height));
+  stageRect = { left: r.left, top: r.top };
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  for (const cv of [cvBase, cvOver]) {
+    cv.width = Math.round(stageW * dpr);
+    cv.height = Math.round(stageH * dpr);
+    cv.style.width = stageW + 'px';
+    cv.style.height = stageH + 'px';
+  }
+  if (keep) setViewCenter(keep.x, keep.y, view.zoom);
+  requestRender(true);
+}
+
+function worldTransform(ctx) {
+  const k = sc() * dpr;
+  ctx.setTransform(k, 0, 0, k, -view.ox * k, -view.oy * k);
+}
+
+function renderBase() {
+  const ctx = ctxBase;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cvBase.width, cvBase.height);
+  drawGrid(ctx);
+  if (!doc) return;
+  worldTransform(ctx);
+  drawObjects(ctx, doc.objects, sc(), null);
+}
+
+function drawGrid(ctx) {
+  if (S.paper !== 'grid') return;
+  const k = sc();
+  let step = 5, px = step * k;
+  if (px < 5) { step = 10; px = step * k; if (px < 5) return; }
+  const alpha = clamp((px - 5) / 10, 0, 1);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.strokeStyle = 'rgba(139, 170, 205,' + (0.75 * alpha + 0.15).toFixed(3) + ')';
+  ctx.lineWidth = Math.max(1, 0.12 * k * dpr);
+  ctx.beginPath();
+  const x0 = Math.floor(view.ox / step) * step, x1 = view.ox + stageW / k;
+  const y0 = Math.floor(view.oy / step) * step, y1 = view.oy + stageH / k;
+  /* Linien auf ganze Gerätepixel legen, sonst verschwimmen sie. */
+  for (let x = x0; x <= x1; x += step) {
+    const s = Math.round((x - view.ox) * k * dpr) + 0.5;
+    ctx.moveTo(s, 0); ctx.lineTo(s, cvBase.height);
+  }
+  for (let y = y0; y <= y1; y += step) {
+    const s = Math.round((y - view.oy) * k * dpr) + 0.5;
+    ctx.moveTo(0, s); ctx.lineTo(cvBase.width, s);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* k = Pixel je Millimeter (für Mindeststrichstärken).
+   Durchscheinendes (Marker) zuerst, damit Bleistiftlinien darüber scharf
+   bleiben – wie ein Textmarker unter der Schrift. */
+function drawObjects(ctx, objects, k, highlightIds) {
+  const minW = 1 / k;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const pass of [0, 1]) {
+    for (const o of objects) {
+      const translucent = (o.al || 1) < 1;
+      if ((pass === 0) !== translucent) continue;
+      drawObject(ctx, o, k, minW, highlightIds && highlightIds.has(o.id));
+    }
+  }
+}
+
+function drawObject(ctx, o, k, minW, hl) {
+  ctx.globalAlpha = o.al || 1;
+  ctx.globalCompositeOperation = (o.al || 1) < 1 ? 'multiply' : 'source-over';
+  const col = hl ? '#e0a800' : o.c;
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  switch (o.type) {
+    case 'segment':
+      ctx.lineWidth = Math.max(o.w, minW);
+      ctx.lineCap = o.al < 1 ? 'butt' : 'round';
+      ctx.beginPath(); ctx.moveTo(o.x1, o.y1); ctx.lineTo(o.x2, o.y2); ctx.stroke();
+      ctx.lineCap = 'round';
+      break;
+    case 'arc':
+      ctx.lineWidth = Math.max(o.w, minW);
+      ctx.beginPath();
+      if (isFullCircle(o)) ctx.arc(o.cx, o.cy, o.r, 0, TAU);
+      else ctx.arc(o.cx, o.cy, o.r, o.a0, o.a0 + o.sweep, o.sweep < 0);
+      ctx.stroke();
+      break;
+    case 'stroke':
+      ctx.lineWidth = Math.max(o.w, minW);
+      strokePath(ctx, o.pts);
+      break;
+    case 'point':
+      drawPoint(ctx, o, k, col);
+      break;
+    case 'text':
+      ctx.font = Math.max(o.size, 9 / k) + 'px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(o.text, o.x, o.y);
+      break;
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function strokePath(ctx, pts) {
+  const n = pts.length / 2;
+  ctx.beginPath();
+  if (n === 1 || (n === 2 && pts[0] === pts[2] && pts[1] === pts[3])) {
+    /* Einzelner Tupfer */
+    ctx.moveTo(pts[0], pts[1]); ctx.lineTo(pts[0] + 0.001, pts[1]);
+  } else {
+    ctx.moveTo(pts[0], pts[1]);
+    for (let i = 1; i < n - 1; i++) {
+      const x = pts[i * 2], y = pts[i * 2 + 1];
+      const mx = (x + pts[i * 2 + 2]) / 2, my = (y + pts[i * 2 + 3]) / 2;
+      ctx.quadraticCurveTo(x, y, mx, my);
+    }
+    ctx.lineTo(pts[(n - 1) * 2], pts[(n - 1) * 2 + 1]);
+  }
+  ctx.stroke();
+}
+
+function drawPoint(ctx, o, k, col) {
+  const lw = Math.max(0.3, 1.2 / k);
+  ctx.lineWidth = lw;
+  if (S.pointStyle === 'dot') {
+    ctx.beginPath(); ctx.arc(o.x, o.y, Math.max(0.75, 2.6 / k), 0, TAU); ctx.fill();
+  } else {
+    const a = Math.max(1.3, 4 / k);
+    ctx.beginPath();
+    ctx.moveTo(o.x - a, o.y - a); ctx.lineTo(o.x + a, o.y + a);
+    ctx.moveTo(o.x - a, o.y + a); ctx.lineTo(o.x + a, o.y - a);
+    ctx.stroke();
+  }
+  if (!o.label) return;
+  const fs = Math.max(4.2, 11 / k);
+  const [dx, dy] = LABEL_DIRS[o.ld == null ? 7 : o.ld];
+  const off = Math.max(2.4, 7 / k), f = (dx && dy) ? 0.7071 : 1;
+  ctx.font = '600 ' + fs + 'px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = dx > 0 ? 'left' : dx < 0 ? 'right' : 'center';
+  ctx.textBaseline = dy > 0 ? 'top' : dy < 0 ? 'bottom' : 'middle';
+  ctx.fillText(o.label, o.x + dx * off * f, o.y + dy * off * f);
+}
+
+/* ---------- Deckschicht: Geräte und Vorschau ---------- */
+function renderOver() {
+  const ctx = ctxOver;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cvOver.width, cvOver.height);
+  if (!doc) return;
+  worldTransform(ctx);
+  const k = sc();
+  /* Vorschau unter den Geräten, so wie der Strich auf dem Papier liegt. */
+  drawGesturePreview(ctx, k);
+  for (const kind of doc.inst.order) {
+    if (kind === 'compass' || !doc.inst[kind].on) continue;
+    if (kind === 'ruler') drawRuler(ctx, doc.inst.ruler, k);
+    else drawGeo(ctx, doc.inst.geo, k);
+  }
+  if (doc.inst.compass.on) drawCompass(ctx, doc.inst.compass, k);
+  if (G && G.snapShow) drawSnapMark(ctx, G.snapShow, k);
+}
+
+function drawSnapMark(ctx, p, k) {
+  ctx.save();
+  ctx.strokeStyle = '#e0a800'; ctx.lineWidth = 2 / k;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 7 / k, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
+function drawGesturePreview(ctx, k) {
+  if (!G) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (G.kind === 'draw' && G.pts.length >= 2) {
+    ctx.save();
+    ctx.globalAlpha = G.style.al;
+    ctx.globalCompositeOperation = G.style.al < 1 ? 'multiply' : 'source-over';
+    ctx.strokeStyle = G.style.c; ctx.lineWidth = Math.max(G.style.w, 1 / k);
+    strokePath(ctx, G.pts);
+    ctx.restore();
+  } else if (G.kind === 'edge') {
+    const a = edgePoint(G.edge, G.t0), b = edgePoint(G.edge, G.t1);
+    ctx.save();
+    ctx.globalAlpha = G.style.al;
+    ctx.globalCompositeOperation = G.style.al < 1 ? 'multiply' : 'source-over';
+    ctx.strokeStyle = G.style.c; ctx.lineWidth = Math.max(G.style.w, 1 / k);
+    ctx.lineCap = G.style.al < 1 ? 'butt' : 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.restore();
+  } else if (G.kind === 'carc') {
+    const c = doc.inst.compass;
+    if (Math.abs(G.sweep) > 1e-3 && c.r > 0) {
+      ctx.save();
+      ctx.strokeStyle = S.pencilC; ctx.lineWidth = Math.max(S.pencilW, 1 / k);
+      ctx.beginPath();
+      if (Math.abs(G.sweep) >= TAU - 1e-7) ctx.arc(c.nx, c.ny, c.r, 0, TAU);
+      else ctx.arc(c.nx, c.ny, c.r, G.start, G.start + G.sweep, G.sweep < 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (G.kind === 'point' && G.pos) {
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    drawPoint(ctx, { x: G.pos.x, y: G.pos.y, label: '', ld: 7 }, k, S.pencilC);
+    ctx.restore();
+  } else if (G.kind === 'erase' && G.last) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(192,57,43,.6)'; ctx.lineWidth = 1.5 / k;
+    ctx.beginPath(); ctx.arc(G.last.x, G.last.y, G.tol, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* Gemeinsame Kunststoff-Optik: leicht durchscheinend, damit man die
+   Zeichnung darunter sieht – wie bei einem echten Geodreieck. */
+const PLASTIC = { fill: 'rgba(246, 250, 255, 0.80)', edge: '#5f7089', print: '#1d2a3a', soft: 'rgba(29,42,58,.55)' };
+
+function withInst(ctx, inst, fn) {
+  ctx.save();
+  ctx.translate(inst.x, inst.y);
+  ctx.rotate(inst.rot);
+  fn();
+  ctx.restore();
+}
+
+function drawRuler(ctx, r, k) {
+  const L = RULER.len / 2, W = RULER.wid / 2;
+  withInst(ctx, r, () => {
+    ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 10 * dpr; ctx.shadowOffsetY = 3 * dpr;
+    ctx.fillStyle = PLASTIC.fill;
+    roundRect(ctx, -L, -W, RULER.len, RULER.wid, 2);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = PLASTIC.edge; ctx.lineWidth = Math.max(0.25, 1 / k);
+    ctx.stroke();
+    /* Skala an der oberen Kante */
+    ctx.strokeStyle = PLASTIC.print; ctx.lineWidth = Math.max(0.15, 0.8 / k);
+    const showMm = k >= 2.6;
+    ctx.beginPath();
+    for (let v = 0; v <= RULER.ticks; v++) {
+      if (!showMm && v % 5) continue;
+      const x = RULER.zero + v;
+      const len = v % 10 === 0 ? 5 : v % 5 === 0 ? 3.5 : 2.2;
+      ctx.moveTo(x, -W); ctx.lineTo(x, -W + len);
+    }
+    ctx.stroke();
+    if (k >= 1.6) {
+      ctx.fillStyle = PLASTIC.print;
+      ctx.font = '3.2px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (let cm = 0; cm <= RULER.ticks / 10; cm++) ctx.fillText(String(cm), RULER.zero + cm * 10, -W + 6);
+      ctx.font = '2.6px system-ui, sans-serif';
+      ctx.fillStyle = PLASTIC.soft;
+      ctx.textAlign = 'left';
+      ctx.fillText('cm', RULER.zero + RULER.ticks + 1.5, -W + 6.4);
+    }
+    drawRotateHandle(ctx, L - 13, W - 11, k);
+  });
+}
+
+function drawGeo(ctx, g, k) {
+  const h = GEO.h;
+  withInst(ctx, g, () => {
+    ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 10 * dpr; ctx.shadowOffsetY = 3 * dpr;
+    ctx.fillStyle = PLASTIC.fill;
+    ctx.beginPath(); ctx.moveTo(-h, 0); ctx.lineTo(h, 0); ctx.lineTo(0, -h); ctx.closePath();
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = PLASTIC.edge; ctx.lineWidth = Math.max(0.25, 1 / k);
+    ctx.stroke();
+
+    ctx.strokeStyle = PLASTIC.print;
+    ctx.lineWidth = Math.max(0.15, 0.8 / k);
+    const showMm = k >= 2.6;
+    /* Millimeterskala auf der Hypotenuse, Null in der Mitte */
+    ctx.beginPath();
+    for (let v = -GEO.scale; v <= GEO.scale; v++) {
+      if (!showMm && v % 5) continue;
+      const len = v % 10 === 0 ? 4.5 : v % 5 === 0 ? 3.2 : 2;
+      ctx.moveTo(v, 0); ctx.lineTo(v, -len);
+    }
+    ctx.stroke();
+    /* Gradskala an den Katheten */
+    ctx.beginPath();
+    for (let d = 0; d <= 180; d++) {
+      if (!showMm && d % 5) continue;
+      const len = d % 10 === 0 ? 3.2 : d % 5 === 0 ? 2.3 : 1.4;
+      const p0 = geoLocalDeg(d, 0), p1 = geoLocalDeg(d, len);
+      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+    }
+    ctx.stroke();
+    /* Mittellinie und Parallelen */
+    ctx.save();
+    ctx.strokeStyle = PLASTIC.soft;
+    ctx.setLineDash([1.2, 1.2]);
+    ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(0, -h + 14); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    for (let y = -10; y >= -45; y -= 5) {
+      const half = h + y - 24;
+      if (half < 6) continue;
+      ctx.moveTo(-half, y); ctx.lineTo(-3, y);
+      ctx.moveTo(3, y); ctx.lineTo(half, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    /* Nullpunkt */
+    ctx.beginPath(); ctx.arc(0, 0, 2.2, Math.PI, TAU); ctx.stroke();
+    if (k >= 1.6) {
+      ctx.fillStyle = PLASTIC.print;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.font = '3px system-ui, sans-serif';
+      for (let cm = -7; cm <= 7; cm++) ctx.fillText(String(Math.abs(cm)), cm * 10, -5.2);
+      ctx.font = '2.4px system-ui, sans-serif';
+      ctx.textBaseline = 'middle';
+      for (let d = 10; d <= 170; d += 10) {
+        const a = geoLocalDeg(d, 6.3), b = geoLocalDeg(d, 10.2);
+        ctx.fillStyle = PLASTIC.print; ctx.fillText(String(d), a.x, a.y);
+        ctx.fillStyle = PLASTIC.soft; ctx.fillText(String(180 - d), b.x, b.y);
+      }
+    }
+    drawRotateHandle(ctx, 0, -h + 22, k);
+  });
+}
+function geoLocalDeg(deg, inset) {
+  const phi = deg * DEG, len = geoDegRayLen(deg) - inset;
+  return { x: len * Math.cos(phi), y: -len * Math.sin(phi) };
+}
+const ROT_HANDLE_R = 5.5;
+function drawRotateHandle(ctx, x, y, k) {
+  const r = Math.max(ROT_HANDLE_R, 15 / k);
+  ctx.save();
+  ctx.fillStyle = 'rgba(35, 78, 140, .14)';
+  ctx.strokeStyle = '#234e8c';
+  ctx.lineWidth = Math.max(0.3, 1.6 / k);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.55, -Math.PI * 0.9, Math.PI * 0.55); ctx.stroke();
+  const ex = x + r * 0.55 * Math.cos(Math.PI * 0.55), ey = y + r * 0.55 * Math.sin(Math.PI * 0.55);
+  ctx.beginPath();
+  ctx.moveTo(ex - r * 0.28, ey - r * 0.05); ctx.lineTo(ex, ey); ctx.lineTo(ex + r * 0.05, ey - r * 0.3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCompass(ctx, c, k) {
+  const p = compassParts(c);
+  /* Schlank halten: Der Zirkel soll die Konstruktion nicht verdecken. */
+  const legW = Math.max(1.4, 5 / k);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(0,0,0,.22)'; ctx.shadowBlur = 8 * dpr; ctx.shadowOffsetY = 3 * dpr;
+  /* Schenkel mit der Spitze (Metall) */
+  taperedLeg(ctx, p.hx, p.hy, c.nx, c.ny, legW, legW * 0.25, '#8d99a9');
+  /* Schenkel mit der Mine */
+  taperedLeg(ctx, p.hx, p.hy, p.lx, p.ly, legW, legW * 0.45, '#2f4a6b');
+  ctx.shadowColor = 'transparent';
+  /* Mine in der aktuellen Stiftfarbe */
+  const ux = p.lx - p.hx, uy = p.ly - p.hy, ul = hyp(ux, uy) || 1;
+  const tip = Math.min(6, ul * 0.25);
+  ctx.strokeStyle = S.pencilC; ctx.lineWidth = Math.max(0.9, 2.4 / k);
+  ctx.beginPath(); ctx.moveTo(p.lx - ux / ul * tip, p.ly - uy / ul * tip); ctx.lineTo(p.lx, p.ly); ctx.stroke();
+  /* Gelenk und Griff */
+  ctx.strokeStyle = '#e0a800'; ctx.lineWidth = Math.max(2.2, 8 / k);
+  ctx.beginPath(); ctx.moveTo(p.hx, p.hy); ctx.lineTo(p.gx, p.gy); ctx.stroke();
+  ctx.fillStyle = '#d9e0e8'; ctx.strokeStyle = '#5f7089'; ctx.lineWidth = Math.max(0.3, 1.2 / k);
+  ctx.beginPath(); ctx.arc(p.hx, p.hy, Math.max(2.2, 7 / k), 0, TAU); ctx.fill(); ctx.stroke();
+  /* Einstich und Minenpunkt hervorheben, damit man weiß, wo man greift */
+  ctx.fillStyle = 'rgba(35,78,140,.14)';
+  ctx.beginPath(); ctx.arc(c.nx, c.ny, Math.max(2.5, 10 / k), 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.lx, p.ly, Math.max(2.5, 10 / k), 0, TAU); ctx.fill();
+  ctx.fillStyle = '#1d2a3a';
+  ctx.beginPath(); ctx.arc(c.nx, c.ny, Math.max(0.35, 1.3 / k), 0, TAU); ctx.fill();
+  if (G && (G.kind === 'clead' || G.kind === 'carc' || G.kind === 'cneedle')) {
+    ctx.strokeStyle = 'rgba(35,78,140,.35)'; ctx.lineWidth = 1 / k;
+    ctx.setLineDash([4 / k, 4 / k]);
+    ctx.beginPath(); ctx.moveTo(c.nx, c.ny); ctx.lineTo(p.lx, p.ly); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+function taperedLeg(ctx, x1, y1, x2, y2, w1, w2, color) {
+  const dx = x2 - x1, dy = y2 - y1, l = hyp(dx, dy) || 1;
+  const nx = -dy / l, ny = dx / l;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x1 + nx * w1 / 2, y1 + ny * w1 / 2);
+  ctx.lineTo(x2 + nx * w2 / 2, y2 + ny * w2 / 2);
+  ctx.lineTo(x2 - nx * w2 / 2, y2 - ny * w2 / 2);
+  ctx.lineTo(x1 - nx * w1 / 2, y1 - ny * w1 / 2);
+  ctx.closePath();
+  ctx.fill();
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ---------------------------------------------------------
+   Fangen
+   --------------------------------------------------------- */
+function snapData() {
+  if (!snapCache) snapCache = { cands: snapCandidates(doc.objects, intersections(doc.objects)) };
+  return snapCache;
+}
+function tolPx(ptype) { return TOL[ptype] || TOL.mouse; }
+
+/* Fangpunkt für eine freie Position (Punktwerkzeug, Zirkelspitze, Mine). */
+function snapFree(w, ptype, allowCurve) {
+  if (!S.snap) return { x: w.x, y: w.y, kind: 'free' };
+  const tol = mm(tolPx(ptype));
+  const hit = findSnap(w.x, w.y, snapData().cands, tol);
+  if (hit) return hit;
+  if (allowCurve) {
+    const c = snapToCurve(w.x, w.y, doc.objects, mm(tolPx(ptype) * 0.6));
+    if (c) return c;
+  }
+  return { x: w.x, y: w.y, kind: 'free' };
+}
+
+/* ---------------------------------------------------------
+   Treffer auf Geräten
+   --------------------------------------------------------- */
+function instEdges(kind) { return kind === 'ruler' ? rulerEdges(doc.inst.ruler) : geoEdges(doc.inst.geo); }
+function instContains(kind, w) { return kind === 'ruler' ? rulerContains(doc.inst.ruler, w.x, w.y) : geoContains(doc.inst.geo, w.x, w.y); }
+function visibleInstTopFirst() {
+  return doc.inst.order.filter(k => k !== 'compass' && doc.inst[k].on).reverse();
+}
+function hitEdges(w, ptype) {
+  const out = mm(ptype === 'touch' ? 30 : 24), inn = mm(ptype === 'touch' ? 14 : 12);
+  for (const kind of visibleInstTopFirst()) {
+    const h = edgeHit(instEdges(kind), w.x, w.y, out, inn);
+    if (h) return { kind, edge: h.edge, t: h.t, s: h.s };
+    /* Liegt der Punkt im oberen Gerät, gilt die Kante eines darunter
+       liegenden nicht – man greift ja das obere. */
+    if (instContains(kind, w)) return null;
+  }
+  return null;
+}
+function rotHandleWorld(kind) {
+  return kind === 'ruler'
+    ? locToWorld(doc.inst.ruler, RULER.len / 2 - 13, RULER.wid / 2 - 11)
+    : locToWorld(doc.inst.geo, 0, -GEO.h + 22);
+}
+function hitInstBody(w, ptype) {
+  for (const kind of visibleInstTopFirst()) {
+    const hw = rotHandleWorld(kind);
+    const r = Math.max(ROT_HANDLE_R, mm(ptype === 'touch' ? 26 : 18));
+    if (dist(w.x, w.y, hw.x, hw.y) <= r) return { kind, handle: true };
+    if (instContains(kind, w)) return { kind, handle: false };
+  }
+  return null;
+}
+function hitCompass(w, ptype) {
+  const c = doc.inst.compass;
+  if (!c.on) return null;
+  const p = compassParts(c);
+  const big = mm(ptype === 'touch' ? 26 : 18);
+  if (distToSeg(w.x, w.y, p.hx, p.hy, p.gx, p.gy) <= Math.max(5, big)) return 'arc';
+  const dL = dist(w.x, w.y, p.lx, p.ly), dN = dist(w.x, w.y, c.nx, c.ny);
+  const rr = Math.max(4, big);
+  if (dL <= rr || dN <= rr) return dL <= dN ? 'lead' : 'needle';
+  const legTol = Math.max(2.5, mm(ptype === 'touch' ? 16 : 10));
+  if (distToSeg(w.x, w.y, p.hx, p.hy, c.nx, c.ny) <= legTol ||
+      distToSeg(w.x, w.y, p.hx, p.hy, p.lx, p.ly) <= legTol) return 'body';
+  return null;
+}
+
+/* ---------------------------------------------------------
+   Eingabe
+   --------------------------------------------------------- */
+const ptrs = new Map();
+let G = null;                    // laufende Geste
+const lastTouched = { ruler: 0, geo: 0 };
+
+function penActive() { return S.penOnly === 'on' || (S.penOnly === 'auto' && S.penSeen); }
+function stagePt(e) { return { x: e.clientX - stageRect.left, y: e.clientY - stageRect.top }; }
+
+function onPointerDown(e) {
+  if (!doc) return;
+  if (e.pointerType === 'mouse' && e.button > 2) return;
+  closeStylePop();
+  if (e.pointerType === 'pen' && !S.penSeen) { S.penSeen = true; saveSettings(); }
+
+  /* Handballen: Solange der Stift zeichnet, zählen Finger nicht. Kommt der
+     Stift, während eine Fingergeste läuft, war das vermutlich die Hand –
+     sie wird verworfen. */
+  if (e.pointerType === 'touch' && G && G.ptype === 'pen') return;
+  if (e.pointerType === 'pen' && G && G.ptype === 'touch') { cancelGesture(); ptrs.clear(); }
+
+  e.preventDefault();
+  try { cvBase.setPointerCapture(e.pointerId); } catch (err) { /* ältere WebViews */ }
+  const p = stagePt(e);
+  ptrs.set(e.pointerId, { id: e.pointerId, type: e.pointerType, x: p.x, y: p.y });
+
+  if (ptrs.size === 2 && G) { secondPointer(); return; }
+  if (ptrs.size > 2) return;
+  if (G) return;
+  startGesture(e, p);
+}
+
+function startGesture(e, p) {
+  const w = s2w(p.x, p.y);
+  const ptype = e.pointerType === 'pen' ? 'pen' : e.pointerType === 'touch' ? 'touch' : 'mouse';
+  const fingerNavOnly = ptype === 'touch' && penActive();
+  const base = { ptype, pid: e.pointerId, start: p, moved: false };
+
+  if (ptype === 'mouse' && (e.button === 1 || e.button === 2)) return beginPan(base, p);
+
+  const ch = hitCompass(w, ptype);
+  if (ch) return beginCompass(base, ch, w);
+
+  const tool = S.tool;
+  if ((tool === 'pencil' || tool === 'marker' || tool === 'point') && !fingerNavOnly) {
+    const eh = hitEdges(w, ptype);
+    if (eh) return tool === 'point' ? beginPoint(base, w, eh) : beginEdge(base, eh, w);
+  }
+
+  const ib = hitInstBody(w, ptype);
+  if (ib) return ib.handle ? beginRot1(base, ib.kind, w) : beginMove(base, ib.kind, w);
+
+  if (fingerNavOnly || tool === 'hand') return beginPan(base, p);
+  switch (tool) {
+    case 'pencil': case 'marker': return beginDraw(base, w);
+    case 'eraser': return beginErase(base, w);
+    case 'point': return beginPoint(base, w, null);
+    case 'text': G = Object.assign(base, { kind: 'text', w }); return;
+  }
+}
+
+function onPointerMove(e) {
+  const rec = ptrs.get(e.pointerId);
+  if (!rec) return;
+  e.preventDefault();
+  const evs = (e.getCoalescedEvents && G && G.kind === 'draw' && G.pid === e.pointerId) ? e.getCoalescedEvents() : [e];
+  for (const ev of evs.length ? evs : [e]) {
+    const p = stagePt(ev);
+    rec.x = p.x; rec.y = p.y;
+    if (!G) continue;
+    if (G.kind === 'pinch' || G.kind === 'rot2') { if (ptrs.size >= 2) moveTwo(); continue; }
+    if (e.pointerId !== G.pid) continue;
+    if (!G.moved && dist(p.x, p.y, G.start.x, G.start.y) > 6) G.moved = true;
+    moveGesture(p);
+  }
+  requestRender(false);
+}
+
+function onPointerUp(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  try { cvBase.releasePointerCapture(e.pointerId); } catch (err) { /* egal */ }
+  if (!G) return;
+  if (G.kind === 'pinch' || G.kind === 'rot2') {
+    if (ptrs.size < 2) {
+      if (G.kind === 'rot2') lastTouched[G.inst] = performance.now();
+      G = null; scheduleSave(false); requestRender(true);
+    }
+    return;
+  }
+  if (e.pointerId !== G.pid) return;
+  if (e.type === 'pointercancel') { cancelGesture(); return; }
+  endGesture(stagePt(e));
+}
+
+function secondPointer() {
+  const [a, b] = [...ptrs.values()];
+  if (a.type !== 'touch' || b.type !== 'touch') return;
+  if (G.kind === 'move' || G.kind === 'rot1') {
+    const inst = doc.inst[G.inst];
+    G = { kind: 'rot2', inst: G.inst, ptype: 'touch', pid: -1, rot0: inst.rot, x0: inst.x, y0: inst.y,
+          ang0: Math.atan2(b.y - a.y, b.x - a.x), mid0: s2w((a.x + b.x) / 2, (a.y + b.y) / 2) };
+    return;
+  }
+  if (G.kind.startsWith('c')) return;       // Zirkel: zweiter Finger ändert nichts
+  /* Strich, Radieren usw. abbrechen und zoomen – der erste Finger war der
+     Beginn einer Zoomgeste, kein Strich. */
+  cancelGesture();
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  G = { kind: 'pinch', ptype: 'touch', pid: -1, d0: Math.max(1, dist(a.x, a.y, b.x, b.y)), z0: view.zoom, anchor: s2w(mid.x, mid.y) };
+}
+
+function moveTwo() {
+  const [a, b] = [...ptrs.values()];
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  if (G.kind === 'pinch') {
+    view.zoom = clamp(G.z0 * dist(a.x, a.y, b.x, b.y) / G.d0, ZOOM_MIN, ZOOM_MAX);
+    const k = sc();
+    view.ox = G.anchor.x - mid.x / k;
+    view.oy = G.anchor.y - mid.y / k;
+    viewChanged();
+  } else if (G.kind === 'rot2') {
+    const inst = doc.inst[G.inst];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    let rot = G.rot0 + angDiff(G.ang0, ang);
+    rot = snapRotation(G.inst, rot);
+    const d = rot - G.rot0;
+    const m = s2w(mid.x, mid.y);
+    /* Um den Startmittelpunkt drehen, dann mitverschieben. */
+    const rx = G.x0 - G.mid0.x, ry = G.y0 - G.mid0.y;
+    inst.x = m.x + rx * Math.cos(d) - ry * Math.sin(d);
+    inst.y = m.y + rx * Math.sin(d) + ry * Math.cos(d);
+    inst.rot = rot;
+    lastTouched[G.inst] = performance.now();
+  }
+}
+
+function moveGesture(p) {
+  const w = s2w(p.x, p.y);
+  switch (G.kind) {
+    case 'pan':
+      view.ox -= (p.x - G.last.x) / sc();
+      view.oy -= (p.y - G.last.y) / sc();
+      G.last = p;
+      viewChanged();
+      break;
+    case 'draw': {
+      const lx = G.pts[G.pts.length - 2], ly = G.pts[G.pts.length - 1];
+      if (dist(lx, ly, w.x, w.y) >= mm(1.2)) G.pts.push(w.x, w.y);
+      break;
+    }
+    case 'edge': moveEdge(w); break;
+    case 'erase': moveErase(w); break;
+    case 'point': G.pos = pointPos(w, G); G.snapShow = G.pos.kind !== 'free' ? G.pos : null; break;
+    case 'move': moveInst(w); break;
+    case 'rot1': rotInst(w); break;
+    case 'cneedle': moveNeedle(w); break;
+    case 'clead': moveLead(w); break;
+    case 'carc': moveArc(w); break;
+  }
+}
+
+function endGesture(p) {
+  const g = G;
+  G = null;
+  switch (g.kind) {
+    case 'draw': finishDraw(g); break;
+    case 'edge': finishEdge(g); break;
+    case 'erase': finishErase(g); break;
+    case 'point': finishPoint(g); break;
+    case 'text': if (!g.moved) textTap(g.w); break;
+    case 'move': case 'rot1': lastTouched[g.inst] = performance.now(); scheduleSave(false); break;
+    case 'cneedle': case 'clead': scheduleSave(false); break;
+    case 'carc': finishArc(g); break;
+  }
+  requestRender(true);
+}
+
+function cancelGesture() {
+  if (G && G.kind === 'erase' && G.deleted.length) {
+    revertEntry(doc.objects, { t: 'del', items: G.deleted });
+    contentChanged();
+  }
+  if (G && G.kind === 'carc') doc.inst.compass.ang = G.start;
+  G = null;
+  requestRender(true);
+}
+
+/* ---------- Blatt verschieben ---------- */
+function beginPan(base, p) { G = Object.assign(base, { kind: 'pan', last: p }); }
+
+function onWheel(e) {
+  if (!doc) return;
+  e.preventDefault();
+  const p = stagePt(e);
+  if (e.ctrlKey || e.metaKey) zoomAt(p.x, p.y, view.zoom * Math.exp(-e.deltaY * 0.01));
+  else {
+    const f = e.deltaMode === 1 ? 16 : 1;
+    view.ox += e.deltaX * f / sc();
+    view.oy += e.deltaY * f / sc();
+    viewChanged();
+  }
+}
+
+/* ---------- Freihand ---------- */
+function currentStyle() {
+  return S.tool === 'marker'
+    ? { c: S.markerC, w: MARKER_WIDTH, al: MARKER_ALPHA }
+    : { c: S.pencilC, w: S.pencilW, al: 1 };
+}
+function beginDraw(base, w) { G = Object.assign(base, { kind: 'draw', pts: [w.x, w.y], style: currentStyle() }); }
+function finishDraw(g) {
+  let pts = g.pts;
+  if (pts.length === 2) pts = [pts[0], pts[1], pts[0], pts[1]];
+  else pts = simplify(pts, 0.08);
+  addObjects([{ type: 'stroke', pts, c: g.style.c, w: g.style.w, al: g.style.al }]);
+}
+/* Douglas-Peucker: spart Speicher, ohne dass man den Unterschied sieht. */
+function simplify(pts, tol) {
+  const n = pts.length / 2;
+  if (n < 3) return pts.slice();
+  const keep = new Uint8Array(n); keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    let md = -1, mi = -1;
+    for (let k = i + 1; k < j; k++) {
+      const d = distToSeg(pts[k * 2], pts[k * 2 + 1], pts[i * 2], pts[i * 2 + 1], pts[j * 2], pts[j * 2 + 1]);
+      if (d > md) { md = d; mi = k; }
+    }
+    if (md > tol) { keep[mi] = 1; stack.push([i, mi], [mi, j]); }
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
+  return out;
+}
+
+/* ---------- Strich an der Gerätekante ---------- */
+function edgeSnapT(edge, t, ptype) {
+  if (!S.snap) return null;
+  const L = edgeLen(edge), lineTol = Math.max(0.6, mm(3)), alongTol = mm(tolPx(ptype));
+  let best = null, bestD = alongTol;
+  for (const c of snapData().cands) {
+    const s = (c.x - edge.ax) * edge.nx + (c.y - edge.ay) * edge.ny;
+    if (Math.abs(s) > lineTol) continue;
+    const tc = projParam(c.x, c.y, edge.ax, edge.ay, edge.bx, edge.by);
+    if (tc < -1e-6 || tc > 1 + 1e-6) continue;
+    const d = Math.abs(tc - t) * L;
+    if (d <= bestD) { bestD = d; best = { t: clamp(tc, 0, 1), pt: c }; }
+  }
+  return best;
+}
+function beginEdge(base, eh, w) {
+  let t0 = eh.t, snapShow = null;
+  const sn = edgeSnapT(eh.edge, t0, base.ptype);
+  if (sn) { t0 = sn.t; snapShow = sn.pt; }
+  G = Object.assign(base, { kind: 'edge', inst: eh.kind, edge: eh.edge, t0, t1: t0, style: currentStyle(), snapShow, live: null });
+  lastTouched[eh.kind] = performance.now();
+}
+function moveEdge(w) {
+  const e = G.edge, L = edgeLen(e);
+  let t = clamp(projParam(w.x, w.y, e.ax, e.ay, e.bx, e.by), 0, 1);
+  const sn = edgeSnapT(e, t, G.ptype);
+  G.snapShow = null;
+  if (sn) { t = sn.t; G.snapShow = sn.pt; }
+  else if (S.snap) {
+    /* Länge auf ganze Millimeter – so wird „c = 5 cm" genau 5 cm. */
+    const len = roundTo((t - G.t0) * L, 1);
+    t = clamp(G.t0 + len / L, 0, 1);
+  }
+  G.t1 = t;
+  G.live = { text: fmtLen(Math.abs(G.t1 - G.t0) * L, lang), at: edgePoint(e, t) };
+  lastTouched[G.inst] = performance.now();
+}
+function finishEdge(g) {
+  const L = edgeLen(g.edge);
+  if (Math.abs(g.t1 - g.t0) * L < 0.5) return;
+  const a = edgePoint(g.edge, g.t0), b = edgePoint(g.edge, g.t1);
+  addObjects([{ type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: g.style.c, w: g.style.w, al: g.style.al }]);
+}
+
+/* ---------- Radierer ---------- */
+function beginErase(base, w) {
+  G = Object.assign(base, { kind: 'erase', deleted: [], last: w, tol: mm(base.ptype === 'touch' ? 16 : 11) });
+  eraseAt(w);
+}
+function moveErase(w) {
+  const a = G.last, steps = Math.max(1, Math.ceil(dist(a.x, a.y, w.x, w.y) / Math.max(G.tol * 0.6, 0.2)));
+  for (let i = 1; i <= steps; i++) eraseAt({ x: a.x + (w.x - a.x) * i / steps, y: a.y + (w.y - a.y) * i / steps });
+  G.last = w;
+}
+function eraseAt(w) {
+  let any = false;
+  for (let i = doc.objects.length - 1; i >= 0; i--) {
+    const o = doc.objects[i];
+    if (objectDistance(o, w.x, w.y) <= G.tol) {
+      G.deleted.push({ obj: o, index: i });
+      doc.objects.splice(i, 1);
+      any = true;
+    }
+  }
+  if (any) { snapCache = null; requestRender(true); }
+}
+function finishErase(g) {
+  if (!g.deleted.length) return;
+  hist.push({ t: 'del', items: g.deleted });
+  contentChanged();
+}
+
+/* ---------- Punkte ---------- */
+function beginPoint(base, w, eh) {
+  G = Object.assign(base, { kind: 'point', eh });
+  G.pos = pointPos(w, G);
+  G.snapShow = G.pos.kind !== 'free' ? G.pos : null;
+}
+function pointPos(w, g) {
+  /* Am Gerät: auf der Skala einrasten (ganze mm bzw. ganze Grad).
+     Die Kante bleibt die vom Aufsetzen, solange man in ihrem Streifen
+     bleibt; wer weggleitet, setzt einen freien Punkt. */
+  if (g.eh) {
+    const e = g.eh.edge;
+    const t = projParam(w.x, w.y, e.ax, e.ay, e.bx, e.by);
+    const s = (w.x - e.ax) * e.nx + (w.y - e.ay) * e.ny;
+    if (t >= -0.02 && t <= 1.02 && s <= mm(40) && s >= -mm(20)) {
+      const tc = clamp(t, 0, 1);
+      const sn = edgeSnapT(e, tc, g.ptype);
+      if (sn) return { x: sn.pt.x, y: sn.pt.y, kind: sn.pt.kind, id: sn.pt.id };
+      if (!S.snap) { const q = edgePoint(e, tc); return { x: q.x, y: q.y, kind: 'edge' }; }
+      const sc2 = snapOnScale(g.eh.kind, doc.inst[g.eh.kind], e, tc);
+      return { x: sc2.x, y: sc2.y, kind: 'scale', value: sc2.value, unit: sc2.unit };
+    }
+  }
+  return snapFree(w, g.ptype, true);
+}
+function finishPoint(g) {
+  const pos = g.pos;
+  if (!pos) return;
+  /* Antippen eines vorhandenen Punkts öffnet ihn, statt einen zweiten
+     darüberzulegen. */
+  const existing = (pos.kind === 'point' && pos.id)
+    ? doc.objects.find(o => o.id === pos.id)
+    : (!g.moved ? topObjectAt(doc.objects, pos.x, pos.y, mm(tolPx(g.ptype)) * 0.6, ['point']) : null);
+  if (existing) { openPointDialog(existing); return; }
+  const used = new Set(doc.objects.filter(o => o.type === 'point').map(o => o.label));
+  const label = nextLabel(used);
+  const o = { type: 'point', x: pos.x, y: pos.y, label, ld: 7, c: S.pencilC };
+  o.ld = bestLabelDir(doc.objects, pos.x, pos.y, null);
+  addObjects([o]);
+}
+
+/* ---------- Geräte bewegen ---------- */
+function bringToFront(kind) {
+  const o = doc.inst.order.filter(k => k !== kind);
+  o.push(kind);
+  doc.inst.order = o;
+}
+function beginMove(base, kind, w) {
+  const inst = doc.inst[kind];
+  bringToFront(kind);
+  G = Object.assign(base, { kind: 'move', inst: kind, offX: inst.x - w.x, offY: inst.y - w.y });
+  lastTouched[kind] = performance.now();
+}
+function moveInst(w) {
+  const inst = doc.inst[G.inst];
+  inst.x = w.x + G.offX;
+  inst.y = w.y + G.offY;
+  G.snapShow = null;
+  if (S.snap) snapInstPosition(G.inst, G.ptype);
+  lastTouched[G.inst] = performance.now();
+}
+/* Beim Verschieben einrasten:
+   – Geodreieck: Nullpunkt auf einen Punkt.
+   – Lineal-Oberkante bzw. Hypotenuse an einen oder zwei Punkte anlegen.
+     Bei zwei Punkten dreht sich das Gerät minimal mit, damit die Kante
+     genau durch beide geht – so zeichnet man die Gerade AB. */
+function snapInstPosition(kind, ptype) {
+  const inst = doc.inst[kind];
+  const tol = mm(tolPx(ptype) * 0.8);
+  const cands = snapData().cands;
+  if (kind === 'geo') {
+    const hit = findSnap(inst.x, inst.y, cands, tol);
+    if (hit) { inst.x = hit.x; inst.y = hit.y; G.snapShow = hit; return; }
+  }
+  const edges = instEdges(kind).filter(e => e.id === 'top' || e.id === 'hyp' || e.id === 'bottom');
+  for (const e of edges) {
+    const near = [];
+    for (const c of cands) {
+      const tc = projParam(c.x, c.y, e.ax, e.ay, e.bx, e.by);
+      if (tc < 0 || tc > 1) continue;
+      const s = (c.x - e.ax) * e.nx + (c.y - e.ay) * e.ny;
+      if (Math.abs(s) <= tol) near.push({ c, s });
+    }
+    if (!near.length) continue;
+    if (near.length >= 2) {
+      /* Gesetzte Punkte zuerst – wer A und C verbinden will, meint diese,
+         nicht ein zufällig benachbartes Bogenende. Unter den Paaren gewinnt
+         das, für das sich das Gerät am wenigsten drehen muss. */
+      const named = near.filter(n => n.c.kind === 'point');
+      const pool = named.length >= 2 ? named : near;
+      const edgeDir = Math.atan2(e.by - e.ay, e.bx - e.ax);
+      let pa = null, pb = null, d = Infinity, md = 0;
+      for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
+        const p1 = pool[i].c, p2 = pool[j].c, len = dist(p1.x, p1.y, p2.x, p2.y);
+        if (len < 5) continue;
+        const dir = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const d1 = angDiff(edgeDir, dir), d2 = angDiff(edgeDir, dir + Math.PI);
+        const dd = Math.abs(d1) < Math.abs(d2) ? d1 : d2;
+        if (Math.abs(dd) < Math.abs(d) - 1e-6 || (Math.abs(Math.abs(dd) - Math.abs(d)) <= 1e-6 && len > md)) {
+          d = dd; md = len; pa = p1; pb = p2;
+        }
+      }
+      if (pa) {
+        if (Math.abs(d) < 6 * DEG) {
+          /* Um pa drehen, damit pa auf der Kante bleibt. */
+          const lpa = worldToLoc(inst, pa.x, pa.y);
+          inst.rot += d;
+          const back = locToWorld(inst, lpa.x, lpa.y);
+          inst.x += pa.x - back.x; inst.y += pa.y - back.y;
+          const e2 = instEdges(kind).find(x => x.id === e.id);
+          const s2 = (pa.x - e2.ax) * e2.nx + (pa.y - e2.ay) * e2.ny;
+          inst.x += e2.nx * s2; inst.y += e2.ny * s2;
+          G.snapShow = pb;
+          return;
+        }
+      }
+    }
+    const one = near.reduce((a, b) => Math.abs(a.s) <= Math.abs(b.s) ? a : b);
+    inst.x += e.nx * one.s; inst.y += e.ny * one.s;
+    G.snapShow = one.c;
+    return;
+  }
+}
+
+function instPivot(kind) {
+  const inst = doc.inst[kind];
+  return { x: inst.x, y: inst.y };     // Lineal: Mitte, Geodreieck: Nullpunkt
+}
+function beginRot1(base, kind, w) {
+  bringToFront(kind);
+  const pv = instPivot(kind);
+  G = Object.assign(base, { kind: 'rot1', inst: kind, lastA: Math.atan2(w.y - pv.y, w.x - pv.x), raw: doc.inst[kind].rot });
+  lastTouched[kind] = performance.now();
+}
+function rotInst(w) {
+  const pv = instPivot(G.inst);
+  if (dist(w.x, w.y, pv.x, pv.y) < 3) return;
+  const a = Math.atan2(w.y - pv.y, w.x - pv.x);
+  G.raw += angDiff(G.lastA, a);
+  G.lastA = a;
+  doc.inst[G.inst].rot = snapRotation(G.inst, G.raw);
+  lastTouched[G.inst] = performance.now();
+}
+/* Drehung einrasten: parallel/senkrecht zu einer nahen Strecke, sonst auf
+   45°-Vielfache, sonst auf ganze Grad. */
+function snapRotation(kind, rot) {
+  if (!S.snap) return rot;
+  const inst = doc.inst[kind];
+  let bestD = 2 * DEG, best = null;
+  for (const o of doc.objects) {
+    if (o.type !== 'segment') continue;
+    if (distToSeg(inst.x, inst.y, o.x1, o.y1, o.x2, o.y2) > 120) continue;
+    const dir = Math.atan2(o.y2 - o.y1, o.x2 - o.x1);
+    for (let q = 0; q < 4; q++) {
+      const d = angDiff(rot, dir + q * Math.PI / 2);
+      if (Math.abs(d) < bestD) { bestD = Math.abs(d); best = rot + d; }
+    }
+  }
+  if (best !== null) return best;
+  const r45 = roundTo(rot, Math.PI / 4);
+  if (Math.abs(rot - r45) < 1.5 * DEG) return r45;
+  return roundTo(rot, DEG);
+}
+
+/* ---------- Zirkel ---------- */
+function beginCompass(base, part, w) {
+  const c = doc.inst.compass;
+  if (part === 'arc') {
+    G = Object.assign(base, { kind: 'carc', start: c.ang, sweep: 0, lastA: Math.atan2(w.y - c.ny, w.x - c.nx) });
+  } else if (part === 'lead') {
+    G = Object.assign(base, { kind: 'clead' });
+  } else {
+    G = Object.assign(base, { kind: 'cneedle', offX: c.nx - w.x, offY: c.ny - w.y, byTip: part === 'needle' });
+  }
+}
+function moveNeedle(w) {
+  const c = doc.inst.compass;
+  const raw = { x: w.x + G.offX, y: w.y + G.offY };
+  const s = snapFree(raw, G.ptype, false);
+  c.nx = s.x; c.ny = s.y;
+  G.snapShow = s.kind !== 'free' ? s : null;
+}
+function moveLead(w) {
+  const c = doc.inst.compass;
+  if (c.lock) {
+    c.ang = Math.atan2(w.y - c.ny, w.x - c.nx);
+    G.snapShow = null;
+  } else {
+    const s = snapFree(w, G.ptype, false);
+    let r = dist(c.nx, c.ny, s.x, s.y);
+    if (s.kind === 'free' && S.snap) r = roundTo(r, 1);
+    c.r = clamp(r, COMPASS.minR, COMPASS.maxR);
+    if (dist(c.nx, c.ny, s.x, s.y) > 0.2) c.ang = Math.atan2(s.y - c.ny, s.x - c.nx);
+    G.snapShow = s.kind !== 'free' ? s : null;
+  }
+  G.live = { text: 'r = ' + fmtLen(c.r, lang), at: compassParts(c) };
+}
+function moveArc(w) {
+  const c = doc.inst.compass;
+  if (dist(w.x, w.y, c.nx, c.ny) < 2) return;
+  const a = Math.atan2(w.y - c.ny, w.x - c.nx);
+  G.sweep = clamp(G.sweep + angDiff(G.lastA, a), -TAU, TAU);
+  G.lastA = a;
+  c.ang = G.start + G.sweep;
+}
+function finishArc(g) {
+  const c = doc.inst.compass;
+  if (Math.abs(g.sweep) < 0.5 * DEG || c.r < 0.5) { scheduleSave(false); return; }
+  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: g.start, sweep: g.sweep, c: S.pencilC, w: S.pencilW, al: 1 }]);
+}
+function compassFullCircle() {
+  const c = doc.inst.compass;
+  if (c.r < 0.5) { notify(t('msgRadiusZero')); return; }
+  addObjects([{ type: 'arc', cx: c.nx, cy: c.ny, r: c.r, a0: c.ang, sweep: TAU, c: S.pencilC, w: S.pencilW, al: 1 }]);
+}
+function compassToggleLock() {
+  doc.inst.compass.lock = !doc.inst.compass.lock;
+  scheduleSave(false);
+  renderChipsStatic();
+  requestRender(false);
+}
+async function compassEnterRadius() {
+  const c = doc.inst.compass;
+  const v = await openDialog({
+    title: t('dlgRadiusTitle'), message: t('dlgRadiusMsg'),
+    input: { value: fmtNum(c.r / 10, 1, lang), mode: 'decimal' },
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' }]
+  });
+  if (v === null) return;
+  const n = parseNum(v);
+  if (!isNum(n) || n < 0 || n * 10 > COMPASS.maxR) { notify(t('msgRadiusInvalid', { max: COMPASS.maxR / 10 }), true); return; }
+  c.r = n * 10; c.lock = true;
+  scheduleSave(false); renderChipsStatic(); requestRender(false);
+}
+
+/* ---------- Text ---------- */
+async function textTap(w) {
+  const hit = topObjectAt(doc.objects, w.x, w.y, mm(8), ['text']);
+  if (hit) return editText(hit);
+  const res = await textDialog('', 5, t('dlgTextNew'), false);
+  if (!res || !res.text.trim()) return;
+  addObjects([{ type: 'text', x: w.x, y: w.y, text: res.text.slice(0, LIMITS.text), size: res.size, c: S.pencilC }]);
+}
+async function editText(o) {
+  const res = await textDialog(o.text, o.size, t('dlgTextEdit'), true);
+  if (!res) return;
+  if (res.del || !res.text.trim()) return deleteObjects([o]);
+  modifyObject(o, { text: res.text.slice(0, LIMITS.text), size: res.size });
+}
+function textDialog(text, size, title, canDelete) {
+  let chosen = size;
+  const wrap = document.createElement('div');
+  wrap.className = 'seg';
+  [[3.5, 'sizeSmall'], [5, 'sizeMedium'], [8, 'sizeLarge']].forEach(([v, key]) => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (Math.abs(v - chosen) < 0.01 ? ' sel' : '');
+    b.textContent = t(key);
+    b.onclick = () => { chosen = v; wrap.querySelectorAll('.btn').forEach(x => x.classList.toggle('sel', x === b)); };
+    wrap.appendChild(b);
+  });
+  const buttons = [];
+  if (canDelete) buttons.push({ label: t('btnDelete'), value: '__del', kind: 'danger' });
+  buttons.push({ label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' });
+  return openDialog({ title, input: { value: text, placeholder: t('phText') }, extra: wrap, buttons, returnInput: true })
+    .then(r => {
+      if (r === null) return null;
+      if (r.button === '__del') return { del: true };
+      return { text: r.input, size: chosen };
+    });
+}
+
+/* ---------- Punkt bearbeiten ---------- */
+async function openPointDialog(o) {
+  let ld = o.ld == null ? 7 : o.ld;
+  const grid = document.createElement('div');
+  grid.className = 'labelpos';
+  const arrows = ['↖', '↑', '↗', '←', '', '→', '↙', '↓', '↘'];
+  const map = [5, 6, 7, 4, -1, 0, 3, 2, 1];
+  map.forEach((dir, i) => {
+    const b = document.createElement('button');
+    b.textContent = arrows[i];
+    if (dir < 0) b.className = 'mid';
+    else {
+      if (dir === ld) b.classList.add('sel');
+      b.setAttribute('aria-label', t('ariaLabelPos'));
+      b.onclick = () => { ld = dir; grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); };
+    }
+    grid.appendChild(b);
+  });
+  const extra = document.createElement('div');
+  const cap = document.createElement('div');
+  cap.className = 'hint'; cap.style.marginBottom = '8px';
+  cap.textContent = t('dlgPointPos');
+  extra.append(cap, grid);
+  const r = await openDialog({
+    title: t('dlgPointTitle'), input: { value: o.label, placeholder: t('phLabel'), maxLength: 12 },
+    extra, returnInput: true,
+    buttons: [{ label: t('btnDelete'), value: '__del', kind: 'danger' }, { label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' }]
+  });
+  if (r === null) return;
+  if (r.button === '__del') return deleteObjects([o]);
+  const label = cleanStr(r.input, 12).trim();
+  if (label !== o.label || ld !== o.ld) modifyObject(o, { label, ld });
+}
+
+/* ---------------------------------------------------------
+   Änderungen am Blatt (immer über diese Funktionen → Rückgängig)
+   --------------------------------------------------------- */
+function addObjects(list) {
+  const items = list.map(o => Object.assign({ id: 'o' + (doc.seq++) }, o));
+  const e = { t: 'add', items };
+  applyEntry(doc.objects, e);
+  hist.push(e);
+  contentChanged();
+}
+function deleteObjects(list) {
+  const items = [];
+  for (const o of list) {
+    const i = indexById(doc.objects, o.id);
+    if (i < 0) continue;
+    items.push({ obj: doc.objects[i], index: i });
+    doc.objects.splice(i, 1);
+  }
+  if (!items.length) return;
+  hist.push({ t: 'del', items });
+  contentChanged();
+}
+function modifyObject(o, changes) {
+  const after = Object.assign({}, o, changes);
+  const e = { t: 'mod', before: [o], after: [after] };
+  applyEntry(doc.objects, e);
+  hist.push(e);
+  contentChanged();
+}
+function undo() { if (G) return; if (hist.undo(doc.objects)) contentChanged(); }
+function redo() { if (G) return; if (hist.redo(doc.objects)) contentChanged(); }
+function contentChanged() {
+  snapCache = null;
+  contentDirty = true;
+  updateUndoButtons();
+  scheduleSave(true);
+  requestRender(true);
+}
+function updateUndoButtons() {
+  document.getElementById('btnUndo').disabled = !hist.canUndo();
+  document.getElementById('btnRedo').disabled = !hist.canRedo();
+}
+
+/* ---------------------------------------------------------
+   Speichern
+   --------------------------------------------------------- */
+function scheduleSave(content) {
+  if (content) contentDirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 700);
+}
+async function saveNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (!doc) return;
+  if (saving) { await saving; }
+  const d = doc;
+  if (contentDirty) { d.modified = Date.now(); d.thumb = makeThumb(d); contentDirty = false; }
+  saving = dbPut(d).catch(err => {
+    console.error('Speichern fehlgeschlagen:', err);
+    if (!DB.warned) { DB.warned = true; notify(t('msgSaveFailed'), true); }
+  }).finally(() => { saving = null; });
+  await saving;
+}
+
+function makeThumb(d) {
+  try {
+    const W = 300, H = 200;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    const b = boundsOf(d.objects);
+    if (!b) return null;
+    const pad = 8;
+    const bw = Math.max(b.x1 - b.x0, 20), bh = Math.max(b.y1 - b.y0, 20);
+    const k = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh, 6);
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    ctx.setTransform(k, 0, 0, k, W / 2 - cx * k, H / 2 - cy * k);
+    drawObjects(ctx, d.objects, k, null);
+    return cv.toDataURL('image/png');
+  } catch (e) { return null; }
+}
+
+/* ---------------------------------------------------------
+   Blätter verwalten
+   --------------------------------------------------------- */
+function sheetName(d) { return d.name || t('untitled'); }
+function updateTitle() {
+  const el = document.getElementById('sheetTitle');
+  if (el) el.textContent = doc ? sheetName(doc) : '';
+}
+
+/* Auch gespeicherte Blätter laufen durch sanitizeDoc: ein Fehler in einer
+   früheren Version oder ein halb geschriebener Datensatz darf die App nicht
+   lahmlegen. */
+function prepareLoaded(d) {
+  return Object.assign(sanitizeDoc(d, d.id, d.modified), { modified: d.modified, thumb: d.thumb || null });
+}
+async function loadDoc(d) {
+  doc = d;
+  hist.clear();
+  snapCache = null;
+  contentDirty = false;
+  G = null; ptrs.clear();
+  setViewCenter(d.view.cx, d.view.cy, d.view.zoom);
+  S.lastDoc = d.id; saveSettings();
+  updateTitle();
+  updateUndoButtons();
+  updateInstButtons();
+  document.getElementById('zoomLabel').textContent = Math.round(view.zoom * 100) + ' %';
+  renderChipsStatic();
+  requestRender(true);
+}
+
+async function createSheet(name) {
+  const d = newDoc(uid(), name, Date.now());
+  /* Neues Blatt beginnt dort, wo man gerade hinschaut – in echter Größe. */
+  d.view = { cx: 0, cy: 0, zoom: 1 };
+  await dbPut(d);
+  return d;
+}
+function canAddSheet(count) { return !LIMITS_ACTIVE || Purchase.owned || count < FREE_SHEETS; }
+
+async function newSheet() {
+  await saveNow();
+  const all = await dbAll();
+  if (!canAddSheet(all.length)) return showPaywall('sheets');
+  const names = new Set(all.map(d => d.name));
+  let n = all.length + 1;
+  while (names.has(t('defaultSheetName', { n }))) n++;
+  const d = await createSheet(t('defaultSheetName', { n }));
+  await loadDoc(d);
+  closePanel('sheetsPanel');
+}
+
+async function openSheets() {
+  await saveNow();
+  openPanel('sheetsPanel');
+  await renderSheetList();
+}
+async function renderSheetList() {
+  const list = document.getElementById('sheetList');
+  const all = (await dbAll()).sort((a, b) => b.modified - a.modified);
+  list.textContent = '';
+  const fmt = new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  for (const d of all) {
+    const card = document.createElement('div');
+    card.className = 'sheet' + (doc && d.id === doc.id ? ' current' : '');
+    const open = document.createElement('button');
+    open.style.cssText = 'all:unset;display:block;cursor:pointer;width:100%';
+    open.setAttribute('aria-label', sheetName(d));
+    const img = document.createElement('img');
+    img.className = 'thumb'; img.alt = '';
+    if (d.thumb && /^data:image\/png;base64,/.test(d.thumb)) img.src = d.thumb;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = sheetName(d);
+    const dt = document.createElement('div'); dt.className = 'date'; dt.textContent = fmt.format(new Date(d.modified));
+    meta.append(nm, dt);
+    open.append(img, meta);
+    open.onclick = async () => {
+      await saveNow();
+      const fresh = await dbGet(d.id);
+      if (fresh) {
+        try { await loadDoc(prepareLoaded(fresh)); }
+        catch (e) { notify(t('msgImportInvalid'), true); return; }
+      }
+      closePanel('sheetsPanel');
+    };
+    const more = document.createElement('button');
+    more.className = 'more'; more.textContent = '⋯';
+    more.setAttribute('aria-label', t('ariaSheetActions'));
+    more.onclick = (ev) => { ev.stopPropagation(); sheetActions(d.id); };
+    card.append(open, more);
+    list.appendChild(card);
+  }
+}
+
+async function sheetActions(id) {
+  const d = await dbGet(id);
+  if (!d) return;
+  const a = await openDialog({
+    title: sheetName(d),
+    buttons: [
+      { label: t('btnRename'), value: 'rename' },
+      { label: t('btnDuplicate'), value: 'dup' },
+      { label: t('btnExport'), value: 'export' },
+      { label: t('btnDelete'), value: 'delete', kind: 'danger' },
+      { label: t('btnCancel'), value: null }
+    ]
+  });
+  if (a === 'rename') await renameSheet(d);
+  else if (a === 'dup') await duplicateSheet(d);
+  else if (a === 'export') exportSheet(d);
+  else if (a === 'delete') await deleteSheet(d);
+  if (a) await renderSheetList();
+}
+
+async function renameSheet(d) {
+  const v = await openDialog({
+    title: t('dlgRenameTitle'), input: { value: d.name, placeholder: t('untitled'), maxLength: LIMITS.name },
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' }]
+  });
+  if (v === null) return;
+  const name = cleanStr(v, LIMITS.name).trim();
+  if (doc && d.id === doc.id) { doc.name = name; updateTitle(); await saveNow(); }
+  else { d.name = name; await dbPut(d); }
+}
+async function renameCurrentSheet() { if (doc) await renameSheet(doc); }
+
+async function duplicateSheet(d) {
+  await saveNow();
+  const all = await dbAll();
+  if (!canAddSheet(all.length)) return showPaywall('sheets');
+  const src = (doc && d.id === doc.id) ? doc : d;
+  const copy = sanitizeDoc(clone(src), uid(), Date.now());
+  copy.name = t('copyOf', { name: sheetName(src) }).slice(0, LIMITS.name);
+  copy.thumb = src.thumb || null;
+  await dbPut(copy);
+}
+
+async function deleteSheet(d) {
+  const ok = await openDialog({
+    title: t('dlgDeleteTitle'), message: t('dlgDeleteMsg', { name: sheetName(d) }),
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnDelete'), value: 'ok', kind: 'danger' }]
+  });
+  if (ok !== 'ok') return;
+  /* Ein noch laufender Speichervorgang würde das gelöschte Blatt sonst
+     gleich wieder anlegen. */
+  if (doc && d.id === doc.id) { clearTimeout(saveTimer); saveTimer = null; contentDirty = false; }
+  if (saving) await saving;
+  await dbDel(d.id);
+  if (doc && d.id === doc.id) {
+    clearTimeout(saveTimer); saveTimer = null;
+    doc = null;
+    const rest = (await dbAll()).sort((a, b) => b.modified - a.modified);
+    await loadDoc(rest[0] || await createSheet(t('defaultSheetName', { n: 1 })));
+  }
+}
+
+function exportSheet(d) {
+  const src = (doc && d.id === doc.id) ? doc : d;
+  const data = Object.assign({}, src);
+  delete data.thumb;
+  const json = JSON.stringify(data);
+  const base = (sheetName(src).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'blatt').slice(0, 40);
+  deliverFile(base + '.zirkelwerk', new Blob([json], { type: 'application/json' }));
+}
+
+function importSheet() {
+  const inp = document.getElementById('importInput');
+  inp.value = '';
+  inp.click();
+}
+async function onImportFile(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) { notify(t('msgImportTooLarge'), true); return; }
+  let raw;
+  try { raw = JSON.parse(await file.text()); }
+  catch (e) { notify(t('msgImportInvalid'), true); return; }
+  let d;
+  try { d = sanitizeDoc(raw, uid(), Date.now()); }
+  catch (e) { notify(e.message === 'version' ? t('msgImportNewer') : t('msgImportInvalid'), true); return; }
+  const all = await dbAll();
+  if (!canAddSheet(all.length)) return showPaywall('sheets');
+  if (!d.name) d.name = file.name.replace(/\.(zirkelwerk|json)$/i, '').slice(0, LIMITS.name);
+  d.thumb = makeThumb(d);
+  await saveNow();
+  await dbPut(d);
+  await loadDoc(d);
+  closePanel('sheetsPanel');
+  notify(t('msgImported', { name: sheetName(d) }));
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+function iPadShareAnchor() {
+  /* Auf dem iPad ist das Teilen-Menü ein Popover und braucht einen Anker.
+     Ohne Angabe wirft UIKit eine Ausnahme und die App stürzt ab. */
+  return Math.round(window.innerWidth / 2) + ',' + Math.round(window.innerHeight / 2) + ',0,0';
+}
+function deliverFile(filename, blob) {
+  const sharer = window.plugins && window.plugins.socialsharing;
+  if (window.cordova && sharer && sharer.shareWithOptions) {
+    blobToDataUrl(blob).then(url => {
+      /* "df:" legt den Dateinamen fest; sonst heißt die Datei im
+         Teilen-Menü nur "file". */
+      sharer.shareWithOptions(
+        { subject: filename, files: ['df:' + filename + ';' + url], chooserTitle: filename, iPadPopupCoordinates: iPadShareAnchor() },
+        () => {},
+        err => { console.error('Teilen fehlgeschlagen:', err); notify(t('msgShareFailed'), true); }
+      );
+    }).catch(() => notify(t('msgExportFailed'), true));
+    return;
+  }
+  if (window.cordova) { notify(t('msgShareFailed'), true); return; }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { notify(t('msgExportFailed'), true); }
+}
+
+/* ---------------------------------------------------------
+   Werkzeuge und Geräte
+   --------------------------------------------------------- */
+function selectTool(tool) {
+  if (!ENUMS.tool.includes(tool)) return;
+  S.tool = tool; saveSettings();
+  document.querySelectorAll('.tool[data-tool]').forEach(b => {
+    const on = b.dataset.tool === tool;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  updateSwatch();
+  closeStylePop();
+}
+function toggleInstrument(kind) {
+  if (!doc) return;
+  const inst = doc.inst[kind];
+  inst.on = !inst.on;
+  if (inst.on) {
+    /* Gerät in die Mitte des sichtbaren Bereichs legen – sonst taucht es
+       womöglich außerhalb auf, wenn das Blatt verschoben wurde. */
+    const c = viewCenter(), vw = mm(stageW), vh = mm(stageH);
+    if (kind === 'ruler') { inst.x = c.x; inst.y = c.y + Math.min(45, vh * 0.3); inst.rot = 0; }
+    else if (kind === 'geo') { inst.x = c.x + Math.min(30, vw * 0.12); inst.y = c.y + Math.min(30, vh * 0.2); inst.rot = 0; }
+    else { inst.nx = c.x - Math.min(70, vw * 0.3); inst.ny = c.y - Math.min(10, vh * 0.05); inst.ang = 0; }
+    bringToFront(kind);
+    if (kind !== 'compass') lastTouched[kind] = performance.now();
+  }
+  updateInstButtons();
+  renderChipsStatic();
+  scheduleSave(false);
+  requestRender(false);
+}
+function updateInstButtons() {
+  document.querySelectorAll('.tool[data-inst]').forEach(b => {
+    const on = !!(doc && doc.inst[b.dataset.inst].on);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+/* ---------- Farbwahl ---------- */
+function styleFamily() { return S.tool === 'marker' ? 'marker' : 'pencil'; }
+function updateSwatch() {
+  document.getElementById('styleSwatch').style.background = styleFamily() === 'marker' ? S.markerC : S.pencilC;
+}
+function toggleStylePop() {
+  const pop = document.getElementById('stylePop');
+  if (!pop.hidden) return closeStylePop();
+  const fam = styleFamily();
+  const colors = fam === 'marker' ? MARKER_COLORS : PENCIL_COLORS;
+  const cur = fam === 'marker' ? S.markerC : S.pencilC;
+  const row = document.getElementById('colorRow');
+  row.textContent = '';
+  colors.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'colorbtn' + (c === cur ? ' sel' : '');
+    b.style.background = c;
+    b.setAttribute('aria-label', t('ariaColor'));
+    b.onclick = () => {
+      if (fam === 'marker') S.markerC = c; else S.pencilC = c;
+      saveSettings(); updateSwatch(); closeStylePop(); requestRender(false);
+    };
+    row.appendChild(b);
+  });
+  document.getElementById('widthBlock').hidden = fam === 'marker';
+  const wr = document.getElementById('widthRow');
+  wr.textContent = '';
+  PENCIL_WIDTHS.forEach(w => {
+    const b = document.createElement('button');
+    b.className = 'widthbtn' + (w === S.pencilW ? ' sel' : '');
+    const i = document.createElement('i'); i.style.height = Math.round(w * 5) + 'px';
+    b.appendChild(i);
+    b.setAttribute('aria-label', t('ariaWidth'));
+    b.onclick = () => { S.pencilW = w; saveSettings(); closeStylePop(); };
+    wr.appendChild(b);
+  });
+  document.getElementById('stylePopTitle').textContent = t(fam === 'marker' ? 'styleMarker' : 'styleColor');
+  pop.hidden = false;
+  const btn = document.getElementById('btnStyle').getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const left = S.toolbarSide === 'right' ? btn.left - pw - 8 : btn.right + 8;
+  pop.style.left = clamp(left, 8, window.innerWidth - pw - 8) + 'px';
+  pop.style.top = clamp(btn.top + btn.height / 2 - ph / 2, 8, window.innerHeight - ph - 8) + 'px';
+}
+function closeStylePop() { document.getElementById('stylePop').hidden = true; }
+
+/* ---------------------------------------------------------
+   Anzeigen am Gerät (Chips)
+   --------------------------------------------------------- */
+const chipEls = {};
+function makeChip(id, cls) {
+  const el = document.createElement('div');
+  el.className = 'chip ' + (cls || '');
+  el.id = id; el.hidden = true;
+  document.getElementById('chips').appendChild(el);
+  return el;
+}
+function chipButton(content, onClick, label, on) {
+  const b = document.createElement('button');
+  if (content.startsWith('icon:')) b.innerHTML = iconSvg(content.slice(5));
+  else b.textContent = content;
+  if (label) { b.setAttribute('aria-label', label); b.title = label; }
+  if (on) b.classList.add('on');
+  /* Chips liegen über der Zeichenfläche. pointerdown darf nicht bis zur
+     Fläche durchrutschen, sonst startet darunter ein Strich. */
+  b.addEventListener('pointerdown', e => e.stopPropagation());
+  b.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return b;
+}
+function renderChipsStatic() {
+  if (!chipEls.compass) {
+    chipEls.compass = makeChip('chipCompass');
+    chipEls.ruler = makeChip('chipRuler');
+    chipEls.geo = makeChip('chipGeo');
+    chipEls.live = makeChip('chipLive', 'live');
+  }
+  if (!doc) return;
+  const c = doc.inst.compass;
+  const cc = chipEls.compass;
+  cc.textContent = '';
+  cc.append(
+    chipButton(c.lock ? 'icon:lock' : 'icon:unlock', compassToggleLock, t(c.lock ? 'ariaUnlock' : 'ariaLock'), c.lock),
+    chipButton('r = ' + fmtLen(c.r, lang), compassEnterRadius, t('ariaRadius')),
+    chipButton('icon:circle', compassFullCircle, t('ariaFullCircle'))
+  );
+  cc.dataset.r = String(c.r);
+  for (const kind of ['ruler', 'geo']) {
+    const el = chipEls[kind];
+    el.textContent = '';
+    el.append(chipButton(fmtDeg(displayAngle(kind), lang), () => enterAngle(kind), t('ariaAngle')));
+    el.dataset.a = String(doc.inst[kind].rot);
+  }
+}
+/* Mathematisch positiv: gegen den Uhrzeigersinn, wie im Unterricht. */
+function displayAngle(kind) {
+  let d = normAng(-doc.inst[kind].rot) / DEG;
+  d = Math.round(d * 10) / 10;
+  if (kind === 'ruler') d = d % 180;
+  return d >= 360 ? 0 : d;
+}
+async function enterAngle(kind) {
+  const v = await openDialog({
+    title: t('dlgAngleTitle'), message: t('dlgAngleMsg'),
+    input: { value: fmtNum(displayAngle(kind), 1, lang).replace(/[.,]0$/, ''), mode: 'decimal' },
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' }]
+  });
+  if (v === null) return;
+  const n = parseNum(v);
+  if (!isNum(n)) { notify(t('msgAngleInvalid'), true); return; }
+  doc.inst[kind].rot = -n * DEG;
+  lastTouched[kind] = performance.now();
+  scheduleSave(false); renderChipsStatic(); requestRender(false);
+}
+function placeChip(el, sx, sy) {
+  const w = el.offsetWidth || 120, h = el.offsetHeight || 40;
+  el.style.left = clamp(sx, w / 2 + 6, stageW - w / 2 - 6) + 'px';
+  el.style.top = clamp(sy, h / 2 + 6, stageH - h / 2 - 6) + 'px';
+}
+function updateChips() {
+  if (!doc || !chipEls.compass) return;
+  const c = doc.inst.compass;
+  const busy = !!G;
+  /* Zirkel */
+  const cc = chipEls.compass;
+  if (c.on) {
+    if (cc.dataset.r !== String(c.r) || (cc.firstChild && cc.firstChild.classList.contains('on') !== c.lock)) renderChipsStatic();
+    /* Unter den Spitzen, also auf der dem Griff abgewandten Seite – sonst
+       verdeckt die Anzeige genau die Stelle, an der man dreht. */
+    const p = compassParts(c);
+    const m = w2s((c.nx + p.lx) / 2, (c.ny + p.ly) / 2);
+    cc.hidden = false;
+    /* Abstand in Bildschirmpixeln, damit die Anzeige auch weit
+       herausgezoomt nicht auf den Spitzen liegt. */
+    const off = 30 + (cc.offsetHeight || 42) / 2;
+    placeChip(cc, m.x - p.px * off, m.y - p.py * off);
+    cc.style.opacity = busy && G.kind && G.kind.startsWith('c') ? '0.35' : '1';
+  } else cc.hidden = true;
+  /* Lineal und Geodreieck: nur kurz nach dem Anfassen */
+  const now = performance.now();
+  for (const kind of ['ruler', 'geo']) {
+    const el = chipEls[kind], inst = doc.inst[kind];
+    const recent = now - lastTouched[kind] < 2500 || (G && G.inst === kind);
+    if (inst.on && recent) {
+      if (el.dataset.a !== String(inst.rot)) renderChipsStatic();
+      const anchor = kind === 'ruler' ? locToWorld(inst, RULER.len / 4, RULER.wid / 2 + 8) : locToWorld(inst, 0, -GEO.h - 8);
+      const s = w2s(anchor.x, anchor.y);
+      el.hidden = false;
+      placeChip(el, s.x, s.y);
+    } else el.hidden = true;
+  }
+  if ((lastTouched.ruler && now - lastTouched.ruler < 2600) || (lastTouched.geo && now - lastTouched.geo < 2600)) {
+    clearTimeout(updateChips.timer);
+    updateChips.timer = setTimeout(() => requestRender(false), 300);
+  }
+  /* Messwert beim Zeichnen */
+  const lv = chipEls.live;
+  if (G && G.live && G.moved !== undefined) {
+    lv.textContent = G.live.text;
+    lv.hidden = false;
+    const a = G.live.at;
+    const s = w2s(a.x !== undefined ? a.x : a.lx, a.y !== undefined ? a.y : a.ly);
+    placeChip(lv, s.x, s.y - 44);
+  } else lv.hidden = true;
+}
+
+/* ---------------------------------------------------------
+   Panels, Dialoge, Meldungen
+   --------------------------------------------------------- */
+const panelStack = [];
+function openPanel(id) {
+  const el = document.getElementById(id);
+  el.hidden = false;
+  if (!panelStack.includes(id)) panelStack.push(id);
+}
+function closePanel(id) {
+  document.getElementById(id).hidden = true;
+  const i = panelStack.indexOf(id);
+  if (i >= 0) panelStack.splice(i, 1);
+  if (id === 'helpPanel' && !S.helpSeen) { S.helpSeen = true; saveSettings(); maybeCalibHint(); }
+}
+function topPanel() { return panelStack[panelStack.length - 1] || null; }
+
+let dialogResolve = null, dialogCfg = null;
+function openDialog(cfg) {
+  return new Promise(resolve => {
+    if (dialogResolve) { const old = dialogResolve; dialogResolve = null; old(null); }
+    dialogResolve = resolve; dialogCfg = cfg;
+    document.getElementById('dialogTitle').textContent = cfg.title || '';
+    const msg = document.getElementById('dialogMessage');
+    msg.textContent = cfg.message || ''; msg.hidden = !cfg.message;
+    const inp = document.getElementById('dialogInput');
+    inp.hidden = !cfg.input;
+    if (cfg.input) {
+      inp.value = cfg.input.value || '';
+      inp.placeholder = cfg.input.placeholder || '';
+      inp.inputMode = cfg.input.mode || 'text';
+      inp.maxLength = cfg.input.maxLength || 300;
+    }
+    const extra = document.getElementById('dialogExtra');
+    extra.textContent = '';
+    if (cfg.extra) extra.appendChild(cfg.extra);
+    const bar = document.getElementById('dialogButtons');
+    bar.textContent = '';
+    (cfg.buttons || [{ label: t('btnOk'), value: 'ok', kind: 'primary' }]).forEach(b => {
+      const el = document.createElement('button');
+      el.className = 'btn' + (b.kind ? ' ' + b.kind : '');
+      el.textContent = b.label;
+      el.onclick = () => finishDialog(b.value);
+      bar.appendChild(el);
+    });
+    openPanel('dialog');
+    if (cfg.input) { inp.focus(); try { inp.select(); } catch (e) { /* egal */ } }
+  });
+}
+function finishDialog(value) {
+  const r = dialogResolve, cfg = dialogCfg;
+  dialogResolve = null; dialogCfg = null;
+  closePanel('dialog');
+  if (!r) return;
+  if (value === null) return r(null);
+  if (cfg && cfg.returnInput) return r({ button: value, input: document.getElementById('dialogInput').value });
+  if (cfg && cfg.input) return r(document.getElementById('dialogInput').value);
+  r(value);
+}
+function primaryDialogValue() {
+  const p = (dialogCfg && dialogCfg.buttons || []).find(b => b.kind === 'primary');
+  return p ? p.value : 'ok';
+}
+
+let toastTimer = null;
+function notify(text, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), isError ? 5000 : 3200);
+}
+
+function openHelp() { openPanel('helpPanel'); }
+
+/* ---------------------------------------------------------
+   Einstellungen
+   --------------------------------------------------------- */
+function openSettings() { refreshSettingsUI(); openPanel('settingsPanel'); }
+function chooseSetting(key, value) {
+  if (!ENUMS[key] || !ENUMS[key].includes(value)) return;
+  S[key] = value; saveSettings();
+  applySettings();
+  refreshSettingsUI();
+}
+function toggleSetting(key) {
+  S[key] = !S[key]; saveSettings();
+  snapCache = null;
+  refreshSettingsUI();
+}
+function applySettings() {
+  document.documentElement.dataset.theme = S.theme;
+  document.body.classList.toggle('tools-right', S.toolbarSide === 'right');
+  updateStatusBar();
+  setTimeout(resizeStage, 0);
+  requestRender(true);
+}
+function sel(id, on) { const el = document.getElementById(id); if (el) el.classList.toggle('sel', !!on); }
+function refreshSettingsUI() {
+  sel('choiceLangDe', lang === 'de'); sel('choiceLangEn', lang === 'en');
+  sel('choiceThemeAuto', S.theme === 'auto'); sel('choiceThemeLight', S.theme === 'light'); sel('choiceThemeDark', S.theme === 'dark');
+  sel('choicePaperGrid', S.paper === 'grid'); sel('choicePaperBlank', S.paper === 'blank');
+  sel('choicePointCross', S.pointStyle === 'cross'); sel('choicePointDot', S.pointStyle === 'dot');
+  sel('choicePenAuto', S.penOnly === 'auto'); sel('choicePenOn', S.penOnly === 'on'); sel('choicePenOff', S.penOnly === 'off');
+  sel('choiceSideLeft', S.toolbarSide === 'left'); sel('choiceSideRight', S.toolbarSide === 'right');
+  const ts = document.getElementById('toggleSnap');
+  ts.textContent = S.snap ? t('on') : t('off');
+  ts.classList.toggle('sel', S.snap);
+  const info = S.ppm ? t('scaleCalibrated')
+    : detected.sure ? t('scaleDetected', { device: t('device_' + detected.device) })
+    : t('scaleEstimated');
+  document.getElementById('scaleInfo').textContent = info;
+  document.getElementById('btnCalibReset').hidden = !S.ppm;
+  document.getElementById('aboutLine').textContent = t('aboutLine', { version: APP_VERSION });
+  document.getElementById('purchaseSection').hidden = !IAP_ENABLED;
+  if (IAP_ENABLED) {
+    document.getElementById('purchaseState').textContent = Purchase.owned ? t('fullOwned') : t('fullInfo');
+    document.getElementById('btnBuy').hidden = Purchase.owned;
+  }
+}
+
+function applyScale() {
+  const keep = doc ? viewCenter() : null;
+  ppm = S.ppm || detected.ppm;
+  if (keep) setViewCenter(keep.x, keep.y, view.zoom);
+  requestRender(true);
+}
+
+/* ---------- Kalibrieren ---------- */
+let calibPpm = 5;
+function openCalibration() {
+  calibPpm = S.ppm || detected.ppm;
+  document.getElementById('calibRange').value = String(Math.round(calibPpm * 100));
+  openPanel('calibPanel');
+  drawCalib();
+}
+function calibInput() { calibPpm = Number(document.getElementById('calibRange').value) / 100; drawCalib(); }
+function calibNudge(d) {
+  const r = document.getElementById('calibRange');
+  r.value = String(clamp(Number(r.value) + d, Number(r.min), Number(r.max)));
+  calibInput();
+}
+function drawCalib() {
+  const card = document.getElementById('calibCard');
+  const w = 85.6 * calibPpm, h = 53.98 * calibPpm;
+  card.style.width = w + 'px'; card.style.height = h + 'px';
+  const area = document.getElementById('calibArea');
+  area.style.height = Math.round(h + 90) + 'px';
+  const cv = document.getElementById('calibRuler');
+  const cw = Math.round(100 * calibPpm + 4), ch = 34;
+  const r = window.devicePixelRatio || 1;
+  cv.width = cw * r; cv.height = ch * r;
+  cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.strokeStyle = '#1d2a3a'; ctx.fillStyle = '#1d2a3a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0.5, 0.5); ctx.lineTo(100 * calibPpm + 0.5, 0.5); ctx.stroke();
+  ctx.beginPath();
+  for (let v = 0; v <= 100; v++) {
+    const x = Math.round(v * calibPpm) + 0.5, len = v % 10 === 0 ? 14 : v % 5 === 0 ? 9 : 5;
+    ctx.moveTo(x, 0); ctx.lineTo(x, len);
+  }
+  ctx.stroke();
+  ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+  for (let cm = 0; cm <= 10; cm++) ctx.fillText(String(cm), cm * 10 * calibPpm, 28);
+}
+function closeCalibration(save) {
+  if (save) { S.ppm = Math.round(calibPpm * 1000) / 1000; saveSettings(); applyScale(); notify(t('msgCalibSaved')); }
+  closePanel('calibPanel');
+  refreshSettingsUI();
+}
+function resetCalibration() { S.ppm = null; saveSettings(); applyScale(); refreshSettingsUI(); }
+function maybeCalibHint() {
+  if (detected.sure || S.ppm || S.calibHint) return;
+  S.calibHint = true; saveSettings();
+  notify(t('msgCalibHint'));
+}
+
+/* ---------- Rechtstexte ---------- */
+async function openLegal(page) {
+  await saveNow();
+  location.href = page + (lang === 'en' ? '-en' : '') + '.html';
+}
+
+/* ---------- Statusleiste (nur in der App) ---------- */
+function isDarkUi() {
+  return S.theme === 'dark' || (S.theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function updateStatusBar() {
+  const dark = isDarkUi();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = dark ? '#1c1f26' : '#faf8f3';
+  if (window.StatusBar) { try { dark ? StatusBar.styleLightContent() : StatusBar.styleDefault(); } catch (e) { /* egal */ } }
+}
+
+/* ---------------------------------------------------------
+   Vollversion (vorbereitet, in Stufe 1 abgeschaltet)
+   --------------------------------------------------------- */
+/* Grundlage: cordova-plugin-purchase ab Version 13 (Objekt CdvPurchase).
+   Nicht verbrauchbares Produkt, einmal kaufen, über Familienfreigabe
+   teilbar (in App Store Connect einschalten). Apple verlangt einen
+   sichtbaren Knopf „Käufe wiederherstellen" – er steht in den
+   Einstellungen neben dem Kaufknopf. */
+const Purchase = {
+  ready: false,
+  owned: false,
+  init() {
+    try { this.owned = localStorage.getItem('zw.full') === '1'; } catch (e) { this.owned = false; }
+    if (!IAP_ENABLED || !window.CdvPurchase || !window.cordova) return;
+    const { store, ProductType, Platform } = window.CdvPurchase;
+    const platform = window.cordova.platformId === 'ios' ? Platform.APPLE_APPSTORE : Platform.GOOGLE_PLAY;
+    store.register([{ id: PRODUCT_FULL, type: ProductType.NON_CONSUMABLE, platform }]);
+    store.when()
+      .approved(tr => tr.finish())
+      .finished(() => this.refresh())
+      .productUpdated(() => this.refresh())
+      .receiptUpdated(() => this.refresh());
+    store.error(err => console.warn('Kauf:', err && err.message));
+    store.initialize([platform]).then(() => { this.ready = true; this.refresh(); });
+  },
+  refresh() {
+    const p = window.CdvPurchase && window.CdvPurchase.store.get(PRODUCT_FULL);
+    if (!p) return;
+    this.owned = !!p.owned;
+    try { localStorage.setItem('zw.full', this.owned ? '1' : '0'); } catch (e) { /* egal */ }
+    refreshSettingsUI();
+  },
+  price() {
+    const p = this.ready && window.CdvPurchase.store.get(PRODUCT_FULL);
+    return p && p.pricing ? p.pricing.price : '';
+  }
+};
+async function buyFull() {
+  if (!Purchase.ready) { notify(t('msgStoreUnavailable'), true); return; }
+  const p = window.CdvPurchase.store.get(PRODUCT_FULL);
+  const offer = p && p.getOffer();
+  if (!offer) { notify(t('msgStoreUnavailable'), true); return; }
+  const err = await offer.order();
+  if (err && err.code !== window.CdvPurchase.ErrorCode.PAYMENT_CANCELLED) notify(t('msgPurchaseFailed'), true);
+}
+async function restorePurchases() {
+  if (!Purchase.ready) { notify(t('msgStoreUnavailable'), true); return; }
+  await window.CdvPurchase.store.restorePurchases();
+  Purchase.refresh();
+  notify(Purchase.owned ? t('msgRestored') : t('msgNothingToRestore'));
+}
+async function showPaywall(reason) {
+  const a = await openDialog({
+    title: t('paywallTitle'), message: t('paywall_' + reason, { n: FREE_SHEETS }),
+    buttons: [{ label: t('btnLater'), value: null }, { label: t('btnShowFull'), value: 'show', kind: 'primary' }]
+  });
+  if (a === 'show') openSettings();
+}
+
+/* ---------------------------------------------------------
+   Tastatur, Zurück-Taste
+   --------------------------------------------------------- */
+function onKey(e) {
+  if (!document.getElementById('dialog').hidden) {
+    if (e.key === 'Escape') { e.preventDefault(); finishDialog(null); }
+    else if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'dialogInput') { e.preventDefault(); finishDialog(primaryDialogValue()); }
+    return;
+  }
+  const top = topPanel();
+  if (top) { if (e.key === 'Escape') { e.preventDefault(); top === 'calibPanel' ? closeCalibration(false) : closePanel(top); } return; }
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (mod && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); }
+  else if (e.key === 'Escape') { if (G) cancelGesture(); closeStylePop(); }
+  else if (!mod && (e.key === '+' || e.key === '=')) zoomStep(1);
+  else if (!mod && e.key === '-') zoomStep(-1);
+  else if (!mod && e.key === '0') zoomReset();
+}
+function onBackButton() {
+  if (!document.getElementById('dialog').hidden) return finishDialog(null);
+  const top = topPanel();
+  if (top) return top === 'calibPanel' ? closeCalibration(false) : closePanel(top);
+  if (!document.getElementById('stylePop').hidden) return closeStylePop();
+  saveNow().finally(() => { if (navigator.app && navigator.app.exitApp) navigator.app.exitApp(); });
+}
+
+/* ---------------------------------------------------------
+   Start
+   --------------------------------------------------------- */
+async function init() {
+  applyIcons();
+  cvBase = document.getElementById('cvBase');
+  cvOver = document.getElementById('cvOver');
+  ctxBase = cvBase.getContext('2d');
+  ctxOver = cvOver.getContext('2d');
+
+  detected = detectScale({ ua: navigator.userAgent, maxTouch: navigator.maxTouchPoints || 0, sw: screen.width, sh: screen.height });
+  ppm = S.ppm || detected.ppm;
+
+  document.documentElement.dataset.theme = S.theme;
+  document.body.classList.toggle('tools-right', S.toolbarSide === 'right');
+  applyLanguage();
+  selectTool(S.tool);
+  updateSwatch();
+  resizeStage();
+
+  const st = stage();
+  cvBase.addEventListener('pointerdown', onPointerDown);
+  cvBase.addEventListener('pointermove', onPointerMove);
+  cvBase.addEventListener('pointerup', onPointerUp);
+  cvBase.addEventListener('pointercancel', onPointerUp);
+  st.addEventListener('wheel', onWheel, { passive: false });
+  st.addEventListener('contextmenu', e => e.preventDefault());
+  /* iOS: Ohne preventDefault auf touchmove scrollt Safari trotz
+     touch-action manchmal die Seite (Gummiband-Effekt). */
+  document.addEventListener('touchmove', e => { if (e.target.closest && e.target.closest('#stage')) e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  window.addEventListener('resize', resizeStage);
+  window.addEventListener('orientationchange', () => setTimeout(resizeStage, 250));
+  if (window.ResizeObserver) new ResizeObserver(() => resizeStage()).observe(st);
+  window.addEventListener('keydown', onKey);
+  document.getElementById('importInput').addEventListener('change', onImportFile);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', () => { saveNow(); });
+  if (window.matchMedia) {
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    const fn = () => updateStatusBar();
+    if (mq.addEventListener) mq.addEventListener('change', fn); else if (mq.addListener) mq.addListener(fn);
+  }
+
+  const ok = await dbOpen();
+  if (!ok) notify(t('msgNoStorage'), true);
+  let d = null;
+  try {
+    if (S.lastDoc) d = await dbGet(S.lastDoc);
+    if (!d) { const all = (await dbAll()).sort((a, b) => b.modified - a.modified); d = all[0] || null; }
+    if (d) d = prepareLoaded(d);
+  } catch (e) { console.error('Blatt nicht lesbar:', e); d = null; }
+  if (!d) d = await createSheet(t('defaultSheetName', { n: 1 }));
+  await loadDoc(d);
+
+  if (!S.helpSeen) openHelp();
+  else maybeCalibHint();
+  registerServiceWorker();
+
+  /* Für den Ablauftest. Verändert nichts, liest nur. */
+  window.__zw = { get doc() { return doc; }, view, sc, w2s, s2w, get G() { return G; }, hist, S, saveNow, ready: true };
+}
+
+function onDeviceReady() {
+  updateStatusBar();
+  document.addEventListener('backbutton', onBackButton, false);
+  document.addEventListener('pause', () => saveNow(), false);
+  Purchase.init();
+}
+
+/* ---------- Service Worker (nur als Web-App) ---------- */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || window.cordova) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  navigator.serviceWorker.register('./sw.js').catch(e => console.log('Service Worker nicht registriert:', e));
+}
+
+document.addEventListener('deviceready', onDeviceReady, false);
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+</script>
+<script src="cordova.js"></script>
+</body>
+</html>

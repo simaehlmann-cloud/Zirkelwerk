@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Zirkelwerk – Konstruieren mit Zirkel und Geodreieck",
+  "short_name": "Zirkelwerk",
+  "description": "Geometrische Konstruktionen mit Zirkel, Geodreieck und Lineal auf Karopapier. Läuft vollständig offline.",
+  "lang": "de",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf8f3",
+  "theme_color": "#faf8f3",
+  "categories": ["education"],
+  "icons": [
+    { "src": "icon-192.png",          "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon.png",              "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
