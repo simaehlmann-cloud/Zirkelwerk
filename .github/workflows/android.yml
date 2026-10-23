@@ -121,6 +121,14 @@ jobs:
             echo "::error::Englischer Grundname 'Compasswork' nicht gefunden (values/cdv_strings.xml)."
             exit 1
           fi
+          # Aufgaben per QR-Code: Link-Filter und eine einzige App-Instanz
+          MF=platforms/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="zirkelwerk"' "$MF" \
+            || { echo "::error::Kein intent-filter für zirkelwerk:// – QR-Aufgaben öffnen die App nicht."; exit 1; }
+          grep -q 'android:launchMode="singleTask"' "$MF" \
+            || { echo "::error::launchMode ist nicht singleTask – ein Link startet sonst eine zweite App-Instanz."; exit 1; }
+          if grep -q 'android:scheme=" "' "$MF"; then echo "::error::Leerer Link-Filter (Schema \" \") im Manifest."; exit 1; fi
+          echo "Link-Filter zirkelwerk:// vorhanden, singleTask."
           # Farbe für den Icon-Hintergrund, sonst bricht aapt beim Bauen ab
           test -f platforms/android/app/src/main/res/values/zirkelwerk_colors.xml \
             || { echo "::error::zirkelwerk_colors.xml fehlt."; exit 1; }
