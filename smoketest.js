@@ -626,6 +626,65 @@ async function main() {
     await page.click('#taskBar .tb');
     await page.click('#dialogButtons .btn.danger');
     ok(!(await page.isVisible('#taskBar')) && !(await page.evaluate(() => window.__zw.doc.task)), 'Aufgabe entfernt');
+    /* ---------- Aufgaben per QR-Code ---------- */
+    {
+      const cnt = () => page.evaluate(() => new Promise(r => { const q = indexedDB.open('zirkelwerk'); q.onsuccess = () => { const tx = q.result.transaction('docs').objectStore('docs').count(); tx.onsuccess = () => r(tx.result); }; }));
+      await page.click('#btnLab');
+      await page.click('#labKind_sws');
+      await page.fill('#labIn_c', '6'); await page.fill('#labIn_b', '4,5'); await page.fill('#labIn_alpha', '50');
+      await page.click('#btnLabQr');
+      ok(await page.isVisible('#qrPanel') && !(await page.isVisible('#labPanel')), 'QR-Code groß angezeigt, Labor geschlossen');
+      const link = await page.getAttribute('#qrCanvas', 'data-link');
+      ok(link === 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50', 'QR enthält den Aufgaben-Link', link);
+      ok((await page.textContent('#qrText')).replace(/ /g, ' ') === 'Konstruiere das Dreieck ABC mit c = 6 cm, b = 4,5 cm und α = 50°.', 'Aufgabe steht über dem Code');
+      ok(await page.evaluate(() => { const c = document.getElementById('qrCanvas'); const d = c.getContext('2d').getImageData(0, 0, 4, 4).data; return c.width >= 200 && d[0] === 255; }), 'QR mit weißer Ruhezone gezeichnet');
+      /* Für die Gegenprobe als Bild ablegen (lokal mit zxing lesbar) */
+      require('fs').writeFileSync(require('path').join(require('os').tmpdir(), 'zw-qr.png'), Buffer.from((await page.evaluate(() => document.getElementById('qrCanvas').toDataURL('image/png'))).split(',')[1], 'base64'));
+      await page.click('#qrPanel header .tb');
+      // Schüler scannt: Cordova ruft handleOpenURL
+      const n0 = await cnt();
+      await page.evaluate(l => window.handleOpenURL(l), link);
+      await page.waitForFunction(() => window.__zw.doc.task && window.__zw.doc.task.kind === 'sws' && window.__zw.doc.src, null, { timeout: 5000 });
+      ok((await cnt()) === n0 + 1 && (await objs(page)).every(o => o.m && o.m.plan) && await page.isVisible('#taskBar'), 'Gescannte Aufgabe öffnet als neues Aufgabenblatt');
+      const firstId = await page.evaluate(() => window.__zw.doc.id);
+      await page.click('[data-tool="hand"]');
+      await page.evaluate(l => window.handleOpenURL(l), link);
+      await page.waitForTimeout(400);
+      ok((await cnt()) === n0 + 1 && (await page.evaluate(() => window.__zw.doc.id)) === firstId && (await page.textContent('#toast')).includes('schon'), 'Zweites Scannen öffnet dasselbe Blatt statt eines neuen');
+      await page.evaluate(() => window.handleOpenURL('zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=500'));
+      await page.waitForTimeout(300);
+      ok((await cnt()) === n0 + 1 && (await page.textContent('#toast')).includes('keine gültige'), 'Ungültiger Link: Hinweis, kein Blatt');
+      await page.evaluate(() => window.handleOpenURL('zirkelwerk://a?v=9&k=sws&c=60&b=45&alpha=50'));
+      await page.waitForTimeout(300);
+      ok((await page.textContent('#toast')).includes('neueren'), 'Link aus neuerer Version: Hinweis zum Aktualisieren');
+      /* Aufgabenmenü → QR */
+      await page.click('#taskBar .tb');
+      await page.click('#dialogButtons .btn >> text=QR-Code für die Klasse');
+      ok(await page.isVisible('#qrPanel') && (await page.getAttribute('#qrCanvas', 'data-link')) === link, 'Aufgabenmenü zeigt denselben Code');
+      await page.click('#qrPanel header .tb');
+      /* Eigenes Blatt als QR (über die Blattliste) und wieder öffnen */
+      await page.click('#btnSheets');
+      const own = page.locator('.sheet', { hasText: 'Lösung SSS' }).first();
+      await own.locator('.more').click();
+      await page.click('#dialogButtons .btn >> text=Als QR-Code');
+      let sheetLink = null;
+      if (await page.isVisible('#qrPanel')) sheetLink = await page.getAttribute('#qrCanvas', 'data-link');
+      else { ok((await page.textContent('#dialogTitle')) === 'Zu groß für einen QR-Code', 'Zu großes Blatt: verständlicher Hinweis'); await page.click('#dialogButtons .btn'); }
+      if (sheetLink) {
+        ok(sheetLink.startsWith('zirkelwerk://s?v=1&d='), 'Blatt-Link erzeugt', sheetLink.length);
+        await page.click('#qrPanel header .tb');
+      }
+      // ein kleines, selbst gezeichnetes Blatt
+      const small = await page.evaluate(() => linkForSheet({ name: 'Mittelsenkrechte', objects: [
+        { id: 'a', type: 'point', x: 0, y: 0, label: 'A', ld: 5, c: '#3b3f45' }, { id: 'b', type: 'point', x: 50, y: 0, label: 'B', ld: 7, c: '#3b3f45' },
+        { id: 's', type: 'segment', x1: 0, y1: 0, x2: 50, y2: 0, c: '#3b3f45', w: 0.5, al: 1, m: { via: 'ruler' } }] }));
+      await page.evaluate(l => window.handleOpenURL(l), small);
+      await page.waitForFunction(() => window.__zw.doc.name === 'Mittelsenkrechte', null, { timeout: 5000 });
+      const so2 = await objs(page);
+      ok(so2.length === 3 && so2.filter(o => o.type === 'point').map(o => o.label).join() === 'A,B' && !(await page.evaluate(() => window.__zw.doc.task)), 'Gescanntes Blatt mit Punkten und Strecke');
+      const st3 = await page.evaluate(() => window.__zw.steps().map(s => s.text));
+      ok(st3.join(' | ') === 'Zeichne einen Punkt A. | Zeichne einen Punkt B. | Verbinde A mit B.', 'Beschreibung des gescannten Blatts stimmt', st3);
+    }
     /* Englische Satznamen */
     await page.click('[aria-label="Einstellungen"]'); await page.click('#choiceLangEn'); await page.click('#settingsPanel header .tb');
     await page.click('#btnLab');
@@ -633,6 +692,39 @@ async function main() {
     await page.click('#labPanel header .tb');
     await page.click('[aria-label="Settings"]'); await page.click('#choiceLangDe'); await page.click('#settingsPanel header .tb');
 
+    }
+    /* ---------- Handy (iPhone hochkant) ---------- */
+    {
+      const ph = await launch({ locale: 'de-DE', viewport: { width: 390, height: 844 }, screen: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+      const pp = await ph.context.newPage();
+      const perr = []; pp.on('pageerror', e => perr.push(e.message));
+      await pp.goto(url); await pp.waitForFunction(() => window.__zw && window.__zw.ready);
+      ok(await pp.isVisible('#helpLangTop') && await pp.isVisible('#helpLangTopDe'), 'Handy: Sprachwahl beim ersten Start oben in der Hilfe');
+      await pp.click('#helpLangTopEn');
+      ok((await pp.textContent('#helpTitle')) === 'Help & about', 'Handy: Sprache aus der Hilfe umgestellt');
+      await pp.click('#helpLangTopDe');
+      await pp.click('#helpPanel header .tb');
+      const lay = await pp.evaluate(() => {
+        const bar = document.getElementById('topbar').getBoundingClientRect();
+        const outside = [...document.querySelectorAll('#topbar > *')].filter(e => !e.hidden && e.offsetWidth && e.getBoundingClientRect().right > bar.right + 0.5).map(e => e.id);
+        return { outside, more: !document.getElementById('btnMore').hidden, zoom: window.__zw.view.zoom, ppm: ppm * 25.4 };
+      });
+      ok(lay.more && lay.outside.length === 0, 'Handy: Kopfleiste passt, Rest im „⋯"-Menü', lay);
+      ok(lay.zoom === 0.5 && Math.abs(lay.ppm - 153.33) < 0.01, 'Handy: Start mit 50 %, iPhone-Maß erkannt', lay);
+      await pp.click('#btnMore');
+      ok((await pp.textContent('#dialogTitle')) === 'Mehr' && (await pp.locator('#dialogButtons .btn').count()) === 6, 'Handy: Menü mit fünf Einträgen und Abbrechen');
+      await pp.click('#dialogButtons .btn >> text=Einstellungen');
+      ok(await pp.isVisible('#settingsPanel'), 'Handy: Einstellungen über das Menü erreichbar');
+      await pp.click('#settingsPanel .btn >> text=Kurzanleitung');
+      ok(await pp.isVisible('#helpPanel') && !(await pp.isVisible('#helpLangTop')) && (await pp.textContent('#helpAboutLine')).startsWith('Zirkelwerk 0.'), 'Handy: Kurzanleitung aus den Einstellungen, „Über" mit Version');
+      await pp.click('#helpPanel header .tb');
+      await pp.setViewportSize({ width: 844, height: 390 });
+      await pp.waitForTimeout(200);
+      ok(await pp.evaluate(() => document.getElementById('btnMore').hidden && !document.getElementById('btnSettings').hidden), 'Handy quer: alles in der Kopfleiste, kein Menü');
+      ok(await pp.evaluate(() => { const tb = document.getElementById('toolbar'); return tb.scrollHeight <= tb.clientHeight + 1; }), 'Handy quer: Werkzeugleiste ohne Blättern');
+      ok(perr.length === 0, 'Handy: keine Skriptfehler', perr);
+      await ph.browser.close();
     }
     ok(errors.length === 0, 'Keine Skriptfehler im Browser', errors);
   } catch (e) { fails.push("ABBRUCH: " + e.message); failed++; } finally {

@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.4.0"' 'version="0.4.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="400"' 'android-versionCode="401"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.4.0" "zirkelwerk-0.3.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.6.0"' 'version="0.6.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="600"' 'android-versionCode="601"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.6.0" "zirkelwerk-0.5.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -82,6 +82,19 @@ pruefe "PDF: krumme Prozente"        coretest.js index.html "if (s < 1) s = Math
 pruefe "PDF: nie Querformat"         coretest.js index.html "c.s > best.s + 1e-9 ? c : best" "best"
 pruefe "PDF: Beschreibung verschluckt" coretest.js index.html "if (o.desc && o.desc.steps.length) {" "if (false) {"
 pruefe "PDF-Texte fehlen (EN)"       validate.js index.html "    pdf_name: 'Name:', pdf_date: 'Date:', pdf_descTitle: 'Construction description'," "    pdf_name: 'Name:', pdf_date: 'Date:',"
+pruefe "QR: Formatinfo falsch"       coretest.js index.html "^ 0x5412" "^ 0x5413"
+pruefe "QR: Reed-Solomon falsch"     coretest.js index.html "root = qrMul(root, 2);" "root = qrMul(root, 3);"
+pruefe "QR: Blöcke falsch verschränkt" coretest.js index.html "if (i !== shortLen - eccLen || j >= nShort) cw.push(b[i]);" "cw.push(b[i]);"
+pruefe "QR: Maske nicht gewählt"     coretest.js index.html "if (p < bestP) { bestP = p; best = m; }" "if (m === 0) { bestP = p; best = m; }"
+pruefe "Link: neuere Version egal"   coretest.js index.html "if (v > LINK_V) return { ok: false, err: 'newer' };" ""
+pruefe "Link: Aufgabe ungeprüft"     coretest.js index.html "const task = sanitizeTask({ kind: q.k, given });" "const task = { kind: q.k, given };"
+pruefe "Link: Freihand zerstört"     coretest.js index.html "abs.push(i < 2 ? n : abs[i - 2] + n)" "abs.push(n)"
+pruefe "Link: Abgriff verloren"      coretest.js index.html "mm.rs = { t: 'taken', p: mm.rs.p.map(n => 'q' + n) };" ""
+pruefe "Link: Android-Kodierung"     coretest.js index.html "if (!/^zirkelwerk:/i.test(u) && /^zirkelwerk%3A/i.test(u))" "if (false)"
+pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/.test(raw.src)" "true"
+pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
+pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
+pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

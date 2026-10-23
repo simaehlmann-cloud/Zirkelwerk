@@ -21,6 +21,7 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   bestLabelDir, fmtLen, fmtDeg, fmtNum, parseNum, History, applyEntry, revertEntry,
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
   compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
+  textFlip, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
   PdfCanvas, pdfRuns, pdfTextWidth, pdfWrap, pdfLayout, pdfCompose, pdfColor, pdfEsc, pdfBytes, PDF_PT, PDF_M, PDF_PAD };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
@@ -199,6 +200,17 @@ d = K.detectScale({ ua: ipadUA, maxTouch: 0, sw: 1440, sh: 900 });
 ok(d.device === 'desktop' && !d.sure, 'Mac ohne Touch ist kein iPad');
 d = K.detectScale({ ua: ipadUA, maxTouch: 5, sw: 1192, sh: 1590 });
 ok(d.device === 'ipad' && !d.sure, 'Anzeigezoom „Mehr Platz": unsicher → Kalibrieren empfehlen');
+const phoneUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15';
+d = K.detectScale({ ua: phoneUA, maxTouch: 5, sw: 393, sh: 852, dpr: 3 });
+ok(d.device === 'iphone' && d.sure && near(d.ppm, 460 / 3 / 25.4), 'iPhone 15 erkannt (460 ppi, 3×)');
+d = K.detectScale({ ua: phoneUA, maxTouch: 5, sw: 667, sh: 375, dpr: 2 });
+ok(d.sure && near(d.ppm, 163 / 25.4), 'iPhone SE (quer) erkannt');
+ok(near(K.detectScale({ ua: phoneUA, sw: 414, sh: 896, dpr: 2 }).ppm, 163 / 25.4) && near(K.detectScale({ ua: phoneUA, sw: 414, sh: 896, dpr: 3 }).ppm, 458 / 3 / 25.4), 'iPhone XR und XS Max am dpr unterschieden');
+ok(near(K.detectScale({ ua: phoneUA, sw: 360, sh: 780, dpr: 3 }).ppm, 476 / 3 / 25.4), 'iPhone mini erkannt');
+d = K.detectScale({ ua: phoneUA, sw: 500, sh: 1000, dpr: 3 });
+ok(d.device === 'iphone' && !d.sure, 'Unbekanntes iPhone: unsicher → Kalibrieren empfehlen');
+/* Zahlen auf gedrehten Geräten */
+ok(!K.textFlip(0) && !K.textFlip(Math.PI / 2) && !K.textFlip(-1.5) && K.textFlip(Math.PI) && K.textFlip(1.7) && K.textFlip(-2) && !K.textFlip(4.8), 'Zahlen werden ab mehr als 90° Drehung umgedreht');
 
 /* ---------- Blätter prüfen ---------- */
 const nd = K.newDoc('x', 'Test', 1);
@@ -456,6 +468,64 @@ const ba = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -0.3, sweep: 0.6 
 ok(near(ba.x1, 10) && ba.x0 > 9 && Math.abs(ba.y0) < 3.1 && Math.abs(ba.y1) < 3.1, 'Kurzer Bogen: Umriss nur um den gezeichneten Teil', ba);
 const bb2 = K.boundsOf([{ type: 'arc', cx: 0, cy: 0, r: 10, a0: -Math.PI * 0.75, sweep: Math.PI * 0.5 }]);
 ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: höchster Punkt erfasst', bb2);
+
+/* ---------- QR-Code und Aufgaben-Links ---------- */
+{
+  const mat = q => q.modules.map(r => r.map(c => (c ? 1 : 0)).join('')).join('\n');
+  /* Bekannte Antworten: mit der Python-Bibliothek „qrcode" (gleiche Version,
+     Stufe, Maske) Bit für Bit verglichen und mit zxing gelesen. */
+  const q1 = K.qrEncode(K.utf8Bytes('zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50'), 'M', 40);
+  ok(q1.version === 4 && q1.level === 'Q' && q1.mask === 2 && K.linkKey(mat(q1)) === 'aqdf22', 'QR: Aufgaben-Link wie Referenz (v4, Stufe Q, Maske 2)', [q1.version, q1.level, q1.mask, K.linkKey(mat(q1))]);
+  const q2 = K.qrEncode(K.utf8Bytes('x'.repeat(300)), 'L', 40);
+  ok(q2.version === 11 && q2.mask === 0 && K.linkKey(mat(q2)) === 'pkjr5v', 'QR: Version 11 mit Versionsinfo wie Referenz', [q2.version, q2.mask, K.linkKey(mat(q2))]);
+  const fin = (q, x0, y0) => [0, 1, 2, 3, 4, 5, 6].every(i => q.modules[y0][x0 + i] && q.modules[y0 + 6][x0 + i] && q.modules[y0 + i][x0] && q.modules[y0 + i][x0 + 6]) && q.modules[y0 + 3][x0 + 3];
+  ok(fin(q1, 0, 0) && fin(q1, q1.size - 7, 0) && fin(q1, 0, q1.size - 7), 'QR: Suchmuster in drei Ecken');
+  ok(K.qrEncode(K.utf8Bytes('y'.repeat(2000)), 'M', 22) === null, 'QR: Zu viel für die Grenze → null');
+  ok(K.qrEncode(K.utf8Bytes('ä€😀'), 'M', 40) && K.utf8Decode(K.utf8Bytes('ä€😀 x')) === 'ä€😀 x', 'QR: UTF-8 hin und zurück');
+  const masks = new Set([0, 1, 2, 3, 4, 5, 6, 7].map(m => K.qrPenalty(K.qrEncode(K.utf8Bytes('Maskenwahl'), 'M', 40, m).modules)));
+  ok(masks.size > 1 && K.qrPenalty(K.qrEncode(K.utf8Bytes('Maskenwahl'), 'M', 40).modules) === Math.min(...masks), 'QR: Maske mit den wenigsten Strafpunkten');
+  for (const bytes of [[], [1], [1, 2], [255, 254, 253], [0, 0, 0, 0]]) ok(JSON.stringify(K.b64uDecode(K.b64uEncode(bytes))) === JSON.stringify(bytes), 'Base64url hin und zurück ' + bytes.length);
+
+  /* Laboraufgabe */
+  const task = { kind: 'ssw', given: { c: 50, a: 60, alpha: 50 } };
+  const lt = K.linkForTask(task);
+  ok(lt === 'zirkelwerk://a?v=1&k=ssw&c=50&a=60&alpha=50', 'Link: Laboraufgabe lesbar und kurz', lt);
+  const pt = K.parseLink(lt);
+  ok(pt.ok && pt.kind === 'task' && JSON.stringify(pt.task) === JSON.stringify(task), 'Link: Aufgabe hin und zurück', pt);
+  ok(K.parseLink(encodeURIComponent(lt)).ok, 'Link: prozentkodiert (Android-Plugin) wird verstanden');
+  ok(K.parseLink(lt.replace('v=1', 'v=2')).err === 'newer', 'Link: neuere Version erkannt');
+  for (const bad of ['https://evil.example/a?v=1&k=sws', 'zirkelwerk://a?v=1&k=evil&c=1', 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=500',
+    'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=1e3', 'zirkelwerk://a?k=sws&c=60&b=45&alpha=50', 'zirkelwerk://s?v=1&d=%%%', 'zirkelwerk://s?v=1&d=e30',
+    'zirkelwerk://s?v=1&d=' + K.b64uEncode(K.utf8Bytes('[1,2]')), 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50&x=' + 'a'.repeat(5000)]) {
+    ok(K.parseLink(bad).ok === false, 'Link: abgelehnt ' + bad.slice(0, 60));
+  }
+
+  /* Blatt: Beschreibung und Abgriff-Verweise überstehen den Weg durch den Code */
+  const g = { c: 60, b: 45, alpha: 50 }, con = K.labConstruction('sws', g);
+  const A = { id: 'pA', type: 'point', x: 0, y: 0, label: 'A', ld: 5, c: '#3b3f45' }, B = { id: 'pB', type: 'point', x: 37.3, y: 0, label: 'B', ld: 7, c: '#3b3f45' };
+  const own = [A, B,
+    { id: 's1', type: 'segment', x1: 0, y1: 0, x2: 37.3, y2: 0, c: '#3b3f45', w: 0.5, al: 1, m: { via: 'ruler' } },
+    { id: 'k1', type: 'arc', cx: 0, cy: 0, r: 37.3, a0: -1.2, sweep: -0.9, c: '#1f5fbf', w: 0.5, al: 1, m: { rs: { t: 'taken', p: ['pA', 'pB'] } } },
+    { id: 'm1', type: 'stroke', pts: [1, 2, 3.04, 4.06, 5, 1], c: '#e0b400', w: 4, al: 0.4 },
+    { id: 't1', type: 'text', x: 5, y: -20, text: 'Mittelsenkrechte „ä“', size: 4, c: '#d0342c' }];
+  const sheet = { name: 'Übung', objects: con.objects.map((o, i) => Object.assign({ id: 'L' + i }, o)).concat(own) };
+  const ls = K.linkForSheet(sheet), ps = K.parseLink(ls);
+  ok(ps.ok && ps.kind === 'sheet', 'Link: Blatt lesbar', ls.length);
+  const dd2 = K.sanitizeDoc(ps.raw, 'n', 1);
+  ok(dd2.name === 'Übung' && dd2.objects.length === sheet.objects.length, 'Link: Name und alle Objekte da');
+  ok(JSON.stringify(K.describe(dd2.objects, 'de', I18N.de).map(x => x.text)) === JSON.stringify(K.describe(sheet.objects, 'de', I18N.de).map(x => x.text)), 'Link: Beschreibung identisch nach dem Scannen', K.describe(dd2.objects, 'de', I18N.de).map(x => x.text));
+  const arc2 = dd2.objects.find(o => o.type === 'arc' && o.r === 37.3);
+  ok(arc2.m && arc2.m.rs.t === 'taken' && dd2.objects.find(o => o.id === arc2.m.rs.p[0]).label === 'A', 'Link: Abgriff-Verweis zeigt wieder auf A');
+  const st2 = dd2.objects.find(o => o.type === 'stroke');
+  ok(st2 && st2.al === 0.4 && near(st2.pts[2], 3, 1e-9) && near(st2.pts[3], 4.1, 1e-9) && st2.pts.length === 6, 'Link: Freihand auf 0,1 mm, durchscheinend', st2 && st2.pts);
+  ok(dd2.objects.find(o => o.type === 'text').text === 'Mittelsenkrechte „ä“', 'Link: Text mit Umlauten');
+  ok(K.linkKey(ls) === K.linkKey(ls) && K.linkKey(ls) !== K.linkKey(lt), 'Link: Kennung stabil und unterscheidbar');
+  ok(K.sanitizeDoc({ format: 'zirkelwerk', v: 1, objects: [], src: 'abc123' }, 'x', 1).src === 'abc123' && K.sanitizeDoc({ format: 'zirkelwerk', v: 1, objects: [], src: '<script>' }, 'x', 1).src === null, 'Herkunft des Blatts wird gespeichert und geprüft');
+  /* Untergeschobene Felder werden beim Laden verworfen */
+  const evil = 'zirkelwerk://s?v=1&d=' + K.b64uEncode(K.utf8Bytes(JSON.stringify({ n: 'x', o: [[0, 1, 2, 'A', 7, 'javascript:alert(1)'], [3, ['a', 1]], [9, 1]] })));
+  const pe = K.parseLink(evil), de2 = K.sanitizeDoc(pe.raw, 'e', 1);
+  ok(pe.ok && de2.objects.length === 1 && de2.objects[0].c === '#3b3f45', 'Link: falsche Farbe, kaputte Striche und unbekannte Typen fallen weg', de2.objects);
+}
 
 /* ---------- PDF ---------- */
 {

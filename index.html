@@ -83,7 +83,7 @@ input, textarea { -webkit-user-select: text; user-select: text; font: inherit; }
 .tb:disabled { opacity: .35; cursor: default; }
 .tb svg { width: 24px; height: 24px; }
 #sheetTitle {
-  max-width: 34vw; height: 40px; padding: 0 12px;
+  max-width: 34vw; min-width: 64px; flex: 0 1 auto; height: 40px; padding: 0 12px;
   border: none; border-radius: 10px; background: transparent;
   font-weight: 650; font-size: 17px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -197,6 +197,12 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
   background: rgba(15, 22, 34, .45);
 }
 .panel[hidden] { display: none; }
+.qr-card { width: min(900px, 100%); }
+.qr-card .body { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.qr-text { margin: 0 0 12px; font-size: 20px; font-weight: 650; }
+/* Immer weiß hinterlegt, auch im dunklen Modus – sonst liest die Kamera nichts. */
+#qrCanvas { display: block; background: #fff; border-radius: 8px; image-rendering: pixelated; width: min(64vh, 80vw, 620px); height: min(64vh, 80vw, 620px); }
+.qr-hint { margin-top: 12px; max-width: 560px; }
 .card {
   width: min(760px, 100%); max-height: 100%;
   display: flex; flex-direction: column;
@@ -280,6 +286,9 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
 #dialogExtra:empty { display: none; }
 #dialogExtra { margin-bottom: 14px; }
 #dialogButtons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+#dialogButtons.menu { flex-direction: column; align-items: stretch; }
+#dialogButtons.menu .btn { justify-content: flex-start; gap: 12px; }
+#dialogButtons.menu .btn svg { width: 22px; height: 22px; }
 .labelpos { display: grid; grid-template-columns: repeat(3, 48px); gap: 6px; }
 .labelpos button { height: 44px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--chrome); font-size: 18px; }
 .labelpos button.sel { border-color: var(--accent); background: var(--accent-soft); }
@@ -399,6 +408,17 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   #sheetTitle { max-width: 26vw; font-size: 15px; }
   #zoomLabel { min-width: 52px; }
 }
+/* Handy quer: Werkzeuge in zwei Spalten, damit alle ohne Blättern passen */
+@media (max-height: 480px) {
+  :root { --tool-w: 96px; }
+  #toolbar { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 3px; }
+  .tool { min-height: 40px; padding: 2px; }
+  .tool svg { width: 23px; height: 23px; }
+  .sep { grid-column: 1 / -1; margin: 2px 8px; }
+}
+.help-lang { margin-bottom: 18px; }
+.help-about { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.help-about h3 { margin: 0 0 6px; font-size: 17px; }
 </style>
 </head>
 <body>
@@ -411,15 +431,16 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   <button class="tb" id="btnRedo" data-icon="redo" onclick="redo()" data-i18n-aria="ariaRedo" aria-label="Wiederholen" disabled></button>
   <div class="spacer"></div>
   <div class="zoomgrp">
-    <button class="tb" data-icon="minus" onclick="zoomStep(-1)" data-i18n-aria="ariaZoomOut" aria-label="Verkleinern"></button>
+    <button class="tb" id="btnZoomOut" data-icon="minus" onclick="zoomStep(-1)" data-i18n-aria="ariaZoomOut" aria-label="Verkleinern"></button>
     <button class="tb" id="zoomLabel" onclick="zoomReset()" data-i18n-aria="ariaZoomReset" aria-label="Originalgröße">100 %</button>
-    <button class="tb" data-icon="plus" onclick="zoomStep(1)" data-i18n-aria="ariaZoomIn" aria-label="Vergrößern"></button>
+    <button class="tb" id="btnZoomIn" data-icon="plus" onclick="zoomStep(1)" data-i18n-aria="ariaZoomIn" aria-label="Vergrößern"></button>
   </div>
   <button class="tb" id="btnLab" data-icon="lab" onclick="openLab()" data-i18n-aria="ariaLab" aria-label="Kongruenzsätze-Labor"></button>
   <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
   <button class="tb" id="btnPdf" data-icon="pdf" onclick="openPdfExport()" data-i18n-aria="ariaPdf" aria-label="Als PDF exportieren"></button>
-  <button class="tb" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Kurzanleitung"></button>
-  <button class="tb" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
+  <button class="tb" id="btnHelp" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Hilfe und Über"></button>
+  <button class="tb" id="btnSettings" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
+  <button class="tb" id="btnMore" data-icon="more" onclick="openMoreMenu()" data-i18n-aria="ariaMore" aria-label="Mehr" hidden></button>
 </header>
 
 <nav id="toolbar">
@@ -589,6 +610,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
         <h3 data-i18n="setAbout">Über</h3>
         <p class="hint" id="aboutLine"></p>
         <div class="seg" style="margin-top:10px">
+          <button class="btn" onclick="closePanel('settingsPanel'); openHelp()"><span data-icon="help"></span><span data-i18n="btnGuide">Kurzanleitung</span></button>
           <button class="btn" onclick="openLegal('impressum')" data-i18n="btnImprint">Impressum</button>
           <button class="btn" onclick="openLegal('datenschutz')" data-i18n="btnPrivacy">Datenschutz</button>
         </div>
@@ -617,9 +639,25 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       <div class="seg"><button class="btn" onclick="labRandomize()"><span data-icon="dice"></span><span data-i18n="btnRandom">Zufallswerte</span></button></div>
       <p id="labStatus" class="lab-status"></p>
       <div class="seg lab-actions">
+        <button class="btn" id="btnLabQr" onclick="labQr()"><span data-icon="qr"></span><span data-i18n="btnQr">QR-Code</span></button>
         <button class="btn" id="btnLabSelf" onclick="labSelf()" data-i18n="btnLabSelf">Selbst konstruieren</button>
         <button class="btn primary" id="btnLabDemo" onclick="labDemo()" data-i18n="btnLabDemo">Vorführen</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Aufgabe per QR-Code (groß für den Beamer) -->
+<div id="qrPanel" class="panel" hidden onclick="if(event.target===this)closePanel('qrPanel')">
+  <div class="card qr-card" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+    <header>
+      <h2 id="qrTitle" data-i18n="qrTitle">Aufgabe per QR-Code</h2>
+      <button class="tb" data-icon="close" onclick="closePanel('qrPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </header>
+    <div class="body">
+      <p id="qrText" class="qr-text"></p>
+      <canvas id="qrCanvas" width="10" height="10" role="img" data-i18n-aria="qrTitle" aria-label="Aufgabe per QR-Code"></canvas>
+      <p class="hint qr-hint" data-i18n="qrHint">Mit der Kamera-App scannen. Ist Zirkelwerk installiert, öffnet sich die Aufgabe als neues Blatt.</p>
     </div>
   </div>
 </div>
@@ -628,18 +666,37 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 <div id="helpPanel" class="panel" hidden onclick="if(event.target===this)closePanel('helpPanel')">
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
     <header>
-      <h2 id="helpTitle" data-i18n="helpTitle">Kurzanleitung</h2>
+      <h2 id="helpTitle" data-i18n="helpTitle">Hilfe &amp; Über</h2>
       <button class="tb" data-icon="close" onclick="closePanel('helpPanel')" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
     </header>
     <div class="body">
+      <div class="seg help-lang" id="helpLangTop">
+        <button class="btn" id="helpLangTopDe" onclick="chooseLanguage('de')">🇩🇪 Deutsch</button>
+        <button class="btn" id="helpLangTopEn" onclick="chooseLanguage('en')">🇬🇧 English</button>
+      </div>
       <div class="help-item"><div class="ic" data-icon="compass"></div><div><strong data-i18n="helpCompassT">Zirkel</strong><p data-i18n="helpCompass">Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="geo"></div><div><strong data-i18n="helpGeoT">Geodreieck und Lineal</strong><p data-i18n="helpGeo">Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Am Lineal oder Geodreieck rastet der Punkt auf der Skala ein.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="lab"></div><div><strong data-i18n="helpLabT">Kongruenzsätze-Labor</strong><p data-i18n="helpLab">Über das Dreieck-Symbol oben: SSS, SWS, WSW oder SsW wählen, Werte eingeben oder Zufallswerte nehmen. „Vorführen“ konstruiert das Dreieck mit Animation, „Selbst konstruieren“ stellt die Aufgabe und prüft am Ende.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pdf"></div><div><strong data-i18n="helpPdfT">Als PDF drucken</strong><p data-i18n="helpPdf">Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="qr"></div><div><strong data-i18n="helpQrT">Aufgaben per QR-Code</strong><p data-i18n="helpQr">Im Labor, im Aufgabenmenü (⋯) oder über „⋯“ in der Blattliste einen QR-Code zeigen. Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Das lässt sich in den Einstellungen ändern.</p></div></div>
+      <section class="help-about">
+        <h3 data-i18n="aboutTitle">Über Zirkelwerk</h3>
+        <p data-i18n="aboutText">Zirkelwerk ist ein digitales Heft für Konstruktionen mit Zirkel, Geodreieck und Lineal auf Karopapier – für Unterricht und Hausaufgaben. Es arbeitet ohne Internet; alle Blätter bleiben auf dem Gerät.</p>
+        <p class="hint" id="helpAboutLine"></p>
+        <div class="seg" style="margin-top:10px">
+          <button class="btn" id="helpLangDe" onclick="chooseLanguage('de')">🇩🇪 Deutsch</button>
+          <button class="btn" id="helpLangEn" onclick="chooseLanguage('en')">🇬🇧 English</button>
+        </div>
+        <div class="seg" style="margin-top:10px">
+          <button class="btn" onclick="openLegal('impressum')" data-i18n="btnImprint">Impressum</button>
+          <button class="btn" onclick="openLegal('datenschutz')" data-i18n="btnPrivacy">Datenschutz</button>
+          <button class="btn" onclick="closePanel('helpPanel'); openSettings()"><span data-icon="gear"></span><span data-i18n="settingsTitle">Einstellungen</span></button>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -692,7 +749,9 @@ const i18n = {
     appName: 'Zirkelwerk',
     ariaSheets: 'Meine Blätter', ariaRename: 'Blatt umbenennen', ariaUndo: 'Rückgängig', ariaRedo: 'Wiederholen',
     ariaZoomOut: 'Verkleinern', ariaZoomReset: 'Echte Größe (100 %)', ariaZoomIn: 'Vergrößern',
-    ariaHelp: 'Kurzanleitung', ariaSettings: 'Einstellungen', ariaClose: 'Schließen',
+    ariaHelp: 'Hilfe und Über', ariaSettings: 'Einstellungen', ariaClose: 'Schließen', ariaMore: 'Mehr', moreTitle: 'Mehr',
+    btnGuide: 'Kurzanleitung', aboutTitle: 'Über Zirkelwerk',
+    aboutText: 'Zirkelwerk ist ein digitales Heft für Konstruktionen mit Zirkel, Geodreieck und Lineal auf Karopapier – für Unterricht und Hausaufgaben. Es arbeitet ohne Internet; alle Blätter bleiben auf dem Gerät.',
     ariaSheetActions: 'Weitere Aktionen', ariaColor: 'Farbe wählen', ariaWidth: 'Strichstärke wählen',
     ariaLock: 'Radius festhalten', ariaUnlock: 'Radius freigeben', ariaRadius: 'Radius eingeben',
     ariaFullCircle: 'Ganzen Kreis zeichnen', ariaAngle: 'Winkel eingeben', ariaLabelPos: 'Lage der Beschriftung',
@@ -731,7 +790,7 @@ const i18n = {
     setAbout: 'Über', aboutLine: 'Zirkelwerk {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Impressum', btnPrivacy: 'Datenschutz',
 
-    helpTitle: 'Kurzanleitung',
+    helpTitle: 'Hilfe & Über',
     helpCompassT: 'Zirkel',
     helpCompass: 'Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.',
     helpGeoT: 'Geodreieck und Lineal',
@@ -820,6 +879,17 @@ const i18n = {
     chk_impTitle: 'Diese Aufgabe hat keine Lösung',
     paywall_lab: 'Das Kongruenzsätze-Labor gehört zur Vollversion.',
     paywall_pdf: 'Der PDF-Export gehört zur Vollversion.',
+    paywall_qr: 'Aufgaben per QR-Code zu erstellen gehört zur Vollversion. Öffnen können sie alle.',
+    btnQr: 'QR-Code', qrTitle: 'Aufgabe per QR-Code', btnQrSheet: 'Als QR-Code', btnQrTask: 'QR-Code für die Klasse',
+    qrHint: 'Mit der Kamera-App scannen. Ist Zirkelwerk installiert, öffnet sich die Aufgabe als neues Blatt.',
+    qrTooBigTitle: 'Zu groß für einen QR-Code',
+    qrTooBig: 'Dieses Blatt enthält zu viel für einen QR-Code. Teile es stattdessen über „Als Datei exportieren“ (AirDrop, Mail, Lernplattform).',
+    qrEmpty: 'Das Blatt ist leer – es gibt nichts zu teilen.',
+    msgQrInvalid: 'Dieser Code enthält keine gültige Zirkelwerk-Aufgabe.',
+    msgQrNewer: 'Diese Aufgabe stammt aus einer neueren Zirkelwerk-Version. Bitte die App aktualisieren.',
+    msgQrOpened: 'Aufgabe geöffnet: {name}', msgQrAgain: 'Diese Aufgabe hast du schon – sie ist wieder geöffnet.',
+    helpQrT: 'Aufgaben per QR-Code',
+    helpQr: 'Im Labor, im Aufgabenmenü (⋯) oder über „⋯“ in der Blattliste einen QR-Code zeigen. Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt.',
     ariaPdf: 'Als PDF exportieren', btnPdf: 'Als PDF', pdf_title: 'Als PDF (A4)', pdf_create: 'PDF erstellen',
     pdf_grid: 'Karopapier', pdf_head: 'Zeile für Name und Datum',
     pdf_desc: 'Konstruktionsbeschreibung', pdf_descHint: 'Unter der Zeichnung oder auf der nächsten Seite.',
@@ -868,7 +938,9 @@ const i18n = {
     appName: 'Compasswork',
     ariaSheets: 'My sheets', ariaRename: 'Rename sheet', ariaUndo: 'Undo', ariaRedo: 'Redo',
     ariaZoomOut: 'Zoom out', ariaZoomReset: 'Actual size (100 %)', ariaZoomIn: 'Zoom in',
-    ariaHelp: 'Quick guide', ariaSettings: 'Settings', ariaClose: 'Close',
+    ariaHelp: 'Help and about', ariaSettings: 'Settings', ariaClose: 'Close', ariaMore: 'More', moreTitle: 'More',
+    btnGuide: 'Quick guide', aboutTitle: 'About Compasswork',
+    aboutText: 'Compasswork is a digital exercise book for constructions with compasses, set square and ruler on squared paper – for lessons and homework. It works without internet; all sheets stay on the device.',
     ariaSheetActions: 'More actions', ariaColor: 'Choose colour', ariaWidth: 'Choose line width',
     ariaLock: 'Lock radius', ariaUnlock: 'Unlock radius', ariaRadius: 'Enter radius',
     ariaFullCircle: 'Draw full circle', ariaAngle: 'Enter angle', ariaLabelPos: 'Label position',
@@ -907,7 +979,7 @@ const i18n = {
     setAbout: 'About', aboutLine: 'Compasswork {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Legal notice', btnPrivacy: 'Privacy',
 
-    helpTitle: 'Quick guide',
+    helpTitle: 'Help & about',
     helpCompassT: 'Compass',
     helpCompass: 'Drag the needle to set the compass down. Drag the lead to open it or to take a length from a line. Turn the handle on top to draw an arc. The lock keeps the radius fixed.',
     helpGeoT: 'Set square and ruler',
@@ -995,6 +1067,17 @@ const i18n = {
     chk_impTitle: 'This task has no solution',
     paywall_lab: 'The congruence lab is part of the full version.',
     paywall_pdf: 'PDF export is part of the full version.',
+    paywall_qr: 'Creating tasks as QR codes is part of the full version. Anyone can open them.',
+    btnQr: 'QR code', qrTitle: 'Task as QR code', btnQrSheet: 'As QR code', btnQrTask: 'QR code for the class',
+    qrHint: 'Scan with the camera app. If Compasswork is installed, the task opens as a new sheet.',
+    qrTooBigTitle: 'Too large for a QR code',
+    qrTooBig: 'This sheet contains too much for a QR code. Share it with “Export as file” instead (AirDrop, mail, learning platform).',
+    qrEmpty: 'The sheet is empty – there is nothing to share.',
+    msgQrInvalid: 'This code does not contain a valid Compasswork task.',
+    msgQrNewer: 'This task comes from a newer version of Compasswork. Please update the app.',
+    msgQrOpened: 'Task opened: {name}', msgQrAgain: 'You already have this task – it is open again.',
+    helpQrT: 'Tasks as QR codes',
+    helpQr: 'Show a QR code from the lab, the task menu (⋯) or “⋯” in the sheet list. The class scans it with the camera app and gets the task as their own sheet.',
     ariaPdf: 'Export as PDF', btnPdf: 'As PDF', pdf_title: 'As PDF (A4)', pdf_create: 'Create PDF',
     pdf_grid: 'Squared paper', pdf_head: 'Line for name and date',
     pdf_desc: 'Construction description', pdf_descHint: 'Below the drawing or on the next page.',
@@ -1531,6 +1614,9 @@ function compassParts(c) {
    geänderte Anzeigegröße („Mehr Platz") ergibt unbekannte Maße und führt
    zur Empfehlung, einmal zu kalibrieren. */
 const IPAD_SIZES = ['744x1133', '810x1080', '820x1180', '834x1112', '834x1194', '834x1210', '1024x1366', '1032x1376'];
+/* Steht Schrift auf einem um rot gedrehten Gerät kopf? (Canvas: y nach unten) */
+function textFlip(rot) { return Math.cos(rot) < -1e-9; }
+
 function detectScale(info) {
   const ua = info.ua || '';
   const short = Math.min(info.sw, info.sh), long = Math.max(info.sw, info.sh);
@@ -1541,7 +1627,23 @@ function detectScale(info) {
     if (key === '768x1024') return { ppm: 132 / 25.4, device: 'ipad', sure: false };   // iPad 9,7" oder alter mini
     return { ppm: 132 / 25.4, device: 'ipad', sure: IPAD_SIZES.includes(key) };
   }
-  if (/iPhone|iPod/.test(ua)) return { ppm: 163 / 25.4, device: 'iphone', sure: false };
+  if (/iPhone|iPod/.test(ua)) {
+    /* Punkte je Zoll = Pixeldichte ÷ Skalierung. Fast alle neueren iPhones
+       haben 460 ppi bei 3× (153,3); Ausnahmen über Bildschirmmaß und dpr. */
+    const dpr = info.dpr || 3;
+    const tab = {
+      '375x667': 326 / 2,                       // SE 2./3. Generation, 6/7/8
+      '414x736': 401 / (1080 / 414),            // 6/7/8 Plus (verkleinert gerendert)
+      '360x780': 476 / 3,                       // 12/13 mini
+      '375x812': 458 / 3,                       // X, XS, 11 Pro
+      '414x896': dpr >= 3 ? 458 / 3 : 326 / 2,  // XS Max/11 Pro Max bzw. XR/11
+      '428x926': 458 / 3,                       // 12/13 Pro Max, 14 Plus
+      '390x844': 460 / 3, '393x852': 460 / 3, '430x932': 460 / 3,
+      '402x874': 460 / 3, '440x956': 460 / 3, '420x912': 460 / 3
+    };
+    if (tab[key]) return { ppm: tab[key] / 25.4, device: 'iphone', sure: true };
+    return { ppm: 460 / 3 / 25.4, device: 'iphone', sure: false };
+  }
   if (/Android/.test(ua)) return { ppm: 160 / 25.4, device: 'android', sure: false };
   return { ppm: 96 / 25.4, device: 'desktop', sure: false };
 }
@@ -1662,6 +1764,8 @@ function sanitizeDoc(raw, newDocId, now) {
     modified: now,
     objects, seq,
     task: sanitizeTask(raw.task),
+    /* Kennung des QR-Links, aus dem das Blatt stammt (doppeltes Scannen) */
+    src: typeof raw.src === 'string' && /^[0-9a-z]{1,13}$/.test(raw.src) ? raw.src : null,
     view: { cx: cleanNum(view.cx, -LIMITS.coord, LIMITS.coord, 0), cy: cleanNum(view.cy, -LIMITS.coord, LIMITS.coord, 0), zoom: cleanNum(view.zoom, 0.2, 10, 1) },
     inst
   };
@@ -2551,12 +2655,346 @@ function pdfBytes(s) {
   for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 255;
   return a;
 }
+/* ---------- QR-Code ---------- */
+/* Eigener QR-Erzeuger (ISO/IEC 18004, Byte-Modus), ohne Bibliothek.
+   Aufbau wie bei Nayukis Referenz: Daten → Blöcke mit Reed-Solomon →
+   verschränken → in die Matrix legen → beste der acht Masken.
+   Fehlerkorrektur-Stufen L, M, Q, H; Tabellen je Version 1–40. */
+const QR_ECC_CW = [[-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+  [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],
+  [-1,13,22,18,26,18,24,18,22,20,24,28,26,24,20,30,24,28,28,26,30,28,30,30,30,30,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+  [-1,17,28,22,16,22,28,26,26,24,28,24,28,22,24,24,30,28,28,26,28,30,24,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]];
+const QR_BLOCKS = [[-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25],
+  [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49],
+  [-1,1,1,2,2,4,4,6,6,8,8,8,10,12,16,12,17,16,18,21,20,23,23,25,27,29,34,34,35,38,40,43,45,48,51,53,56,59,62,65,68],
+  [-1,1,1,2,4,4,4,5,6,8,8,11,11,16,16,18,16,19,21,25,25,25,34,30,32,35,37,40,42,45,48,51,54,57,60,63,66,70,74,77,81]];
+const QR_LEVELS = { L: [0, 1], M: [1, 0], Q: [2, 3], H: [3, 2] };   /* [Tabellenzeile, Formatbits] */
+
+function qrRawModules(ver) {
+  let r = (16 * ver + 128) * ver + 64;
+  if (ver >= 2) {
+    const na = Math.floor(ver / 7) + 2;
+    r -= (25 * na - 10) * na - 55;
+    if (ver >= 7) r -= 36;
+  }
+  return r;
+}
+function qrDataCodewords(ver, e) { return Math.floor(qrRawModules(ver) / 8) - QR_ECC_CW[e][ver] * QR_BLOCKS[e][ver]; }
+function qrAlignPos(ver) {
+  if (ver === 1) return [];
+  const n = Math.floor(ver / 7) + 2, size = ver * 4 + 17;
+  const step = ver === 32 ? 26 : Math.ceil((ver * 4 + 4) / (n * 2 - 2)) * 2;
+  const out = [6];
+  for (let p = size - 7; out.length < n; p -= step) out.splice(1, 0, p);
+  return out;
+}
+/* GF(256) mit 0x11D */
+function qrMul(x, y) {
+  let z = 0;
+  for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; }
+  return z;
+}
+function qrRsDivisor(deg) {
+  const r = new Array(deg).fill(0); r[deg - 1] = 1;
+  let root = 1;
+  for (let i = 0; i < deg; i++) {
+    for (let j = 0; j < r.length; j++) { r[j] = qrMul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; }
+    root = qrMul(root, 2);
+  }
+  return r;
+}
+function qrRsRemainder(data, div) {
+  const r = div.map(() => 0);
+  for (const b of data) {
+    const f = b ^ r.shift(); r.push(0);
+    div.forEach((c, i) => { r[i] ^= qrMul(c, f); });
+  }
+  return r;
+}
+/* bytes: Array von 0–255. Gibt { size, modules[y][x], version, mask, level }
+   oder null, wenn es bis maxVer nicht passt. Höhere Stufe, wenn es ohne
+   größere Version geht (wie die Referenz). */
+function qrEncode(bytes, level, maxVer, forceMask) {
+  let e = QR_LEVELS[level || 'M'][0];
+  const lim = Math.min(40, maxVer || 40);
+  let ver = 1;
+  const bitsFor = v => 4 + (v < 10 ? 8 : 16) + bytes.length * 8;
+  for (; ver <= lim; ver++) if (bitsFor(ver) <= qrDataCodewords(ver, e) * 8) break;
+  if (ver > lim) return null;
+  for (const ne of [1, 2, 3]) if (ne > e && bitsFor(ver) <= qrDataCodewords(ver, ne) * 8) e = ne;   /* M→Q→H */
+  const lvl = ['L', 'M', 'Q', 'H'][e];
+  /* Bitstrom */
+  const bits = [];
+  const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+  put(4, 4); put(bytes.length, ver < 10 ? 8 : 16);
+  for (const b of bytes) put(b, 8);
+  const cap = qrDataCodewords(ver, e) * 8;
+  put(0, Math.min(4, cap - bits.length));
+  put(0, (8 - bits.length % 8) % 8);
+  for (let pad = 0xec; bits.length < cap; pad ^= 0xec ^ 0x11) put(pad, 8);
+  const data = [];
+  for (let i = 0; i < bits.length; i += 8) { let v = 0; for (let j = 0; j < 8; j++) v = (v << 1) | bits[i + j]; data.push(v); }
+  /* Blöcke und Fehlerkorrektur, dann verschränken */
+  const nb = QR_BLOCKS[e][ver], eccLen = QR_ECC_CW[e][ver], raw = Math.floor(qrRawModules(ver) / 8);
+  const nShort = nb - raw % nb, shortLen = Math.floor(raw / nb);
+  const div = qrRsDivisor(eccLen), blocks = [];
+  for (let i = 0, k = 0; i < nb; i++) {
+    const dat = data.slice(k, k + shortLen - eccLen + (i < nShort ? 0 : 1)); k += dat.length;
+    const ecc = qrRsRemainder(dat, div);
+    if (i < nShort) dat.push(0);
+    blocks.push(dat.concat(ecc));
+  }
+  const cw = [];
+  for (let i = 0; i < blocks[0].length; i++) {
+    blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= nShort) cw.push(b[i]); });
+  }
+  /* Matrix */
+  const size = ver * 4 + 17;
+  const M = Array.from({ length: size }, () => new Array(size).fill(false));
+  const F = Array.from({ length: size }, () => new Array(size).fill(false));
+  const set = (x, y, d) => { M[y][x] = d; F[y][x] = true; };
+  for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  const finder = (cx, cy) => {
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+    }
+  };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  const al = qrAlignPos(ver), na = al.length;
+  for (let i = 0; i < na; i++) for (let j = 0; j < na; j++) {
+    if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(al[i] + dx, al[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+  }
+  const format = mask => {
+    const d = (QR_LEVELS[lvl][1] << 3) | mask;
+    let r = d;
+    for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+    const b = ((d << 10) | r) ^ 0x5412, bit = i => ((b >>> i) & 1) === 1;
+    for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+    set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+    for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+    for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+    for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+    set(8, size - 8, true);
+  };
+  format(0);
+  if (ver >= 7) {
+    let r = ver;
+    for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25);
+    const b = (ver << 12) | r;
+    for (let i = 0; i < 18; i++) {
+      const d = ((b >>> i) & 1) === 1, a = size - 11 + i % 3, c = Math.floor(i / 3);
+      set(a, c, d); set(c, a, d);
+    }
+  }
+  let i = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let v = 0; v < size; v++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - v : v;
+      if (!F[y][x] && i < cw.length * 8) { M[y][x] = ((cw[i >>> 3] >>> (7 - (i & 7))) & 1) === 1; i++; }
+    }
+  }
+  const MASKS = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, x => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => x * y % 2 + x * y % 3 === 0,
+    (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+  const applyMask = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && MASKS[m](x, y)) M[y][x] = !M[y][x]; };
+  let best = forceMask, bestP = Infinity;
+  if (best == null) {
+    for (let m = 0; m < 8; m++) {
+      applyMask(m); format(m);
+      const p = qrPenalty(M);
+      if (p < bestP) { bestP = p; best = m; }
+      applyMask(m);
+    }
+  }
+  applyMask(best); format(best);
+  return { size, modules: M, version: ver, mask: best, level: lvl };
+}
+/* Strafpunkte nach Norm: Reihen ≥ 5, 2×2-Blöcke, Suchmuster-Imitate, Hell/Dunkel-Verhältnis */
+function qrPenalty(M) {
+  const n = M.length;
+  let p = 0, dark = 0;
+  const line = get => {
+    let run = 1, s = 0;
+    const cells = [];
+    for (let i = 0; i < n; i++) cells.push(get(i));
+    for (let i = 1; i <= n; i++) {
+      if (i < n && cells[i] === cells[i - 1]) run++;
+      else { if (run >= 5) s += 3 + run - 5; run = 1; }
+    }
+    const pat = [1, 0, 1, 1, 1, 0, 1];
+    for (let i = 0; i + 7 <= n; i++) {
+      if (!pat.every((v, k) => cells[i + k] === !!v)) continue;
+      const before = i >= 4 && [1, 2, 3, 4].every(k => !cells[i - k]);
+      const after = i + 11 <= n && [7, 8, 9, 10].every(k => !cells[i + k]);
+      if (before || after) s += 40;
+    }
+    return s;
+  };
+  for (let y = 0; y < n; y++) p += line(x => M[y][x]);
+  for (let x = 0; x < n; x++) p += line(y => M[y][x]);
+  for (let y = 0; y + 1 < n; y++) for (let x = 0; x + 1 < n; x++) {
+    const c = M[y][x];
+    if (c === M[y][x + 1] && c === M[y + 1][x] && c === M[y + 1][x + 1]) p += 3;
+  }
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (M[y][x]) dark++;
+  p += Math.floor(Math.abs(dark * 20 - n * n * 10) / (n * n)) * 10;
+  return p;
+}
+function utf8Bytes(s) {
+  const out = [];
+  for (const ch of String(s)) {
+    let c = ch.codePointAt(0);
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | c >> 6, 0x80 | c & 63);
+    else if (c < 0x10000) out.push(0xe0 | c >> 12, 0x80 | c >> 6 & 63, 0x80 | c & 63);
+    else out.push(0xf0 | c >> 18, 0x80 | c >> 12 & 63, 0x80 | c >> 6 & 63, 0x80 | c & 63);
+  }
+  return out;
+}
+function utf8Decode(bytes) {
+  let s = '', i = 0;
+  while (i < bytes.length) {
+    const b = bytes[i++];
+    let c, n;
+    if (b < 0x80) { c = b; n = 0; } else if (b >= 0xf0 && b < 0xf8) { c = b & 7; n = 3; }
+    else if (b >= 0xe0) { c = b & 15; n = 2; } else if (b >= 0xc0) { c = b & 31; n = 1; } else throw new Error('utf8');
+    for (let k = 0; k < n; k++) { const x = bytes[i++]; if (x === undefined || (x & 0xc0) !== 0x80) throw new Error('utf8'); c = (c << 6) | (x & 63); }
+    s += String.fromCodePoint(c);
+  }
+  return s;
+}
+
+/* ---------- Aufgaben-Links (zirkelwerk://) ---------- */
+/* Laboraufgabe:  zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50   (mm, Grad)
+   Blatt:         zirkelwerk://s?v=1&d=<Base64url von kompaktem JSON>
+   Alles, was ankommt, ist fremd: Laboraufgaben laufen durch sanitizeTask,
+   Blätter durch sanitizeDoc – genau wie importierte Dateien. */
+const LINK_SCHEME = 'zirkelwerk', LINK_V = 1, LINK_MAX = 4000;
+const QS_TYPES = ['point', 'segment', 'arc', 'stroke', 'text'];
+const QS_FIELDS = { point: ['x', 'y', 'label', 'ld', 'c'], segment: ['x1', 'y1', 'x2', 'y2', 'c', 'w', 'al'],
+  arc: ['cx', 'cy', 'r', 'a0', 'sweep', 'c', 'w', 'al'], stroke: ['pts', 'c', 'w', 'al'], text: ['x', 'y', 'text', 'size', 'c'] };
+const QS_DEF = { c: '#3b3f45', w: 0.5, al: 1, ld: 7, label: '', size: 5 };
+const B64U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function b64uEncode(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+    s += B64U[n >> 18 & 63] + B64U[n >> 12 & 63] + (i + 1 < bytes.length ? B64U[n >> 6 & 63] : '') + (i + 2 < bytes.length ? B64U[n & 63] : '');
+  }
+  return s;
+}
+function b64uDecode(s) {
+  if (!/^[A-Za-z0-9_-]*$/.test(s) || s.length % 4 === 1) throw new Error('b64');
+  const out = [];
+  for (let i = 0; i < s.length; i += 4) {
+    const q = s.slice(i, i + 4), v = [...q].map(ch => B64U.indexOf(ch));
+    const n = (v[0] << 18) | (v[1] << 12) | ((v[2] || 0) << 6) | (v[3] || 0);
+    out.push(n >> 16 & 255);
+    if (q.length > 2) out.push(n >> 8 & 255);
+    if (q.length > 3) out.push(n & 255);
+  }
+  return out;
+}
+/* Rundung: Lagen auf 1/10000 mm – so bleiben Schnittpunkte für die
+   Beschreibung erkennbar (DESC_EPS = 1/1000 mm). Winkel genauer, Freihand gröber. */
+const qsRound = (v, d) => { const f = Math.pow(10, d); const r = Math.round(v * f) / f; return Object.is(r, -0) ? 0 : r; };
+function linkForTask(task) {
+  const g = task.given;
+  return LINK_SCHEME + '://a?v=' + LINK_V + '&k=' + task.kind + LAB_GIVEN[task.kind].map(k => '&' + k + '=' + qsRound(g[k], 2)).join('');
+}
+function linkForSheet(d) {
+  const list = d.objects.filter(o => QS_TYPES.includes(o.type));
+  const idx = new Map();
+  list.forEach((o, i) => idx.set(o.id, i));   /* Verweise als Position in der Liste */
+  const objs = [];
+  for (const o of list) {
+    const row = [QS_TYPES.indexOf(o.type)];
+    for (const f of QS_FIELDS[o.type]) {
+      let v = o[f];
+      if (f === 'pts') {
+        /* Freihand: Zehntelmillimeter, erster Punkt absolut, dann Differenzen */
+        const q = v.map(n => Math.round(n * 10));
+        v = q.map((n, i) => i < 2 ? n : n - q[i - 2]);
+      }
+      else if (f === 'a0' || f === 'sweep') v = qsRound(v, 6);
+      else if (typeof v === 'number') v = qsRound(v, 4);
+      row.push(v === QS_DEF[f] || v === undefined ? null : v);
+    }
+    let m = null;
+    if (o.m) {
+      m = JSON.parse(JSON.stringify(o.m));
+      if (m.rs && m.rs.t === 'taken') m.rs.p = m.rs.p.map(id => idx.has(id) ? idx.get(id) : -1);
+    }
+    row.push(m);
+    while (row.length > 1 && row[row.length - 1] === null) row.pop();
+    objs.push(row);
+  }
+  const payload = { n: d.name || '', o: objs };
+  if (d.task) payload.t = d.task;
+  return LINK_SCHEME + '://s?v=' + LINK_V + '&d=' + b64uEncode(utf8Bytes(JSON.stringify(payload)));
+}
+/* → { ok, kind:'task', task } | { ok, kind:'sheet', raw } | { ok:false, err:'invalid'|'newer' } */
+function parseLink(url) {
+  let u = String(url || '').trim();
+  /* Android-Plugin liefert die Adresse teils prozentkodiert */
+  if (!/^zirkelwerk:/i.test(u) && /^zirkelwerk%3A/i.test(u)) { try { u = decodeURIComponent(u); } catch (e) { return { ok: false, err: 'invalid' }; } }
+  if (u.length > LINK_MAX) return { ok: false, err: 'invalid' };
+  const m = /^zirkelwerk:\/\/([as])\/?\?(.*)$/i.exec(u);
+  if (!m) return { ok: false, err: 'invalid' };
+  const q = {};
+  for (const part of m[2].split('&')) {
+    const k = part.indexOf('=');
+    if (k <= 0) continue;
+    try { q[decodeURIComponent(part.slice(0, k))] = decodeURIComponent(part.slice(k + 1)); } catch (e) { return { ok: false, err: 'invalid' }; }
+  }
+  const v = Number(q.v);
+  if (!Number.isInteger(v) || v < 1) return { ok: false, err: 'invalid' };
+  if (v > LINK_V) return { ok: false, err: 'newer' };
+  if (m[1].toLowerCase() === 'a') {
+    if (!LAB_KINDS.includes(q.k)) return { ok: false, err: 'invalid' };
+    const given = {};
+    for (const k of LAB_GIVEN[q.k]) { if (!/^\d+(\.\d+)?$/.test(q[k] || '')) return { ok: false, err: 'invalid' }; given[k] = Number(q[k]); }
+    const task = sanitizeTask({ kind: q.k, given });
+    return task ? { ok: true, kind: 'task', task } : { ok: false, err: 'invalid' };
+  }
+  let p;
+  try { p = JSON.parse(utf8Decode(b64uDecode(q.d || ''))); } catch (e) { return { ok: false, err: 'invalid' }; }
+  if (!p || typeof p !== 'object' || !Array.isArray(p.o) || p.o.length > LIMITS.objects) return { ok: false, err: 'invalid' };
+  const objects = [];
+  p.o.forEach((row, i) => {
+    if (!Array.isArray(row) || !QS_TYPES[row[0]]) return;
+    const type = QS_TYPES[row[0]], fields = QS_FIELDS[type], o = { id: 'q' + i, type };
+    fields.forEach((f, j) => { const v = row[j + 1]; o[f] = (v === null || v === undefined) ? QS_DEF[f] : v; });
+    if (Array.isArray(o.pts)) {
+      if (!o.pts.every(n => typeof n === 'number' && Number.isFinite(n))) return;
+      const abs = [];
+      o.pts.forEach((n, i) => abs.push(i < 2 ? n : abs[i - 2] + n));
+      o.pts = abs.map(n => n / 10);
+    }
+    const mm = row[fields.length + 1];
+    if (mm && typeof mm === 'object') {
+      o.m = mm;
+      if (mm.rs && mm.rs.t === 'taken' && Array.isArray(mm.rs.p)) mm.rs = { t: 'taken', p: mm.rs.p.map(n => 'q' + n) };
+    }
+    objects.push(o);
+  });
+  return { ok: true, kind: 'sheet', raw: { format: DOC_FORMAT, v: DOC_VERSION, name: typeof p.n === 'string' ? p.n : '', task: p.t, objects } };
+}
+/* Kurze Kennung eines Links (FNV-1a), um doppeltes Scannen zu erkennen. */
+function linkKey(url) {
+  let h = 0x811c9dc5;
+  for (const b of utf8Bytes(url)) { h ^= b; h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+}
 /* ==CORE-END== */
 
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.6.0';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -2643,9 +3081,10 @@ function applyLanguage() {
   if (!document.getElementById('settingsPanel').hidden) refreshSettingsUI();
   if (doc) { if (PB.on) PB.steps = currentSteps(); renderProto(); updateTaskBar(); }
   if (!document.getElementById('labPanel').hidden) labRender();
+  layoutTopbar();
   requestRender(false);
 }
-function chooseLanguage(l) { S.lang = l; saveSettings(); applyLanguage(); refreshSettingsUI(); }
+function chooseLanguage(l) { S.lang = l; saveSettings(); applyLanguage(); refreshSettingsUI(); refreshHelpUI(); }
 
 /* ---------------------------------------------------------
    Symbole (eigene SVGs, keine Fremdbibliothek)
@@ -2684,6 +3123,7 @@ const ICONS = {
   lab: '<path d="M3 19.5h18L12 4z"/><path d="m8.6 14.2 2.4 2.4 4.4-4.8"/>',
   dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>',
   more: '<circle cx="5.5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor"/>',
+  qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/>',
   pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/>',
   share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'
 };
@@ -2846,6 +3286,7 @@ function resizeStage() {
   }
   if (keep) setViewCenter(keep.x, keep.y, view.zoom);
   if (doc) updateTaskBar();
+  layoutTopbar();
   requestRender(true);
 }
 
@@ -3090,17 +3531,24 @@ function drawRuler(ctx, r, k) {
     if (k >= 1.6) {
       ctx.fillStyle = PLASTIC.print;
       ctx.font = '3.2px system-ui, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      for (let cm = 0; cm <= RULER.ticks / 10; cm++) ctx.fillText(String(cm), RULER.zero + cm * 10, -W + 6);
+      const flip = textFlip(r.rot);
+      for (let cm = 0; cm <= RULER.ticks / 10; cm++) uprightText(ctx, String(cm), RULER.zero + cm * 10, -W + 7.6, flip);
       ctx.font = '2.6px system-ui, sans-serif';
       ctx.fillStyle = PLASTIC.soft;
-      ctx.textAlign = 'left';
-      ctx.fillText('cm', RULER.zero + RULER.ticks + 1.5, -W + 6.4);
+      uprightText(ctx, 'cm', RULER.zero + RULER.ticks + 3.4, -W + 7.7, flip);
     }
     drawRotateHandle(ctx, L - 13, W - 11, k);
   });
 }
 
+/* Zahlen auf Lineal und Geodreieck bleiben lesbar: Steht das Gerät mehr als
+   90° gedreht, wird jede Zahl um ihre Mitte auf den Kopf gestellt. Striche
+   und Lage der Zahlen bleiben, wie sie sind. */
+function uprightText(ctx, s, x, y, flip) {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (!flip) { ctx.fillText(s, x, y); return; }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI); ctx.fillText(s, 0, 0); ctx.restore();
+}
 function drawGeo(ctx, g, k) {
   const h = GEO.h;
   withInst(ctx, g, () => {
@@ -3152,15 +3600,14 @@ function drawGeo(ctx, g, k) {
     ctx.beginPath(); ctx.arc(0, 0, 2.2, Math.PI, TAU); ctx.stroke();
     if (k >= 1.6) {
       ctx.fillStyle = PLASTIC.print;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      const flip = textFlip(g.rot);
       ctx.font = '3px system-ui, sans-serif';
-      for (let cm = -7; cm <= 7; cm++) ctx.fillText(String(Math.abs(cm)), cm * 10, -5.2);
+      for (let cm = -7; cm <= 7; cm++) uprightText(ctx, String(Math.abs(cm)), cm * 10, -6.6, flip);
       ctx.font = '2.4px system-ui, sans-serif';
-      ctx.textBaseline = 'middle';
       for (let d = 10; d <= 170; d += 10) {
         const a = geoLocalDeg(d, 6.3), b = geoLocalDeg(d, 10.2);
-        ctx.fillStyle = PLASTIC.print; ctx.fillText(String(d), a.x, a.y);
-        ctx.fillStyle = PLASTIC.soft; ctx.fillText(String(180 - d), b.x, b.y);
+        ctx.fillStyle = PLASTIC.print; uprightText(ctx, String(d), a.x, a.y, flip);
+        ctx.fillStyle = PLASTIC.soft; uprightText(ctx, String(180 - d), b.x, b.y, flip);
       }
     }
     drawRotateHandle(ctx, 0, -h + 22, k);
@@ -4057,10 +4504,13 @@ async function loadDoc(d) {
   requestRender(true);
 }
 
+function isPhone() { return Math.min(screen.width, screen.height) < 600; }
+function startZoom() { return isPhone() ? 0.5 : 1; }
 async function createSheet(name) {
   const d = newDoc(uid(), name, Date.now());
-  /* Neues Blatt beginnt dort, wo man gerade hinschaut – in echter Größe. */
-  d.view = { cx: 0, cy: 0, zoom: 1 };
+  /* Neues Blatt beginnt in echter Größe – auf dem Handy halb so groß,
+     sonst passt kaum ein Dreieck auf den Bildschirm. */
+  d.view = { cx: 0, cy: 0, zoom: startZoom() };
   await dbPut(d);
   return d;
 }
@@ -4130,6 +4580,7 @@ async function sheetActions(id) {
       { label: t('btnDuplicate'), value: 'dup' },
       { label: t('btnExport'), value: 'export' },
       { label: t('btnPdf'), value: 'pdf' },
+      { label: t('btnQrSheet'), value: 'qr' },
       { label: t('btnDelete'), value: 'delete', kind: 'danger' },
       { label: t('btnCancel'), value: null }
     ]
@@ -4138,6 +4589,7 @@ async function sheetActions(id) {
   else if (a === 'dup') await duplicateSheet(d);
   else if (a === 'export') exportSheet(d);
   else if (a === 'pdf') await openPdfExport(d);
+  else if (a === 'qr') await showSheetQr(d);
   else if (a === 'delete') await deleteSheet(d);
   if (a) await renderSheetList();
 }
@@ -4500,10 +4952,14 @@ function openDialog(cfg) {
     if (cfg.extra) extra.appendChild(cfg.extra);
     const bar = document.getElementById('dialogButtons');
     bar.textContent = '';
+    bar.classList.toggle('menu', !!cfg.menu);
     (cfg.buttons || [{ label: t('btnOk'), value: 'ok', kind: 'primary' }]).forEach(b => {
       const el = document.createElement('button');
       el.className = 'btn' + (b.kind ? ' ' + b.kind : '');
-      el.textContent = b.label;
+      if (b.icon && ICONS[b.icon]) {
+        el.innerHTML = iconSvg(b.icon);
+        const sp = document.createElement('span'); sp.textContent = b.label; el.appendChild(sp);
+      } else el.textContent = b.label;
       el.onclick = () => finishDialog(b.value);
       bar.appendChild(el);
     });
@@ -4536,7 +4992,50 @@ function notify(text, isError) {
   toastTimer = setTimeout(() => el.classList.remove('show'), isError ? 5000 : 3200);
 }
 
-function openHelp() { openPanel('helpPanel'); }
+function openHelp() { refreshHelpUI(); openPanel('helpPanel'); }
+function refreshHelpUI() {
+  /* Sprachwahl oben nur beim allerersten Start, unten unter „Über" immer */
+  document.getElementById('helpLangTop').hidden = !!S.helpSeen;
+  for (const [id, l] of [['helpLangTopDe', 'de'], ['helpLangTopEn', 'en'], ['helpLangDe', 'de'], ['helpLangEn', 'en']]) sel(id, lang === l);
+  document.getElementById('helpAboutLine').textContent = t('aboutLine', { version: APP_VERSION });
+}
+
+/* ---------- Kopfleiste in schmalen Fenstern ---------- */
+/* Handy, iPad in Split View/Slide Over: Was nicht in die Leiste passt, wandert
+   der Reihe nach ins „⋯"-Menü. Gemessen statt geraten – Titel und Sprache
+   ändern die Breiten. */
+const TOP_OVERFLOW = [['btnHelp', 'ariaHelp', 'help', () => openHelp()], ['btnSettings', 'ariaSettings', 'gear', () => openSettings()],
+  ['btnPdf', 'ariaPdf', 'pdf', () => openPdfExport()], ['zoomPM', null], ['btnProto', 'ariaProto', 'steps', () => toggleProto()],
+  ['btnLab', 'ariaLab', 'lab', () => openLab()]];
+let topHidden = [];
+function topEls(id) { return id === 'zoomPM' ? ['btnZoomOut', 'btnZoomIn'].map(x => document.getElementById(x)) : [document.getElementById(id)]; }
+function layoutTopbar() {
+  const bar = document.getElementById('topbar'), more = document.getElementById('btnMore');
+  for (const [id] of TOP_OVERFLOW) topEls(id).forEach(e => { e.hidden = false; });
+  more.hidden = true; topHidden = [];
+  const over = () => {
+    const vis = [...bar.children].filter(e => !e.hidden && e.offsetWidth > 0);
+    const last = vis[vis.length - 1];
+    const pad = parseFloat(getComputedStyle(bar).paddingRight) || 0;
+    return last && last.getBoundingClientRect().right > bar.getBoundingClientRect().right - pad + 0.5;
+  };
+  if (!over()) return;
+  more.hidden = false;
+  for (const [id] of TOP_OVERFLOW) {
+    if (!over()) break;
+    topEls(id).forEach(e => { e.hidden = true; });
+    topHidden.push(id);
+  }
+}
+async function openMoreMenu() {
+  const items = TOP_OVERFLOW.filter(x => x[1] && topHidden.includes(x[0])).reverse();   /* Reihenfolge wie in der Leiste */
+  const a = await openDialog({
+    title: t('moreTitle'), menu: true,
+    buttons: items.map(([id, key, icon]) => ({ label: t(key), value: id, icon })).concat([{ label: t('btnCancel'), value: null }])
+  });
+  const it = items.find(x => x[0] === a);
+  if (it) it[3]();
+}
 
 /* ---------------------------------------------------------
    Einstellungen
@@ -5282,6 +5781,7 @@ function labUpdateStatus() {
   box.textContent = msg;
   document.getElementById('btnLabDemo').disabled = !g;
   document.getElementById('btnLabSelf').disabled = !g;
+  document.getElementById('btnLabQr').disabled = !g;
 }
 function labRandomize() {
   const kind = labState.kind, g = labRandom(kind, Math.random);
@@ -5294,10 +5794,12 @@ function labRandomize() {
 /* Neues Blatt aus dem Labor. mode: 'demo' (Planfigur + Konstruktion),
    'solution' (dasselbe, für eine gestellte Aufgabe), 'task' (nur Planfigur,
    Aufgabe zum Selbstkonstruieren). Planfigur links, Konstruktion bei (0|0). */
-async function createLabSheet(kind, g, mode) {
+async function createLabSheet(kind, g, mode, opts) {
+  opts = opts || {};
   await saveNow();
   const all = await dbAll();
-  if (!canAddSheet(all.length)) { showPaywall('sheets'); return null; }
+  /* Aufgaben aus QR-Codes zählen nicht zur Grenze der kostenlosen Fassung. */
+  if (!opts.force && !canAddSheet(all.length)) { showPaywall('sheets'); return null; }
   const T = i18n[lang];
   const con = labConstruction(kind, g);
   const xs = [0, g.c].concat(con.sols.map(sl => sl.C.x));
@@ -5314,11 +5816,12 @@ async function createLabSheet(kind, g, mode) {
   d.objects = objs.map((o, i) => Object.assign({ id: 'o' + (i + 1) }, o));
   d.seq = d.objects.length + 1;
   if (mode === 'task') d.task = { kind, given: Object.assign({}, g) };
-  const b = boundsOf(d.objects);
+  if (opts.src) d.src = opts.src;
+  const b = boundsOf(d.objects), z = startZoom();
   if (mode === 'task') {
     /* Planfigur oben links, rechts daneben Platz zum Konstruieren */
-    d.view = { cx: b.x0 - 14 + stageW / ppm / 2, cy: b.y0 - 22 + stageH / ppm / 2, zoom: 1 };
-  } else d.view = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom: 1 };
+    d.view = { cx: b.x0 - 14 + stageW / ppm / z / 2, cy: b.y0 - 22 + stageH / ppm / z / 2, zoom: z };
+  } else d.view = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom: z };
   d.thumb = makeThumb(d);
   await dbPut(d);
   await loadDoc(d);
@@ -5354,6 +5857,97 @@ async function labSelf() {
   if (!d) return;
   selectTool('pencil');
   notify(t('lab_selfHint'));
+}
+
+/* ---------- Aufgaben per QR-Code ---------- */
+/* Erstellen: Vollversion. Öffnen: immer, ohne Blattgrenze. Der Code enthält
+   einen zirkelwerk://-Link; die Kamera-App bietet „In Zirkelwerk öffnen" an.
+   Version bis 22 (M) bzw. 27 (L) – groß genug, um vom Beamer gelesen zu werden. */
+function canCreateQr() { return !LIMITS_ACTIVE || Purchase.owned; }
+function qrFor(url) {
+  const bytes = utf8Bytes(url);
+  return qrEncode(bytes, 'M', 22) || qrEncode(bytes, 'L', 27);
+}
+function labQr() {
+  const g = labRead();
+  if (!g) return;
+  const task = { kind: labState.kind, given: g };
+  showQr(linkForTask(task), t('lab_task', { given: labGivenText(task.kind, g, lang, i18n[lang]) }));
+}
+async function showSheetQr(d) {
+  let src = d;
+  if (doc && d.id === doc.id) src = doc;
+  else { try { src = prepareLoaded(clone(d)); } catch (e) { notify(t('msgQrInvalid'), true); return; } }
+  if (!src.objects.length) { notify(t('qrEmpty')); return; }
+  /* Reine Laboraufgabe (nur Planfigur) → kurzer Aufgaben-Link; sonst das Blatt */
+  const onlyPlan = src.task && src.objects.every(o => o.m && o.m.plan);
+  const url = onlyPlan ? linkForTask(src.task) : linkForSheet(src);
+  const text = onlyPlan ? t('lab_task', { given: labGivenText(src.task.kind, src.task.given, lang, i18n[lang]) }) : sheetName(src);
+  await showQr(url, text);
+}
+async function showQr(url, text) {
+  if (!canCreateQr()) return showPaywall('qr');
+  const q = qrFor(url);
+  if (!q) {
+    await openDialog({ title: t('qrTooBigTitle'), message: t('qrTooBig') });
+    return;
+  }
+  document.getElementById('qrText').textContent = text || '';
+  const cv = document.getElementById('qrCanvas');
+  /* Ganze Gerätepixel je Modul, 4 Module Ruhezone – scharf auch am Beamer. */
+  const n = q.size + 8, css = Math.min(window.innerHeight * 0.64, window.innerWidth * 0.8, 620);   /* wie im CSS */
+  const scale = Math.max(2, Math.ceil(css * (window.devicePixelRatio || 1) / n));
+  cv.width = cv.height = n * scale;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#ffffff'; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = '#000000';
+  for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++) if (q.modules[y][x]) c.fillRect((x + 4) * scale, (y + 4) * scale, scale, scale);
+  cv.dataset.link = url;
+  if (PB.on) pbExit();
+  closePanel('labPanel'); closePanel('sheetsPanel');
+  openPanel('qrPanel');
+}
+
+/* Ankommende Links. Cordova ruft window.handleOpenURL auf – auf iOS von sich
+   aus, auf Android über cordova-plugin-customurlscheme. Kommt der Link beim
+   Kaltstart vor dem Ende von init(), wird er gemerkt. */
+let pendingLink = null, appStarted = false;
+window.handleOpenURL = url => {
+  pendingLink = String(url || '');
+  if (appStarted) setTimeout(processPendingLink, 0);
+};
+async function processPendingLink() {
+  const url = pendingLink; pendingLink = null;
+  if (!url) return;
+  const r = parseLink(url);
+  if (!r.ok) { notify(t(r.err === 'newer' ? 'msgQrNewer' : 'msgQrInvalid'), true); return; }
+  const key = linkKey(url);
+  await saveNow();
+  const all = await dbAll();
+  for (const id of panelStack.slice()) if (id !== 'helpPanel') closePanel(id);
+  if (!document.getElementById('dialog').hidden) finishDialog(null);
+  const known = all.find(d => d.src === key);
+  if (known) {
+    try { await loadDoc(prepareLoaded(known)); notify(t('msgQrAgain')); }
+    catch (e) { notify(t('msgQrInvalid'), true); }
+    return;
+  }
+  if (r.kind === 'task') {
+    const d = await createLabSheet(r.task.kind, r.task.given, 'task', { force: true, src: key });
+    if (d) { selectTool('pencil'); notify(t('msgQrOpened', { name: sheetName(d) })); }
+    return;
+  }
+  let d;
+  try { d = sanitizeDoc(r.raw, uid(), Date.now()); } catch (e) { notify(t('msgQrInvalid'), true); return; }
+  if (!d.objects.length) { notify(t('msgQrInvalid'), true); return; }
+  d.src = key;
+  if (!d.name) d.name = t('qrTitle');
+  const b = boundsOf(d.objects);
+  d.view = b ? { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom: startZoom() } : { cx: 0, cy: 0, zoom: startZoom() };
+  d.thumb = makeThumb(d);
+  await dbPut(d);
+  await loadDoc(d);
+  notify(t('msgQrOpened', { name: sheetName(d) }));
 }
 
 /* ---------- Aufgabe auf dem Blatt ---------- */
@@ -5404,9 +5998,10 @@ async function taskMenu() {
   if (!doc || !doc.task) return;
   const a = await openDialog({
     title: t('ariaTaskMore'), message: document.getElementById('taskText').textContent,
-    buttons: [{ label: t('btnRemoveTask'), value: 'remove', kind: 'danger' }, { label: t('btnShowSolution'), value: 'sol' }, { label: t('btnCancel'), value: null }]
+    buttons: [{ label: t('btnRemoveTask'), value: 'remove', kind: 'danger' }, { label: t('btnQrTask'), value: 'qr' }, { label: t('btnShowSolution'), value: 'sol' }, { label: t('btnCancel'), value: null }]
   });
   if (a === 'sol') showTaskSolution();
+  else if (a === 'qr') showQr(linkForTask(doc.task), document.getElementById('taskText').textContent);
   else if (a === 'remove') { doc.task = null; updateTaskBar(); scheduleSave(false); }
 }
 
@@ -5455,7 +6050,7 @@ async function init() {
   ctxBase = cvBase.getContext('2d');
   ctxOver = cvOver.getContext('2d');
 
-  detected = detectScale({ ua: navigator.userAgent, maxTouch: navigator.maxTouchPoints || 0, sw: screen.width, sh: screen.height });
+  detected = detectScale({ ua: navigator.userAgent, maxTouch: navigator.maxTouchPoints || 0, sw: screen.width, sh: screen.height, dpr: window.devicePixelRatio || 1 });
   ppm = S.ppm || detected.ppm;
 
   document.documentElement.dataset.theme = S.theme;
@@ -5503,6 +6098,8 @@ async function init() {
   if (!S.helpSeen) openHelp();
   else maybeCalibHint();
   registerServiceWorker();
+  appStarted = true;
+  if (pendingLink) await processPendingLink();
 
   /* Für den Ablauftest. Verändert nichts, liest nur. */
   window.__zw = { get doc() { return doc; }, view, sc, w2s, s2w, get G() { return G; }, get PB() { return PB; }, steps: () => currentSteps(), hist, S, saveNow, ready: true };

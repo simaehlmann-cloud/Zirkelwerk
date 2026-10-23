@@ -1,7 +1,7 @@
 # Zirkelwerk · Compasswork
 
 Geometrische Konstruktionen mit Zirkel, Geodreieck und Lineal auf Karopapier –
-für den Mathematikunterricht, gebaut fürs iPad mit Apple Pencil.
+für den Mathematikunterricht, gebaut fürs iPad mit Apple Pencil – läuft auch auf iPhone und Android (Tablet und Handy).
 Läuft als iOS- und Android-App (Cordova) und als installierbare Web-App (PWA):
 vollständig offline, ohne Konto, ohne Tracking, ohne externe Bibliotheken.
 

@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="de.zirkelwerk.app"
-        version="0.4.0"
-        android-versionCode="400"
-        ios-CFBundleVersion="400"
+        version="0.6.0"
+        android-versionCode="600"
+        ios-CFBundleVersion="600"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0">
 
@@ -32,6 +32,9 @@
         <preference name="android-compileSdkVersion" value="36" />
         <preference name="AndroidInsecureFileModeEnabled" value="false" />
         <preference name="AndroidXEnabled" value="true" />
+        <!-- Ein Link aus der Kamera-App soll die laufende App erreichen, nicht
+             eine zweite Instanz im Task der Kamera starten. -->
+        <preference name="AndroidLaunchMode" value="singleTask" />
 
         <preference name="AndroidWindowSplashScreenBackground" value="#234e8c" />
         <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/android/icon_fg_xxxhdpi.png" />
@@ -53,11 +56,11 @@
              mehr an (Erfahrung aus FairMix, Warnung 90068). -->
         <preference name="deployment-target" value="15.0" />
 
-        <!-- Nur iPad. Bewusst so für den Start: Eine universelle App lässt
-             sich später nicht mehr auf iPad beschränken, umgekehrt geht es
-             jederzeit. Für "universal" bräuchte der Store außerdem
-             iPhone-Bildschirmfotos, und die Prüfung liefe auch auf dem iPhone. -->
-        <preference name="target-device" value="tablet" />
+        <!-- iPad und iPhone (universal). Entschieden im Oktober 2026 vor dem
+             ersten Upload. Achtung: Eine universale App lässt sich später
+             nicht mehr auf iPad beschränken. Der Store braucht dafür auch
+             iPhone-Bildschirmfotos (6,9 Zoll), die Prüfung läuft auf beiden. -->
+        <preference name="target-device" value="universal" />
 
         <!-- Aus, anders als bei FairMix: In einer Zeichen-App würde ein Strich
              am linken Rand sonst eine Seite zurückblättern. Die Rechtstexte
@@ -126,6 +129,17 @@
          iPadPopupCoordinates, sonst bricht UIKit die App ab. -->
     <plugin name="cordova-plugin-x-socialsharing" spec="^6.0.4" />
     <plugin name="cordova-plugin-statusbar" spec="^4.0.0" />
+
+    <!-- Aufgaben per QR-Code: zirkelwerk://-Links öffnen die App. Das Plugin
+         trägt das Schema ein (iOS: CFBundleURLTypes, Android: intent-filter)
+         und reicht den Link auf Android an window.handleOpenURL weiter; iOS
+         ruft handleOpenURL ohnehin selbst auf. ANDROID_SCHEME gesetzt, sonst
+         legt das Plugin einen zweiten Filter mit Schema " " an. -->
+    <plugin name="cordova-plugin-customurlscheme" spec="^5.0.2">
+        <variable name="URL_SCHEME" value="zirkelwerk" />
+        <variable name="ANDROID_SCHEME" value="zirkelwerk" />
+        <variable name="ANDROID_HOST" value="s" />
+    </plugin>
 
     <!-- Vollversion per In-App-Kauf: erst aktivieren, wenn das Produkt
          de.zirkelwerk.app.vollversion in App Store Connect und der Play

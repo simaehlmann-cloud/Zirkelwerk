@@ -1,5 +1,36 @@
 # Änderungen
 
+## 0.6.0 – iPhone und Handy (Oktober 2026)
+
+- **Universal:** iPad und iPhone (iOS), Tablet und Handy (Android); Hoch- und Querformat
+- **Echte Größe auf dem iPhone:** Bildschirmmaße aller aktuellen Modelle hinterlegt
+- Handy: neue Blätter und Aufgaben starten mit 50 % statt in Originalgröße
+- **Kopfleiste in schmalen Fenstern** (Handy, iPad in Split View/Slide Over): was
+  nicht passt, kommt ins „⋯"-Menü; vorher wurden Hilfe und Einstellungen abgeschnitten
+- Handy quer: Werkzeugleiste zweispaltig, alles ohne Blättern erreichbar
+- **Zahlen auf Lineal und Geodreieck immer lesbar**, auch wenn das Gerät gedreht ist
+- **Hilfe & Über** in einem Fenster: Kurzanleitung, „Über Zirkelwerk", Version,
+  Sprache (Flaggen), Impressum, Datenschutz; beim ersten Start Sprachwahl ganz oben
+- Einstellungen: Knopf „Kurzanleitung"
+
+## 0.5.0 – Stufe 3c (Oktober 2026)
+
+- **Aufgaben per QR-Code** (Vollversion zum Erstellen, Öffnen für alle):
+  im Labor („QR-Code"), im Aufgabenmenü „⋯" („QR-Code für die Klasse") und über
+  „⋯" in der Blattliste („Als QR-Code")
+- Großer Code für den Beamer, immer auf Weiß, mit der Aufgabe als Überschrift
+- Schüler scannen mit der Kamera-App; ist Zirkelwerk installiert, öffnet sich die
+  Aufgabe als neues Blatt – auch über die Grenze von 3 Blättern hinaus
+- Zweimal gescannt → dasselbe Blatt wird wieder geöffnet, kein Doppel
+- Laboraufgaben als kurzer Link (`zirkelwerk://a?…`), eigene Blätter als kompakter
+  Link (`zirkelwerk://s?…`), solange sie in den Code passen; sonst Hinweis auf den
+  Datei-Export
+- Alles Ankommende wird geprüft wie eine importierte Datei; Links aus einer neueren
+  Version melden „Bitte aktualisieren"
+- Eigener QR-Erzeuger ohne Bibliothek (bitgenau wie die Referenz geprüft)
+- Datenschutzerklärung: PDF-Export und QR-Codes ergänzt (keine Kamera, nichts übertragen)
+- Android: ein Link aus der Kamera startet keine zweite App-Instanz (singleTask)
+
 ## 0.4.0 – Stufe 3b (Oktober 2026)
 
 - **PDF-Export** (Blatt-Symbol mit Pfeil oben oder „⋯" in der Blattliste, Vollversion):

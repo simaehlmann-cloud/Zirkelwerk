@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.4.0 (Stufe 3b)
+# Zirkelwerk – Projektwissen, Stand 0.5.0 (Stufe 3c)
 
 ## Entscheidungen
 
@@ -7,7 +7,8 @@
   `res/ios/de.lproj/InfoPlist.strings` und `res/android/values-de/strings.xml`.
   Entwicklungsregion iOS: `en` → Sprachen ohne eigene Datei fallen auf Englisch.
 - **Paketkennung:** `de.zirkelwerk.app` (iOS und Android, unveränderlich nach dem ersten Upload).
-- **iPad-only** (`target-device = tablet`). Umkehrbar zu „universal", aber nicht umgekehrt.
+- **Universal** (`target-device = universal`, seit 0.6.0): iPad und iPhone; Android Tablet und Handy.
+  Nicht mehr auf iPad zurückstellbar, sobald hochgeladen. Store braucht iPhone-Bildschirmfotos (6,9").
 - **Preis:** kostenlos + Einmalkauf „Vollversion" für 2,99 €, kein Abo, Familienfreigabe an.
   Produkt-ID: `de.zirkelwerk.app.vollversion` (nicht verbrauchbar).
 - **Kostenlos:** alle Werkzeuge, bis 3 gespeicherte Blätter.
@@ -22,7 +23,8 @@
   Schnittpunkte, Fangen, Rückgängig, Geräte-Geometrie, Prüfung importierter Dateien.
   `coretest.js` testet genau diesen Block in Node.
 - **Weltmaß in Millimetern.** Karo 5 mm. Bildschirm: `ppm` (Punkte je mm) × Zoom.
-  iPad: 132 Punkte/Zoll, iPad mini: 163. Unbekannte Bildschirmmaße → Kalibrieren empfehlen.
+  iPad: 132 Punkte/Zoll, iPad mini: 163, iPhones meist 153,3 (Tabelle in `detectScale`, mit dpr).
+  Unbekannte Bildschirmmaße → Kalibrieren empfehlen. Handy (kurze Seite < 600 pt): Startzoom 50 %.
 - **Zwei Canvas:** unten Papier und Zeichnung (nur bei Änderung neu), oben Geräte und Vorschau.
 - **Eingabe:** Pointer Events. Stift zeichnet; sobald ein Stift erkannt wurde, verschieben
   Finger nur noch (Einstellung „Apple Pencil": automatisch/nur Stift/Finger auch).
@@ -83,9 +85,39 @@
 - Prüfung: coretest (Struktur, xref, Stream-Längen, Bögen, Layout; qpdf/pdftotext,
   falls installiert), smoketest (Dialog, Download, qpdf).
 
+## Aufgaben per QR-Code (Stufe 3c)
+
+- Entscheidungen: Laboraufgaben + kleine Blätter; Scannen mit der Kamera-App (kein
+  Kamerazugriff in Zirkelwerk); Anzeige groß auf dem Bildschirm; QR-Blätter zählen
+  nicht zur Grenze der kostenlosen Fassung. Erstellen: Vollversion (`canCreateQr()`).
+- Links: `zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50` (mm, Grad) und
+  `zirkelwerk://s?v=1&d=<base64url>` mit kompaktem JSON `{n, t?, o:[[typ, felder…, m]]}`.
+  Lagen auf 1/10000 mm (Schnittpunkte bleiben für `describe` erkennbar), Winkel 6
+  Stellen, Freihand in Zehntel-mm als Differenzen, Standardwerte als null/weggelassen,
+  Abgriff-Verweise als Listenposition. `LINK_V` erhöhen, wenn sich das Format ändert.
+- `parseLink` → `sanitizeTask` bzw. `sanitizeDoc`; Grenze 4000 Zeichen.
+  Android-Plugin liefert teils prozentkodiert → wird erkannt.
+- Doppeltes Scannen: `doc.src = linkKey(url)` (FNV-1a), `sanitizeDoc` behält `src`.
+- QR: `qrEncode(bytes, level, maxVer)` Byte-Modus; App nutzt M bis Version 22,
+  sonst L bis 27, sonst „zu groß". Bitgleich mit Python-`qrcode` geprüft, Bekannte-
+  Antwort-Tests in coretest (Hash der Matrix).
+- Einstieg: `window.handleOpenURL` (iOS: Cordova selbst, CDVHandleOpenURL;
+  Android: cordova-plugin-customurlscheme 5.0.2). Kaltstart: Link wird gemerkt und
+  am Ende von `init()` verarbeitet. Android `AndroidLaunchMode = singleTask`.
+- CI prüft: iOS `CFBundleURLTypes` = zirkelwerk; Android intent-filter, singleTask,
+  kein Filter mit Schema " ".
+- Auf echten Geräten noch zu bestätigen: Kamera-App bietet „In Zirkelwerk öffnen" an
+  (iOS); Android-Kamera/Google Lens öffnen eigene Schemata nicht immer.
+
 ## Geräte
 
 - Lineal 20 cm (passt auf jedes iPad bei 100 %), Skala an der Oberkante.
+- Zahlen auf Lineal und Geodreieck stehen nie kopf: ab 90° Drehung wird jede Zahl um
+  ihre Mitte gedreht (`textFlip`, `uprightText`).
+- Kopfleiste: Was nicht passt, wandert ins „⋯"-Menü (`layoutTopbar`, gemessen;
+  Reihenfolge Hilfe, Einstellungen, PDF, Zoom ±, Konstruktion, Labor).
+- Hilfe & Über in einem Fenster: Kurzanleitung, Über, Sprache, Impressum, Datenschutz;
+  Sprachwahl zusätzlich oben beim ersten Start.
 - Geodreieck 16 cm Hypotenuse, mm-Skala ±7 cm, Gradskala an den Katheten (zwei Reihen).
 - Zirkel: Spitze ziehen = einstechen (rastet ein), Mine ziehen = aufziehen/abgreifen,
   Griff drehen = Bogen. Schloss hält den Radius; Radius per Eingabe setzt das Schloss.
@@ -101,7 +133,7 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 ## Beim ersten CI-Lauf genau ansehen
 
 - iOS: Schritt „Erzeugtes Projekt bestätigen" – Sprachdateien eingebunden?
-  Gerätefamilie nur iPad? Falls cordova-ios die `.lproj`-Dateien nicht als
+  Gerätefamilie 1,2 (iPhone und iPad)? Falls cordova-ios die `.lproj`-Dateien nicht als
   Sprachvarianten einträgt, braucht es einen kleinen Hook.
 - Android: deutscher App-Name in `values-de`. **Nie `cordova clean android` vor einer
   Prüfung:** es löscht alle `<resource-file>`-Kopien (cleanFileResources). Englischer
@@ -111,4 +143,3 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 
 - In-App-Kauf aktivieren (siehe Kommentar in config.xml; `IAP_ENABLED`, `LIMITS_ACTIVE`).
 - Store-Texte und Bildschirmfotos.
-- Stufe 3c: Aufgaben per QR-Code.
