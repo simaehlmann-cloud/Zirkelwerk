@@ -1,0 +1,209 @@
+name: Build Zirkelwerk (Android)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_ID: de.zirkelwerk.app
+      APP_NAME: Compasswork
+      # Festgepinnt, damit derselbe Commit in einem Jahr dasselbe Ergebnis
+      # liefert (Stand wie FairMix, Oktober 2026).
+      CORDOVA_CLI: '13.0.0'
+      CORDOVA_ANDROID: '15.0.0'
+      # Muss zu android-targetSdkVersion in der config.xml passen.
+      TARGET_SDK: '36'
+      PLAYWRIGHT: '1.63.0'
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v5
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      # Ganz vorne: Ein fehlerhafter Commit fällt nach etwa einer Minute
+      # durch statt erst nach dem Herunterladen des Android-SDK.
+      - name: Prüfungen
+        run: |
+          set -e
+          node validate.js
+          node coretest.js
+          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT}"
+          npx playwright install --with-deps chromium
+          node smoketest.js
+
+      - name: Java einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # packages ausdrücklich setzen: Das veraltete Paket "tools" liefert
+      # Google seit 15.09.2026 nicht mehr aus (android-actions/setup-android#537).
+      - name: Android SDK bereitstellen
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: SDK-Pakete für API ${{ env.TARGET_SDK }} nachziehen
+        run: |
+          set -e
+          sdkmanager --install \
+            "platforms;android-${TARGET_SDK}" \
+            "build-tools;${TARGET_SDK}.0.0" \
+            "platform-tools"
+
+      - name: Cordova installieren
+        run: npm install -g "cordova@${CORDOVA_CLI}"
+
+      - name: Cordova-Projekt aufbauen
+        run: |
+          set -e
+          cordova create build "$APP_ID" "$APP_NAME"
+          cp config.xml build/config.xml
+          mkdir -p build/res/android/values-de
+          cp res/android/*.png res/android/colors.xml build/res/android/
+          cp res/android/values-de/strings.xml build/res/android/values-de/
+
+          rm -rf build/www/*
+          cp index.html manifest.json sw.js \
+             datenschutz.html impressum.html datenschutz-en.html impressum-en.html build/www/
+          cp icon.png icon-192.png icon-maskable-512.png build/www/
+
+          grep -o 'id="[^"]*"' build/config.xml | head -1
+          grep -o '<name>[^<]*</name>' build/config.xml | head -1
+
+          cd build
+          cordova platform add "android@${CORDOVA_ANDROID}"
+          cordova clean android
+
+      - name: Erzeugtes Projekt bestätigen
+        working-directory: build
+        run: |
+          set -e
+          cordova -v
+          if grep -rqE "(\"SDK_VERSION\"[[:space:]]*:[[:space:]]*${TARGET_SDK}|targetSdkVersion[[:space:]]*=?[[:space:]]*\"?${TARGET_SDK})" \
+               platforms/android/cdv-gradle-config.json \
+               platforms/android/app/build.gradle 2>/dev/null; then
+            echo "Ziel-SDK ${TARGET_SDK} bestätigt."
+          else
+            echo "::error::Ziel-SDK ist nicht ${TARGET_SDK}. Play würde den Upload ablehnen."
+            exit 1
+          fi
+          # Deutscher Name unter dem Icon
+          DE=platforms/android/app/src/main/res/values-de/strings.xml
+          if grep -q '>Zirkelwerk<' "$DE" 2>/dev/null; then
+            echo "Deutscher App-Name vorhanden."
+          else
+            echo "::error::$DE fehlt oder enthält nicht 'Zirkelwerk'."
+            exit 1
+          fi
+          grep -o '<string name="app_name">[^<]*' platforms/android/app/src/main/res/values/strings.xml
+
+      - name: Debug-APK bauen
+        working-directory: build
+        run: cordova build android --debug -- --packageType=apk
+
+      - name: Debug-APK hochladen
+        uses: actions/upload-artifact@v6
+        with:
+          name: Zirkelwerk-debug-apk
+          path: build/platforms/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # ---- Signierter Release-Build für den Play Store ----
+      # Vier Repository-Secrets – gleiche Namen wie bei FairMix, aber ein
+      # EIGENER Keystore für Zirkelwerk (Secrets gelten je Repository):
+      #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+      #   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      - name: Keystore entschlüsseln
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "vorhanden=false" >> "$GITHUB_OUTPUT"
+            echo "Kein Keystore hinterlegt – Release-Build wird übersprungen."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | sed '1s/^\xEF\xBB\xBF//' | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/zirkelwerk.keystore"
+          if [ ! -s "$RUNNER_TEMP/zirkelwerk.keystore" ]; then
+            echo "::error::Der Keystore ließ sich nicht dekodieren."
+            exit 1
+          fi
+          echo "vorhanden=true" >> "$GITHUB_OUTPUT"
+
+      - name: Signiert bauen (APK zum Testen und AAB für den Store)
+        if: steps.keystore.outputs.vorhanden == 'true'
+        working-directory: build
+        env:
+          STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          for name in STORE_PW KEY_ALIAS KEY_PW; do
+            eval "wert=\$$name"
+            [ -n "$wert" ] || { echo "::error::Secret für $name fehlt oder ist leer."; exit 1; }
+          done
+          cat > build.json <<JSON
+          {
+            "android": {
+              "release": {
+                "keystore": "$RUNNER_TEMP/zirkelwerk.keystore",
+                "storePassword": "$STORE_PW",
+                "alias": "$KEY_ALIAS",
+                "password": "$KEY_PW",
+                "keystoreType": "pkcs12"
+              }
+            }
+          }
+          JSON
+          cordova build android --release -- --packageType=apk
+          cordova build android --release -- --packageType=bundle
+          rm -f build.json
+
+      # Der erste Upload in die Play Console legt den Upload-Schlüssel
+      # dauerhaft fest – deshalb vorher Kennung und Fingerabdruck prüfen.
+      - name: Signatur und Kennung bestätigen
+        if: steps.keystore.outputs.vorhanden == 'true'
+        working-directory: build
+        env:
+          STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -e
+          APKSIGNER="$ANDROID_HOME/build-tools/${TARGET_SDK}.0.0/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/${TARGET_SDK}.0.0/aapt2"
+          APK=$(ls platforms/android/app/build/outputs/apk/release/*.apk | head -1)
+          KENNUNG=$("$AAPT2" dump packagename "$APK")
+          [ "$KENNUNG" = "$APP_ID" ] || { echo "::error::Kennung ist $KENNUNG, erwartet $APP_ID."; exit 1; }
+          AUS_APK=$("$APKSIGNER" verify --print-certs "$APK" | grep -i -m1 "certificate SHA-256 digest" | awk '{print $NF}' | tr -d ':' | tr 'A-F' 'a-f')
+          AUS_KS=$(keytool -list -v -keystore "$RUNNER_TEMP/zirkelwerk.keystore" -alias "$KEY_ALIAS" -storepass "$STORE_PW" | grep -i -m1 "SHA256:" | awk '{print $NF}' | tr -d ':' | tr 'A-F' 'a-f')
+          echo "APK:      $AUS_APK"
+          echo "Keystore: $AUS_KS"
+          [ -n "$AUS_APK" ] && [ "$AUS_APK" = "$AUS_KS" ] || { echo "::error::APK nicht mit dem erwarteten Schlüssel signiert."; exit 1; }
+
+      - name: Signiertes APK hochladen
+        if: steps.keystore.outputs.vorhanden == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Zirkelwerk-release-apk
+          path: build/platforms/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: AAB hochladen
+        if: steps.keystore.outputs.vorhanden == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Zirkelwerk-release-aab
+          path: build/platforms/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
