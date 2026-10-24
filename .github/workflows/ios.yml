@@ -218,6 +218,17 @@ jobs:
             done
           fi
 
+          # In-App-Kauf: Schaltet die App ihn ein, muss das Plugin samt StoreKit
+          # im Xcode-Projekt stecken – sonst bleibt der Kaufknopf tot und die
+          # App-Prüfung lehnt ab (Kauf nicht möglich).
+          if grep -q 'const IAP_ENABLED = true' www/index.html; then
+            if [ -n "$(find platforms/ios -name InAppPurchase.m -print -quit)" ] && grep -q 'StoreKit.framework' platforms/ios/*.xcodeproj/project.pbxproj; then
+              echo "In-App-Kauf (StoreKit) eingebunden."
+            else
+              echo "::error::IAP_ENABLED, aber cordova-plugin-purchase oder StoreKit fehlt im Xcode-Projekt."; FEHLER=1
+            fi
+          fi
+
           exit $FEHLER
 
       # Ohne Zertifikat laeuft trotzdem ein Build – er beweist, dass der
