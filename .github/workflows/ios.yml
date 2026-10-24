@@ -150,15 +150,18 @@ jobs:
           esac
           KRYPTO=$(holen ITSAppUsesNonExemptEncryption)
           FOTOS=$(holen NSPhotoLibraryAddUsageDescription)
+          KAMERA=$(holen NSCameraUsageDescription)
 
           echo "Bundle-ID:        $BUNDLE"
           echo "Export-Erklärung: $KRYPTO"
           echo "Foto-Hinweis:     $FOTOS"
+          echo "Kamera-Hinweis:   $KAMERA"
 
           FEHLER=0
           [ "$BUNDLE" = "$APP_ID" ] || { echo "::error::Bundle-ID ist '$BUNDLE', erwartet '$APP_ID'."; FEHLER=1; }
           [ "$KRYPTO" = "false" ]  || { echo "::error::ITSAppUsesNonExemptEncryption fehlt – jeder Upload fragt sonst nach."; FEHLER=1; }
           [ "$FOTOS" != "FEHLT" ]  || { echo "::error::NSPhotoLibraryAddUsageDescription fehlt – 'Bild sichern' beendet die App."; FEHLER=1; }
+          [ "$KAMERA" != "FEHLT" ] || { echo "::error::NSCameraUsageDescription fehlt – 'Foto aufnehmen' beim Bild einfügen beendet die App."; FEHLER=1; }
 
           # Name je Sprache: Die Sprachdateien müssen im Projekt eingetragen
           # sein, sonst sieht auch ein deutsches iPad "Compasswork".
