@@ -2,4 +2,5 @@
 "CFBundleDisplayName" = "Compasswork";
 "CFBundleName" = "Compasswork";
 "NSPhotoLibraryAddUsageDescription" = "Compasswork saves a picture of your drawing to your photo library when you ask it to. Existing photos are not read.";
-"NSPhotoLibraryUsageDescription" = "Compasswork saves a picture of your drawing to your photo library when you ask it to. Existing photos are neither read nor changed.";
+"NSPhotoLibraryUsageDescription" = "Compasswork puts a photo you choose onto your sheet and saves a picture of your drawing when you ask it to. Other photos are neither read nor changed.";
+"NSCameraUsageDescription" = "Compasswork uses the camera only when you take a photo to put onto a sheet – for example a task from your textbook. The photo stays on your device.";
