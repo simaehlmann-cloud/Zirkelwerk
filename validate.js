@@ -45,6 +45,22 @@ if (packs) {
     const ph = s => (String(s).match(/\{[a-z]+\}/g) || []).sort().join();
     if (packs.en[k] !== undefined && ph(packs.de[k]) !== ph(packs.en[k])) E(`Platzhalter unterschiedlich: ${k}`);
   }
+  /* Doppelte Schlüssel innerhalb einer Sprache: In einem Objektliteral gewinnt
+     still der spätere – so überschrieb „msgRestored" der Sicherung den Text
+     für die wiederhergestellte Vollversion. */
+  {
+    const src = js.slice(js.indexOf('const i18n = {'), js.indexOf('\n};', js.indexOf('const i18n = {')));
+    const parts = src.split(/\n  (?=(?:de|en): \{)/).slice(1);
+    let dupFound = false;
+    for (const part of parts) {
+      const l = part.slice(0, 2), seen = new Map();
+      /* Schlüssel am Zeilenanfang oder nach Komma/Klammer, gefolgt von einem String */
+      for (const m of part.matchAll(/(?:^|[\n,{]\s*)([A-Za-z_][A-Za-z0-9_]*): ['"`]/g)) seen.set(m[1], (seen.get(m[1]) || 0) + 1);
+      const dup = [...seen].filter(([, n]) => n > 1).map(([k]) => k);
+      if (dup.length) { E(`Doppelte Schlüssel (${l}): ${dup.join(', ')}`); dupFound = true; }
+    }
+    if (!dupFound) O('Keine doppelten Übersetzungsschlüssel');
+  }
   const used = new Set();
   for (const a of ['data-i18n', 'data-i18n-aria']) for (const m of html.matchAll(new RegExp(a + '="([^"]+)"', 'g'))) used.add(m[1]);
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
@@ -55,7 +71,8 @@ if (packs) {
   for (const k of ['pdf_grid', 'pdf_head', 'pdf_desc', 'pdf_descHint', 'pdf_taskOnly', 'pdf_taskOnlyHint']) used.add(k);
   for (const k of ['sss', 'sws', 'wsw', 'ssw']) { used.add('lab_desc_' + k); used.add('lab_kind_' + k); }
   /* Körper: Schlüssel aus BODY_KINDS gebildet */
-  for (const k of ['cube', 'cuboid', 'prism3', 'pyramid4', 'cylinder']) { used.add('body_' + k); used.add('bodyDesc_' + k); }
+  /* Körper: Schlüssel aus BODY_KINDS (weiter unten gelesen, listOf ist noch nicht definiert) */
+  { const m = js.match(/const BODY_KINDS = \[([^\]]*)\]/); for (const k of m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : []) { used.add('body_' + k); used.add('bodyDesc_' + k); } }
   for (let i = 0; i < 8; i++) used.add('dir' + i);   /* Lage der Beschriftung, aus der Richtungsnummer */
   for (const k of ['ineq', 'angles', 'short']) used.add('lab_none_' + k);
   for (const k of ['ineq', 'angles', 'short', 'two']) used.add('note_' + k);
@@ -168,8 +185,16 @@ if (missAssets.length) E('sw.js nennt fehlende Dateien: ' + missAssets.join(', '
 
 /* ---------- 5. config.xml ---------- */
 if (/<access\s+origin="\*"/.test(cfg)) E('config.xml erlaubt <access origin="*">');
-for (const key of ['ITSAppUsesNonExemptEncryption', 'NSPhotoLibraryAddUsageDescription', 'NSPhotoLibraryUsageDescription', 'CFBundleDevelopmentRegion']) {
+for (const key of ['ITSAppUsesNonExemptEncryption', 'NSPhotoLibraryAddUsageDescription', 'NSPhotoLibraryUsageDescription', 'NSCameraUsageDescription', 'CFBundleDevelopmentRegion']) {
   if (!cfg.includes(key)) E('config.xml: ' + key + ' fehlt');
+}
+/* Bilder einfügen (0.10.2): Der Dateidialog bietet die Kamera an. Ohne Begründung
+   beendet iOS die App beim Antippen von „Foto aufnehmen" – in jeder Sprache. */
+if (/accept="image\//.test(html)) {
+  for (const l of ['de', 'en']) {
+    const st = read('res/ios/' + l + '.lproj/InfoPlist.strings') || '';
+    for (const key of ['NSCameraUsageDescription', 'NSPhotoLibraryUsageDescription']) if (!new RegExp('"' + key + '" = "[^"]{20,}";').test(st)) E(l + '.lproj: ' + key + ' fehlt (Bilder einfügen)');
+  }
 }
 const resFiles = [...cfg.matchAll(/<(?:icon|splash|resource-file)[^>]*\ssrc="([^"]+)"/g)].map(m => m[1]);
 const missRes = resFiles.filter(f => !fs.existsSync(f));

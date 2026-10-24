@@ -167,6 +167,9 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
 .chip button.on { background: var(--pencil); color: #1d2a3a; }
 .chip svg { width: 20px; height: 20px; }
 .chip.live { pointer-events: none; }
+/* Bild bearbeiten: Leiste oben mittig über dem Blatt */
+.img-bar { left: 50%; top: 14px; transform: translateX(-50%); z-index: 5; }
+.img-bar button { padding: 0 14px; }
 
 /* ---------------- Farbwahl ---------------- */
 .pop {
@@ -277,6 +280,13 @@ body.tools-right #stage { left: 0; right: calc(var(--tool-w) + env(safe-area-ins
 }
 .sheet .more:active { background: var(--chrome-2); }
 .toolbar-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+#backupInfo { margin: -6px 0 14px; }
+#backupInfo.due { color: var(--danger); font-weight: 600; }
+.folder-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.folder-bar .btn { min-height: 40px; padding: 6px 14px; gap: 8px; }
+.folder-bar .btn svg { width: 18px; height: 18px; }
+.folder-bar .btn.sel { border-color: var(--accent); background: var(--accent-soft); }
+.sheet .folder { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .switch-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
 .switch-row .txt { flex: 1; }
@@ -420,6 +430,21 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 .body-ctl .btn { flex: none; }
 @media (min-width: 760px) { .body-grid { grid-template-columns: 1fr 1.15fr; align-items: start; } .body-grid #bodyView { margin-top: 14px; } }
 .body-vo summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.body-view-wrap { position: relative; max-width: 520px; }
+.body-big-btn { position: absolute; right: 8px; top: 12px; background: rgba(255,255,255,.9); border: 1px solid var(--line); border-radius: 10px; }
+.body-big-btn svg { color: #1d2a3a; }
+#bodyNetBtns { flex-wrap: wrap; }
+#bodyNetBtns .btn { min-width: 44px; padding: 6px 10px; }
+#btnCubeQuiz { margin: 4px 0 10px; }
+#bodyQuiz { margin: 4px 0 10px; }
+#bodyQuizBtns { flex-wrap: wrap; }
+/* Großansicht: ganzer Bildschirm, Steuerung unten */
+.panel.body-full { padding: 0; background: #ffffff; align-items: stretch; justify-content: stretch; }
+.body-full-card { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); color: #1d2a3a; }
+.body-full-name { margin: 10px 16px 0; font-size: 18px; }
+#bodyBig { flex: 1; min-height: 0; width: 100%; touch-action: none; cursor: grab; display: block; }
+.body-full-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px 14px; font-size: 15px; }
+.body-full-bar input[type=range] { flex: 1; min-width: 120px; accent-color: #2a6fdb; }
 #taskBar {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
   max-width: calc(100% - 24px); display: flex; align-items: center; gap: 8px;
@@ -481,6 +506,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   </div>
   <button class="tb" id="btnLab" data-icon="lab" onclick="openLab()" data-i18n-aria="ariaLab" aria-label="Kongruenzsätze-Labor"></button>
   <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
+  <button class="tb" id="btnImage" data-icon="image" onclick="insertImage()" data-i18n-aria="ariaImage" aria-label="Bild einfügen"></button>
   <button class="tb" id="btnPdf" data-icon="pdf" onclick="openPdfExport()" data-i18n-aria="ariaPdf" aria-label="Als PDF exportieren"></button>
   <button class="tb" id="btnHelp" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Hilfe und Über"></button>
   <button class="tb" id="btnSettings" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
@@ -507,6 +533,11 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   <canvas id="cvBase"></canvas>
   <canvas id="cvOver"></canvas>
   <div id="chips"></div>
+  <div id="imgBar" class="chip img-bar" hidden>
+    <button id="imgFade" onclick="toggleImageFade()" data-i18n="imgFade">Blass</button>
+    <button onclick="deleteSelectedImage()" data-i18n="btnDelete">Löschen</button>
+    <button class="on" onclick="deselectImage()" data-i18n="imgDone">Fertig</button>
+  </div>
   <div id="taskBar" hidden>
     <span id="taskText"></span>
     <button class="tb" id="btnHint" data-icon="hint" onclick="taskHint()" data-i18n-aria="btnHint" aria-label="Hilfe"></button>
@@ -573,14 +604,18 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       <div class="toolbar-row">
         <button class="btn primary" onclick="newSheet()"><span data-icon="plus"></span><span data-i18n="btnNewSheet">Neues Blatt</span></button>
         <button class="btn" onclick="importSheet()"><span data-icon="import"></span><span data-i18n="btnImport">Importieren</span></button>
+        <button class="btn" id="btnBackup" onclick="openBackup()"><span data-icon="backup"></span><span data-i18n="btnBackup">Sicherung</span></button>
         <button class="btn" id="btnResults" onclick="openResults()"><span data-icon="inbox"></span><span data-i18n="btnResults">Abgaben</span></button>
       </div>
+      <p class="hint" id="backupInfo"></p>
+      <div class="folder-bar" id="folderBar" hidden></div>
       <div class="sheets" id="sheetList"></div>
       <p class="hint" id="sheetsHint" data-i18n="sheetsHint">Blätter werden nur auf diesem Gerät gespeichert. Exportiere wichtige Blätter als Datei, um sie zu sichern oder weiterzugeben.</p>
     </div>
   </div>
 </div>
 <input type="file" id="importInput" accept=".zirkelwerk,.json,application/json" hidden>
+<input type="file" id="imageInput" accept="image/*" hidden>
 
 <!-- Einstellungen -->
 <div id="settingsPanel" class="panel" hidden onclick="if(event.target===this)closePanel('settingsPanel')">
@@ -710,12 +745,25 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
         <details class="body-vo"><summary data-i18n="bodyShowVO">Volumen und Oberfläche</summary><p id="bodyVO"></p></details>
         </div>
         <div>
-        <canvas id="bodyView" width="10" height="10" role="img" data-i18n-aria="bodyViewAria" aria-label="Körper, mit dem Finger drehbar"></canvas>
+        <div class="body-view-wrap">
+          <canvas id="bodyView" width="10" height="10" role="img" data-i18n-aria="bodyViewAria" aria-label="Körper, mit dem Finger drehbar"></canvas>
+          <button class="tb body-big-btn" id="btnBodyBig" data-icon="expand" onclick="bodyFullOpen()" data-i18n-aria="ariaBodyBig" aria-label="Großansicht"></button>
+        </div>
         <div class="body-ctl">
           <span data-i18n="bodyNetShort">Netz</span>
           <input type="range" id="bodyFold" min="0" max="100" value="100" data-i18n-aria="bodyFoldAria" aria-label="Falten">
           <span data-i18n="bodyBodyShort">Körper</span>
           <button class="btn" id="bodyPlay" onclick="bodyAnimate()"><span data-icon="play"></span><span data-i18n="bodyAnimate">Falten</span></button>
+          <button class="btn" id="bodyColorsSmall" onclick="bodyToggleColors()" data-i18n="bodyColors">Farben</button>
+        </div>
+        <div id="bodyNetPick" hidden>
+          <p class="hint" data-i18n="bodyNetPickHint">Elf verschiedene Würfelnetze – antippen zum Falten:</p>
+          <div class="seg" id="bodyNetBtns"></div>
+        </div>
+        <button class="btn" id="btnCubeQuiz" onclick="bodyQuizStart()" data-i18n="btnCubeQuiz" hidden>Ist das ein Würfelnetz?</button>
+        <div id="bodyQuiz" hidden>
+          <p id="bodyQuizText" class="lab-status"></p>
+          <div class="seg" id="bodyQuizBtns"></div>
         </div>
         </div>
         </div>
@@ -791,10 +839,12 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       </div>
       <div class="help-item"><div class="ic" data-icon="compass"></div><div><strong data-i18n="helpCompassT">Zirkel</strong><p data-i18n="helpCompass">Spitze ziehen: Zirkel einstechen. Mine ziehen: Radius aufziehen oder eine Strecke abgreifen. Griff oben drehen: Kreisbogen zeichnen. Mit dem Schloss bleibt der Radius fest.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="geo"></div><div><strong data-i18n="helpGeoT">Geodreieck und Lineal</strong><p data-i18n="helpGeo">Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.</p></div></div>
-      <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Die Beschriftung lässt sich mit dem Punkt-Werkzeug um den Punkt herumziehen. Lange drücken verschiebt einen frei gesetzten Punkt – Strecken ziehen mit; konstruierte Punkte liegen fest.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="point"></div><div><strong data-i18n="helpPointT">Punkte und Beschriftung</strong><p data-i18n="helpPoint">Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Die Beschriftung lässt sich mit dem Punkt-Werkzeug um den Punkt herumziehen. Lange drücken verschiebt einen frei gesetzten Punkt – Strecken ziehen mit; konstruierte Punkte liegen fest. Texte greifst du mit dem Text-Werkzeug und ziehst sie an eine neue Stelle.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="eraser"></div><div><strong data-i18n="helpEraserT">Radierer</strong><p data-i18n="helpEraser">Antippen löscht genau ein Objekt – rot markiert, solange der Finger liegt; Punkte haben Vorrang vor Linien. Wischen radiert nur das berührte Stück aus Strecken, Kreisbögen und Strichen.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="image"></div><div><strong data-i18n="helpImageT">Bilder auf dem Blatt</strong><p data-i18n="helpImage">Das Bild-Symbol oben legt ein Foto oder eine Bilddatei aufs Blatt, z. B. eine Aufgabe aus dem Buch. Ecken ziehen ändert die Größe, Kanten ziehen schneidet zu, „Blass“ macht es durchscheinend. „Fertig“ heftet es fest – mit der Hand antippen, um es wieder zu bearbeiten. Bilder kommen mit ins PDF, aber nicht in QR-Codes.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="backup"></div><div><strong data-i18n="helpBackupT">Sichern und Ordner</strong><p data-i18n="helpBackup">Unter „Meine Blätter → Sicherung“ speicherst du alle Blätter mit Ordnern und Abgaben in einer Datei, z. B. in iCloud Drive. Wiederherstellen ergänzt fehlende Blätter, ohne etwas zu überschreiben. Über „⋯“ an einem Blatt legst du es in einen Ordner, etwa je Klasse.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="lab"></div><div><strong data-i18n="helpLabT">Labor</strong><p data-i18n="helpLab">Über das Dreieck-Symbol oben: Kongruenzsätze (SSS, SWS, WSW, SsW) oder Grundkonstruktionen (Mittelsenkrechte, Winkelhalbierende, Lot, Parallele, Umkreis, Inkreis, Thaleskreis). „Vorführen“ zeigt die Konstruktion als Animation, „Selbst konstruieren“ stellt die Aufgabe. Die Glühbirne gibt Hilfe in vier Stufen, „Prüfen“ sagt nicht nur ob, sondern warum etwas nicht stimmt.</p></div></div>
-      <div class="help-item"><div class="ic" data-icon="cube"></div><div><strong data-i18n="helpBodyT">Körper und Netze</strong><p data-i18n="helpBody">Im Labor unter „Körper &amp; Netze“: Würfel, Quader, Dreiecksprisma, Pyramide oder Zylinder wählen, Maße eingeben, mit dem Finger drehen und falten. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="cube"></div><div><strong data-i18n="helpBodyT">Körper und Netze</strong><p data-i18n="helpBody">Im Labor unter „Körper &amp; Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pdf"></div><div><strong data-i18n="helpPdfT">Als PDF drucken</strong><p data-i18n="helpPdf">Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="qr"></div><div><strong data-i18n="helpQrT">Aufgaben per QR-Code</strong><p data-i18n="helpQr">Im Labor, im Aufgabenmenü (⋯) oder über „⋯“ in der Blattliste einen QR-Code zeigen. Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt. Zurück geht es genauso: Nach dem Prüfen zeigen Schüler „Rückmeldung (QR)“, du scannst – unter „Meine Blätter → Abgaben“ siehst du, wer fertig ist und welche Fehler am häufigsten vorkommen.</p></div></div>
@@ -842,6 +892,21 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 </div>
 
 <!-- Dialog -->
+<div id="bodyFull" class="panel body-full" hidden>
+  <div class="body-full-card" role="dialog" aria-modal="true" aria-labelledby="bodyFullName">
+    <h2 id="bodyFullName" class="body-full-name"></h2>
+    <canvas id="bodyBig" width="10" height="10" role="img" data-i18n-aria="bodyViewAria" aria-label="Körper, mit dem Finger drehbar"></canvas>
+    <div class="body-full-bar">
+      <span data-i18n="bodyNetShort">Netz</span>
+      <input type="range" id="bodyFoldBig" min="0" max="100" value="100" data-i18n-aria="bodyFoldAria" aria-label="Falten">
+      <span data-i18n="bodyBodyShort">Körper</span>
+      <button class="btn" id="bodyPlayBig" onclick="bodyAnimate()"><span data-icon="play"></span><span data-i18n="bodyAnimate">Falten</span></button>
+      <button class="btn" id="bodyColorsBtn" onclick="bodyToggleColors()" data-i18n="bodyColors">Farben</button>
+      <button class="tb" data-icon="close" onclick="bodyFullClose()" data-i18n-aria="ariaClose" aria-label="Schließen"></button>
+    </div>
+  </div>
+</div>
+
 <div id="dialog" class="panel" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
     <div id="dialogBody">
@@ -882,7 +947,23 @@ const i18n = {
     styleColor: 'Farbe', styleWidth: 'Strichstärke', styleMarker: 'Markerfarbe',
 
     sheetsTitle: 'Meine Blätter', btnNewSheet: 'Neues Blatt', btnImport: 'Importieren',
-    sheetsHint: 'Blätter werden nur auf diesem Gerät gespeichert. Exportiere wichtige Blätter als Datei, um sie zu sichern oder weiterzugeben.',
+    sheetsHint: 'Blätter werden nur auf diesem Gerät gespeichert. Sichere regelmäßig alle Blätter mit „Sicherung" – zum Beispiel in iCloud Drive oder auf einem USB-Stick.',
+    ariaImage: 'Bild einfügen', imgFade: 'Blass', imgDone: 'Fertig',
+    msgImgHint: 'Ecken ziehen ändert die Größe, Kanten ziehen schneidet zu. „Fertig" heftet das Bild fest – später mit der Hand antippen, um es wieder zu bearbeiten.',
+    msgImgFailed: 'Das Bild ließ sich nicht öffnen.', msgImgTooMany: 'Höchstens {n} Bilder je Blatt.',
+    msgQrNoImages: 'Bilder passen nicht in einen QR-Code – der Code enthält das Blatt ohne Bilder.',
+    btnBackup: 'Sicherung', backupTitle: 'Sicherung', btnBackupAll: 'Alle Blätter sichern', btnRestoreBackup: 'Sicherung wiederherstellen',
+    backupMsg: 'Speichert alle Blätter samt Ordnern und Abgaben in einer Datei. Wiederherstellen ergänzt fehlende Blätter – vorhandene werden nicht überschrieben.',
+    backupNever: 'Noch keine Sicherung auf diesem Gerät.', backupLast: 'Letzte Sicherung: {date}',
+    msgBackupDone: 'Gesichert – Blätter: {n}.', restoreTitle: 'Sicherung wiederherstellen',
+    restoreMsg: 'Neu dazu – Blätter: {n}, Abgaben: {r}.\nSchon vorhanden: {same}. Als Kopie, weil hier verändert: {copy}.\nVorhandenes wird nicht überschrieben.',
+    restoreBad: 'Beschädigt und übersprungen: {n}.', btnRestoreGo: 'Wiederherstellen',
+    restoredCopy: '{name} (Sicherung)', msgBackupRestored: 'Wiederhergestellt – Blätter: {n}, Abgaben: {r}.',
+    msgRestoreNothing: 'Alles aus der Sicherung ist schon da (Blätter: {n}).',
+    folderAll: 'Alle', btnToFolder: 'In Ordner …', btnNewFolder: 'Neuer Ordner', btnNoFolder: 'Aus dem Ordner nehmen',
+    dlgFolderTitle: '„{name}" in Ordner', phFolder: 'z. B. Klasse 7a', btnRenameFolder: 'Ordner umbenennen',
+    btnDissolveFolder: 'Ordner auflösen', dlgDissolveMsg: 'Die Blätter aus „{f}" bleiben erhalten und stehen danach ohne Ordner in der Liste.',
+    ariaFolderActions: 'Ordner bearbeiten',
     untitled: 'Ohne Titel', defaultSheetName: 'Blatt {n}', copyOf: '{name} (Kopie)',
     btnRename: 'Umbenennen', btnDuplicate: 'Duplizieren', btnExport: 'Als Datei exportieren', btnDelete: 'Löschen',
     dlgRenameTitle: 'Blatt umbenennen',
@@ -916,7 +997,11 @@ const i18n = {
     helpGeoT: 'Geodreieck und Lineal',
     helpGeo: 'Mit einem Finger verschieben, mit zwei Fingern drehen – oder am runden Pfeil drehen. Mit dem Bleistift an einer Kante entlangfahren ergibt eine gerade Linie.',
     helpPointT: 'Punkte und Beschriftung',
-    helpPoint: 'Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Die Beschriftung lässt sich mit dem Punkt-Werkzeug um den Punkt herumziehen. Lange drücken verschiebt einen frei gesetzten Punkt – Strecken ziehen mit; konstruierte Punkte liegen fest.',
+    helpPoint: 'Punkte rasten an Schnittpunkten ein und werden automatisch benannt. Tippe einen Punkt erneut an, um ihn umzubenennen. Die Beschriftung lässt sich mit dem Punkt-Werkzeug um den Punkt herumziehen. Lange drücken verschiebt einen frei gesetzten Punkt – Strecken ziehen mit; konstruierte Punkte liegen fest. Texte greifst du mit dem Text-Werkzeug und ziehst sie an eine neue Stelle.',
+    helpImageT: 'Bilder auf dem Blatt',
+    helpImage: 'Das Bild-Symbol oben legt ein Foto oder eine Bilddatei aufs Blatt, z. B. eine Aufgabe aus dem Buch. Ecken ziehen ändert die Größe, Kanten ziehen schneidet zu, „Blass“ macht es durchscheinend. „Fertig“ heftet es fest – mit der Hand antippen, um es wieder zu bearbeiten. Bilder kommen mit ins PDF, aber nicht in QR-Codes.',
+    helpBackupT: 'Sichern und Ordner',
+    helpBackup: 'Unter „Meine Blätter → Sicherung“ speicherst du alle Blätter mit Ordnern und Abgaben in einer Datei, z. B. in iCloud Drive. Wiederherstellen ergänzt fehlende Blätter, ohne etwas zu überschreiben. Über „⋯“ an einem Blatt legst du es in einen Ordner, etwa je Klasse.',
     helpEraserT: 'Radierer',
     helpEraser: 'Antippen löscht genau ein Objekt – rot markiert, solange der Finger liegt; Punkte haben Vorrang vor Linien. Wischen radiert nur das berührte Stück aus Strecken, Kreisbögen und Strichen.',
     helpNavT: 'Blatt bewegen',
@@ -1027,18 +1112,27 @@ const i18n = {
     hint_last: 'Mehr Hilfe gibt es nur noch mit der Lösung. Versuch es vorher noch einmal mit dem gestrichelten Schritt!',
     paywall_lab: 'Das Labor gehört zur Vollversion.',
     labMode_tri: 'Kongruenzsätze', labMode_geo: 'Grundkonstruktionen', btnNewFigure: 'Neue Figur',
-    labMode_body: 'Körper & Netze', body_cube: 'Würfel', body_cuboid: 'Quader', body_prism3: 'Dreiecksprisma', body_pyramid4: 'Pyramide', body_cylinder: 'Zylinder',
+    labMode_body: 'Körper & Netze', body_cube: 'Würfel', body_cuboid: 'Quader', body_prism3: 'Dreiecksprisma', body_pyramid4: 'Pyramide (Quadrat)', body_cylinder: 'Zylinder',
+    body_prismn: 'Prisma (n-Eck)', body_pyramidrect: 'Pyramide (Rechteck)', body_pyramidn: 'Pyramide (n-Eck)', body_tetra: 'Tetraeder', body_octa: 'Oktaeder', body_cone: 'Kegel', body_sphere: 'Kugel',
+    bodyDesc_prismn: 'Grundfläche: regelmäßiges n-Eck (n = 3 bis 8) mit Kante a – Körperhöhe h', bodyDesc_pyramidn: 'Grundfläche: regelmäßiges n-Eck (n = 3 bis 8) mit Kante a – Körperhöhe h',
+    bodyDesc_pyramidrect: 'Rechteckige Grundfläche a × b – Körperhöhe h', bodyDesc_tetra: 'Vier gleichseitige Dreiecke mit Kante a', bodyDesc_octa: 'Acht gleichseitige Dreiecke mit Kante a',
+    bodyDesc_cone: 'Radius r der Grundfläche – Höhe h', bodyDesc_sphere: 'Radius r – n Schalen (8 bis 16) für das angenäherte Netz',
+    bodySphereNote: 'Eine Kugel lässt sich nicht abwickeln. Das Netz aus Schalen ist nur angenähert – wie bei einem Globus.',
+    bodyNetHintSphere: 'Angenähert: Eine Kugel lässt sich nicht genau abwickeln. Schalen ausschneiden und an den Rändern zusammenkleben.',
+    bodyNetPick: 'Würfelnetz', bodyNetPickHint: 'Elf verschiedene Würfelnetze – antippen zum Falten:', bodyColors: 'Farben', ariaBodyBig: 'Großansicht',
+    btnCubeQuiz: 'Ist das ein Würfelnetz?', quizAsk: 'Ist das ein Würfelnetz?', btnYes: 'Ja', btnNo: 'Nein', quizRight: 'Richtig!', quizWrong: 'Nicht ganz.',
+    quizIsNet: 'Es ist ein Würfelnetz: Jede Seite wird genau einmal belegt.', quizNotNet: 'Kein Würfelnetz: Rot liegt doppelt, offen bleibt (gestrichelt): {n}.',
+    quizScore: '{ok} von {n} richtig', btnQuizNext: 'Nächstes', btnQuizEnd: 'Beenden',
     bodyDesc_cube: 'Kantenlänge a', bodyDesc_cuboid: 'Länge a, Breite b, Höhe c', bodyDesc_prism3: 'Grundfläche: Dreieck mit den Seiten a, b, c – Körperhöhe h',
     bodyDesc_pyramid4: 'Quadratische Grundfläche mit Kante a – Körperhöhe h', bodyDesc_cylinder: 'Radius r der Grundfläche – Höhe h',
-    bodyInvalid: 'Bitte alle Maße von 0,5 bis 20 cm eingeben (beim Prisma muss das Dreieck möglich sein).',
+    bodyInvalid: 'Bitte alle Maße von 0,5 bis 20 cm eingeben, n als ganze Zahl (Prisma und Pyramide 3–8, Kugel 8–16). Beim Dreiecksprisma muss das Dreieck möglich sein.',
     bodyViewAria: 'Körper, mit dem Finger drehbar', bodyFoldAria: 'Falten vom Netz zum Körper', bodyNetShort: 'Netz', bodyBodyShort: 'Körper', bodyAnimate: 'Falten',
-    bodyCylNoFold: 'Den Zylinder kann man nicht falten, nur rollen – sein Netz zeigt „Netz aufs Blatt“.',
     bodyShowVO: 'Volumen und Oberfläche', bodyVO: 'V ≈ {V} cm³ · O ≈ {O} cm²',
     btnBodyObl: 'Schrägbild aufs Blatt', btnBodyNet: 'Netz aufs Blatt', btnBodyPdf: 'Netz als PDF',
     bodySheetNet: 'Netz {body} ({vals})', bodySheetObl: 'Schrägbild {body} ({vals})',
     bodyNetHint: 'Ausschneiden an den durchgezogenen Linien, an den gestrichelten falten, an den grauen Laschen kleben.',
     helpBodyT: 'Körper und Netze',
-    helpBody: 'Im Labor unter „Körper & Netze“: Würfel, Quader, Dreiecksprisma, Pyramide oder Zylinder wählen, Maße eingeben, mit dem Finger drehen und falten. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.',
+    helpBody: 'Im Labor unter „Körper & Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.',
     geo_msk: 'Mittelsenkrechte', geo_wh: 'Winkelhalbierende', geo_lot: 'Lot', geo_senk: 'Senkrechte', geo_par: 'Parallele', geo_umk: 'Umkreis', geo_ink: 'Inkreis', geo_thal: 'Thaleskreis',
     geo_sheetTask: 'Aufgabe: {name}', geo_sheetDemo: '{name}', geo_sheetSolution: 'Lösung: {name}',
     task_msk: 'Konstruiere die Mittelsenkrechte der Strecke AB.',
@@ -1186,7 +1280,23 @@ const i18n = {
     styleColor: 'Colour', styleWidth: 'Line width', styleMarker: 'Marker colour',
 
     sheetsTitle: 'My sheets', btnNewSheet: 'New sheet', btnImport: 'Import',
-    sheetsHint: 'Sheets are stored on this device only. Export important sheets as a file to back them up or share them.',
+    sheetsHint: 'Sheets are stored on this device only. Back up all sheets regularly with “Backup” – for example to iCloud Drive or a USB stick.',
+    ariaImage: 'Insert picture', imgFade: 'Faded', imgDone: 'Done',
+    msgImgHint: 'Drag a corner to resize, drag an edge to crop. “Done” pins the picture – tap it with the hand later to edit it again.',
+    msgImgFailed: 'The picture could not be opened.', msgImgTooMany: 'At most {n} pictures per sheet.',
+    msgQrNoImages: 'Pictures don’t fit into a QR code – the code contains the sheet without them.',
+    btnBackup: 'Backup', backupTitle: 'Backup', btnBackupAll: 'Back up all sheets', btnRestoreBackup: 'Restore a backup',
+    backupMsg: 'Saves all sheets with their folders and all submissions in one file. Restoring adds missing sheets – existing ones are never overwritten.',
+    backupNever: 'No backup on this device yet.', backupLast: 'Last backup: {date}',
+    msgBackupDone: 'Backed up – sheets: {n}.', restoreTitle: 'Restore a backup',
+    restoreMsg: 'To be added – sheets: {n}, submissions: {r}.\nAlready here: {same}. Added as a copy because changed here: {copy}.\nNothing is overwritten.',
+    restoreBad: 'Damaged and skipped: {n}.', btnRestoreGo: 'Restore',
+    restoredCopy: '{name} (backup)', msgBackupRestored: 'Restored – sheets: {n}, submissions: {r}.',
+    msgRestoreNothing: 'Everything in the backup is already here (sheets: {n}).',
+    folderAll: 'All', btnToFolder: 'Move to folder …', btnNewFolder: 'New folder', btnNoFolder: 'Remove from folder',
+    dlgFolderTitle: 'Move “{name}” to', phFolder: 'e.g. Class 7a', btnRenameFolder: 'Rename folder',
+    btnDissolveFolder: 'Remove folder', dlgDissolveMsg: 'The sheets in “{f}” are kept and will appear without a folder.',
+    ariaFolderActions: 'Edit folder',
     untitled: 'Untitled', defaultSheetName: 'Sheet {n}', copyOf: '{name} (copy)',
     btnRename: 'Rename', btnDuplicate: 'Duplicate', btnExport: 'Export as file', btnDelete: 'Delete',
     dlgRenameTitle: 'Rename sheet',
@@ -1220,7 +1330,11 @@ const i18n = {
     helpGeoT: 'Set square and ruler',
     helpGeo: 'Move with one finger, rotate with two – or use the round arrow. Run the pencil along an edge to draw a straight line.',
     helpPointT: 'Points and labels',
-    helpPoint: 'Points snap to intersections and are named automatically. Tap a point again to rename it. With the point tool, drag a label around its point. Press and hold to move a freely placed point – segments follow; constructed points stay put.',
+    helpPoint: 'Points snap to intersections and are named automatically. Tap a point again to rename it. With the point tool, drag a label around its point. Press and hold to move a freely placed point – segments follow; constructed points stay put. Grab a text with the text tool and drag it to a new place.',
+    helpImageT: 'Pictures on the sheet',
+    helpImage: 'The picture button at the top puts a photo or image file on the sheet, e.g. a task from your textbook. Drag a corner to resize, drag an edge to crop, “Faded” makes it translucent. “Done” pins it – tap it with the hand to edit it again. Pictures are included in PDFs, but not in QR codes.',
+    helpBackupT: 'Backup and folders',
+    helpBackup: 'Under “My sheets → Backup” you save all sheets with folders and submissions in one file, e.g. to iCloud Drive. Restoring adds missing sheets without overwriting anything. Use “⋯” on a sheet to put it into a folder, for example one per class.',
     helpEraserT: 'Eraser',
     helpEraser: 'Tap to delete exactly one object – marked in red while your finger rests; points come before lines. Swipe to erase only the part of a segment, arc or stroke you touch.',
     helpNavT: 'Moving the sheet',
@@ -1330,18 +1444,27 @@ const i18n = {
     chk_impTitle: 'This task has no solution',
     paywall_lab: 'The lab is part of the full version.',
     labMode_tri: 'Congruence', labMode_geo: 'Basic constructions', btnNewFigure: 'New figure',
-    labMode_body: 'Solids & nets', body_cube: 'Cube', body_cuboid: 'Cuboid', body_prism3: 'Triangular prism', body_pyramid4: 'Pyramid', body_cylinder: 'Cylinder',
+    labMode_body: 'Solids & nets', body_cube: 'Cube', body_cuboid: 'Cuboid', body_prism3: 'Triangular prism', body_pyramid4: 'Pyramid (square)', body_cylinder: 'Cylinder',
+    body_prismn: 'Prism (n-gon)', body_pyramidrect: 'Pyramid (rectangle)', body_pyramidn: 'Pyramid (n-gon)', body_tetra: 'Tetrahedron', body_octa: 'Octahedron', body_cone: 'Cone', body_sphere: 'Sphere',
+    bodyDesc_prismn: 'Base: regular n-gon (n = 3 to 8) with edge a – height h', bodyDesc_pyramidn: 'Base: regular n-gon (n = 3 to 8) with edge a – height h',
+    bodyDesc_pyramidrect: 'Rectangular base a × b – height h', bodyDesc_tetra: 'Four equilateral triangles with edge a', bodyDesc_octa: 'Eight equilateral triangles with edge a',
+    bodyDesc_cone: 'Radius r of the base – height h', bodyDesc_sphere: 'Radius r – n gores (8 to 16) for the approximate net',
+    bodySphereNote: 'A sphere cannot be unfolded. The net of gores is only an approximation – like a globe.',
+    bodyNetHintSphere: 'Approximate: a sphere cannot be unfolded exactly. Cut out the gores and glue them together along their edges.',
+    bodyNetPick: 'Cube net', bodyNetPickHint: 'Eleven different cube nets – tap one to fold it:', bodyColors: 'Colours', ariaBodyBig: 'Large view',
+    btnCubeQuiz: 'Is this a cube net?', quizAsk: 'Is this a cube net?', btnYes: 'Yes', btnNo: 'No', quizRight: 'Correct!', quizWrong: 'Not quite.',
+    quizIsNet: 'It is a cube net: every face is covered exactly once.', quizNotNet: 'Not a cube net: red faces overlap, left open (dashed): {n}.',
+    quizScore: '{ok} of {n} correct', btnQuizNext: 'Next', btnQuizEnd: 'Finish',
     bodyDesc_cube: 'Edge length a', bodyDesc_cuboid: 'Length a, width b, height c', bodyDesc_prism3: 'Base: triangle with sides a, b, c – height h',
     bodyDesc_pyramid4: 'Square base with edge a – height h', bodyDesc_cylinder: 'Radius r of the base – height h',
-    bodyInvalid: 'Please enter all measures from 0.5 to 20 cm (for the prism the triangle must be possible).',
+    bodyInvalid: 'Please enter all measures from 0.5 to 20 cm, n as a whole number (prism and pyramid 3–8, sphere 8–16). For the triangular prism the triangle must be possible.',
     bodyViewAria: 'Solid, rotate with your finger', bodyFoldAria: 'Fold from net to solid', bodyNetShort: 'Net', bodyBodyShort: 'Solid', bodyAnimate: 'Fold',
-    bodyCylNoFold: 'A cylinder cannot be folded, only rolled – “Net on sheet” shows its net.',
     bodyShowVO: 'Volume and surface area', bodyVO: 'V ≈ {V} cm³ · A ≈ {O} cm²',
     btnBodyObl: 'Oblique view on sheet', btnBodyNet: 'Net on sheet', btnBodyPdf: 'Net as PDF',
     bodySheetNet: 'Net {body} ({vals})', bodySheetObl: 'Oblique view {body} ({vals})',
     bodyNetHint: 'Cut along the solid lines, fold along the dashed lines, glue the grey tabs.',
     helpBodyT: 'Solids and nets',
-    helpBody: 'In the lab under “Solids & nets”: choose cube, cuboid, triangular prism, pyramid or cylinder, enter measures, rotate and fold with your finger. Put the net with glue tabs or an oblique view on a sheet – print the net as a PDF at original size for crafting.',
+    helpBody: 'In the lab under “Solids & nets”: choose cube, cuboid, prisms, pyramids, tetrahedron, octahedron, cylinder, cone or sphere, enter measures, rotate and fold with your finger. For the cube, all eleven cube nets are available, plus the quiz “Is this a cube net?”. The large view fills the screen, optionally with coloured faces. Put the net with glue tabs or an oblique view on a sheet – print the net as a PDF at original size for crafting.',
     geo_msk: 'Perpendicular bisector', geo_wh: 'Angle bisector', geo_lot: 'Perpendicular from a point', geo_senk: 'Perpendicular at a point', geo_par: 'Parallel', geo_umk: 'Circumcircle', geo_ink: 'Incircle', geo_thal: 'Thales circle',
     geo_sheetTask: 'Task: {name}', geo_sheetDemo: '{name}', geo_sheetSolution: 'Solution: {name}',
     task_msk: 'Construct the perpendicular bisector of the segment AB.',
@@ -1751,6 +1874,10 @@ function objectDistance(o, px, py) {
       const dy = Math.max(o.y - h - py, 0, py - o.y);
       return hyp(dx, dy);
     }
+    case 'image': {
+      const r = imgRect(o);
+      return hyp(Math.max(r.x0 - px, 0, px - r.x1), Math.max(r.y0 - py, 0, py - r.y1));
+    }
   }
   return Infinity;
 }
@@ -1771,7 +1898,7 @@ function eraseTarget(objects, px, py, tol) {
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i], d = objectDistance(o, px, py);
     if (d > tol) continue;
-    const pr = o.type === 'point' || o.type === 'text' ? 0 : 1;
+    const pr = o.type === 'point' || o.type === 'text' ? 0 : o.type === 'image' ? 2 : 1;
     if (pr < bp || (pr === bp && d < bd - 1e-9)) { best = o; bd = d; bp = pr; }
   }
   return best;
@@ -1859,6 +1986,7 @@ function cutObject(o, px, py, rad) {
     case 'segment': return cutSegment(o, px, py, rad);
     case 'arc': return cutArc(o, px, py, rad);
     case 'stroke': return cutStroke(o, px, py, rad);
+    case 'image': return null;   /* Bilder nur durch Antippen löschen, nie im Vorbeiwischen */
     default: return objectDistance(o, px, py) <= rad ? [] : null;
   }
 }
@@ -2261,8 +2389,72 @@ function sanitizeObject(o, newId) {
       if (o.m && o.m.plan === true) tx.m = { plan: true };
       return tx;
     }
+    case 'image': {
+      /* Nur JPEG als Data-URL, Maße aus dem Bild selbst (nicht aus der Datei) */
+      if (!need('x', 'y') || !isNum(o.w) || !isNum(o.h) || o.w < 1 || o.h < 1 || o.w > IMG.maxMm || o.h > IMG.maxMm) return null;
+      const info = jpegFromDataUrl(o.src);
+      if (!info) return null;
+      let cr = Array.isArray(o.cr) && o.cr.length === 4 && o.cr.every(v => isNum(v) && v >= 0 && v <= 1) ? o.cr.slice() : [0, 0, 1, 1];
+      if (cr[2] - cr[0] < IMG.minCrop || cr[3] - cr[1] < IMG.minCrop) cr = [0, 0, 1, 1];
+      return { id: newId, type: 'image', x: o.x, y: o.y, w: o.w, h: o.h, cr, src: o.src, pw: info.w, ph: info.h, al: cleanNum(o.al, 0.2, 1, 1) };
+    }
   }
   return null;
+}
+
+/* ---------- Bilder ---------- */
+/* Gespeichert wird nur JPEG (beim Einfügen verkleinert und umgerechnet).
+   x, y, w, h: ganzes Bild in mm; cr = sichtbarer Ausschnitt in Anteilen
+   [links, oben, rechts, unten]. */
+const IMG = { maxChars: 6e6, maxPerDoc: 30, maxMm: 3000, minCrop: 0.03, maxPx: 1600 };
+const B64_TABLE = (() => { const t = new Int16Array(128).fill(-1); const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; for (let i = 0; i < 64; i++) t[a.charCodeAt(i)] = i; return t; })();
+/* Standard-Base64 → Bytes (schnell, für Bilder im Megabyte-Bereich) */
+function b64Bytes(s, maxChars) {
+  const n = Math.min(s.length, maxChars || s.length) & ~3;
+  let pad = 0;
+  if (n === s.length) { if (s[n - 1] === '=') pad++; if (s[n - 2] === '=') pad++; }
+  const out = new Uint8Array(n / 4 * 3 - pad);
+  let j = 0;
+  for (let i = 0; i < n; i += 4) {
+    const a = B64_TABLE[s.charCodeAt(i)], b = B64_TABLE[s.charCodeAt(i + 1)];
+    const c = s[i + 2] === '=' ? 0 : B64_TABLE[s.charCodeAt(i + 2)], d = s[i + 3] === '=' ? 0 : B64_TABLE[s.charCodeAt(i + 3)];
+    if (a < 0 || b < 0 || c < 0 || d < 0) throw new Error('b64');
+    const v = (a << 18) | (b << 12) | (c << 6) | d;
+    if (j < out.length) out[j++] = v >> 16 & 255;
+    if (j < out.length) out[j++] = v >> 8 & 255;
+    if (j < out.length) out[j++] = v & 255;
+  }
+  return out;
+}
+/* Breite, Höhe und Farbkanäle aus dem SOF-Abschnitt; null, wenn kein JPEG */
+function jpegInfo(b) {
+  if (!b || b.length < 4 || b[0] !== 0xFF || b[1] !== 0xD8) return null;
+  let i = 2;
+  while (i + 9 < b.length) {
+    if (b[i] !== 0xFF) return null;
+    const m = b[i + 1];
+    if (m === 0xD8 || (m >= 0xD0 && m <= 0xD7) || m === 0x01 || m === 0xFF) { i += m === 0xFF ? 1 : 2; continue; }
+    const len = (b[i + 2] << 8) | b[i + 3];
+    if (len < 2) return null;
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+      const h = (b[i + 5] << 8) | b[i + 6], w = (b[i + 7] << 8) | b[i + 8], nc = b[i + 9];
+      return w > 0 && h > 0 && (nc === 1 || nc === 3) ? { w, h, nc } : null;
+    }
+    i += 2 + len;
+  }
+  return null;
+}
+const JPEG_PREFIX = 'data:image/jpeg;base64,';
+function jpegFromDataUrl(src) {
+  if (typeof src !== 'string' || !src.startsWith(JPEG_PREFIX) || src.length > IMG.maxChars) return null;
+  const body = src.slice(JPEG_PREFIX.length);
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(body)) return null;
+  /* Der Bildkopf steht vorn – 256 KB reichen auch mit großem EXIF-Block */
+  try { return jpegInfo(b64Bytes(body, 349528)); } catch (e) { return null; }
+}
+/* Sichtbares Rechteck eines Bildes in mm */
+function imgRect(o) {
+  return { x0: o.x + o.cr[0] * o.w, y0: o.y + o.cr[1] * o.h, x1: o.x + o.cr[2] * o.w, y1: o.y + o.cr[3] * o.h };
 }
 
 /* opts.stored: eigenes, schon gespeichertes Blatt – zu groß wird gekürzt
@@ -2277,7 +2469,9 @@ function sanitizeDoc(raw, newDocId, now, opts) {
   let seq = 1;
   const objects = [];
   const idMap = new Map();          // alte Kennung → neue
+  let nImg = 0;
   for (const o of raw.objects.length > LIMITS.objects ? raw.objects.slice(0, LIMITS.objects) : raw.objects) {
+    if (o && o.type === 'image' && ++nImg > IMG.maxPerDoc) continue;
     const clean = sanitizeObject(o, 'o' + seq);
     if (clean) {
       if (o && (typeof o.id === 'string' || typeof o.id === 'number')) idMap.set(String(o.id), clean.id);
@@ -2305,6 +2499,7 @@ function sanitizeDoc(raw, newDocId, now, opts) {
     format: DOC_FORMAT, v: DOC_VERSION,
     id: newDocId,
     name: cleanStr(raw.name, LIMITS.name).trim() || '',
+    folder: cleanFolder(raw.folder),
     created: cleanNum(raw.created, 0, 1e14, now),
     modified: now,
     objects, seq,
@@ -2357,10 +2552,87 @@ function sanitizeInst(raw) {
 
 function newDoc(id, name, now) {
   return {
-    format: DOC_FORMAT, v: DOC_VERSION, id, name: name || '',
+    format: DOC_FORMAT, v: DOC_VERSION, id, name: name || '', folder: '',
     created: now, modified: now, objects: [], seq: 1,
     view: { cx: 0, cy: 0, zoom: 1 }, inst: defaultInst()
   };
+}
+
+/* ---------- Ordner ---------- */
+/* Ein Ordner ist nur ein Name am Blatt – es gibt ihn, solange ein Blatt darin
+   liegt. Keine eigene Verwaltung, die mit den Blättern auseinanderlaufen könnte;
+   die Sicherung nimmt Ordner automatisch mit. */
+const FOLDER_MAX = 40;
+function cleanFolder(v) { return cleanStr(v, FOLDER_MAX).replace(/\s+/g, ' ').trim(); }
+function folderList(docs) {
+  const set = new Map();
+  for (const d of docs) if (d && d.folder) set.set(d.folder.toLocaleLowerCase(), d.folder);
+  return [...set.values()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' }));
+}
+/* Gleicher Name in anderer Schreibweise („klasse 7a" / „Klasse 7a") = derselbe Ordner */
+function sameFolder(a, b) { return (a || '').toLocaleLowerCase() === (b || '').toLocaleLowerCase(); }
+
+/* ---------- Sicherung ---------- */
+/* Eine Datei mit allen Blättern und Abgaben. Beim Einlesen läuft jedes Blatt
+   durch sanitizeDoc wie ein Import; kaputte Blätter werden gezählt und
+   übersprungen, statt die ganze Sicherung zu verwerfen. */
+const BACKUP_FORMAT = 'zirkelwerk-backup', BACKUP_VERSION = 1;
+function makeBackup(docs, results, meta) {
+  return {
+    format: BACKUP_FORMAT, v: BACKUP_VERSION,
+    app: meta && meta.app || '', created: meta && meta.created || 0,
+    docs: docs.map(d => { const c = Object.assign({}, d); delete c.thumb; return c; }),
+    results: Array.isArray(results) ? results : []
+  };
+}
+function isBackup(raw) { return !!raw && typeof raw === 'object' && raw.format === BACKUP_FORMAT; }
+function readBackup(raw) {
+  if (!isBackup(raw)) throw new Error('format');
+  if (!isNum(raw.v) || raw.v > BACKUP_VERSION) throw new Error('version');
+  if (!Array.isArray(raw.docs)) throw new Error('docs');
+  const docs = [], seen = new Set();
+  let bad = 0;
+  for (const r of raw.docs.slice(0, 5000)) {
+    try {
+      const id = r && typeof r.id === 'string' && /^[0-9a-z]{1,40}$/.test(r.id) && !seen.has(r.id) ? r.id : null;
+      const when = r ? cleanNum(r.modified, 0, 1e14, 0) : 0;
+      const d = sanitizeDoc(r, id || '', when);
+      d.keepId = !!id;
+      if (id) seen.add(id);
+      docs.push(d);
+    } catch (e) { bad++; }
+  }
+  return { docs, bad, results: cleanResults(raw.results), created: cleanNum(raw.created, 0, 1e14, 0) };
+}
+/* Was beim Wiederherstellen passiert. existing: Map id → modified der Blätter
+   auf dem Gerät. Gleiche Kennung und gleicher Stand → schon da; gleiche
+   Kennung, anderer Stand → als Kopie dazu (nichts wird überschrieben). */
+function planRestore(existing, docs) {
+  const add = [], copy = [];
+  let same = 0;
+  for (const d of docs) {
+    if (!d.keepId || !existing.has(d.id)) add.push(d);
+    else if (existing.get(d.id) === d.modified) same++;
+    else copy.push(d);
+  }
+  return { add, copy, same };
+}
+function cleanResults(a) {
+  if (!Array.isArray(a)) return [];
+  return a.filter(x => x && typeof x === 'object' && typeof x.key === 'string' && x.key.length <= 200 && sanitizeTask(x.task)).map(x => ({
+    key: x.key, task: sanitizeTask(x.task), name: cleanStr(x.name, 30), ok: !!x.ok, help: Math.round(cleanNum(x.help, 0, 4, 0)),
+    codes: Array.isArray(x.codes) ? x.codes.filter(c => typeof c === 'string').map(c => c.slice(0, 40)).slice(0, RESULT_MAX_CODES) : [],
+    o: Array.isArray(x.o) && x.o.length <= 2000 ? x.o : [], at: cleanNum(x.at, 0, 1e14, 0)
+  }));
+}
+/* Abgaben zusammenführen: gleiche Aufgabe, gleicher Name, gleiche Zeit = dieselbe */
+function mergeResults(cur, inc, max) {
+  const k = r => r.key + '\u0000' + (r.name || '').toLowerCase() + '\u0000' + r.at;
+  const have = new Set(cur.map(k)), out = cur.slice();
+  let added = 0;
+  for (const r of inc) if (!have.has(k(r))) { have.add(k(r)); out.push(r); added++; }
+  out.sort((a, b) => a.at - b.at);
+  return { list: out.slice(Math.max(0, out.length - max)), added };
 }
 
 function boundsOf(objects) {
@@ -2384,6 +2656,7 @@ function boundsOf(objects) {
     }
     else if (o.type === 'stroke') for (let i = 0; i + 1 < o.pts.length; i += 2) add(o.pts[i], o.pts[i + 1]);
     else if (o.type === 'text') { add(o.x, o.y - o.size); add(o.x + String(o.text).length * o.size * 0.6, o.y); }
+    else if (o.type === 'image') { const r = imgRect(o); add(r.x0, r.y0); add(r.x1, r.y1); }
   }
   return x0 === Infinity ? null : { x0, y0, x1, y1 };
 }
@@ -2540,7 +2813,7 @@ function describe(objects, lang, T) {
   };
 
   objects.forEach((o, i) => {
-    if (assigned.has(o.id)) return;
+    if (assigned.has(o.id) || o.type === 'image') return;   /* Bilder liegen darunter, sind kein Schritt */
     /* Ausgangsfigur einer Aufgabe: ein Schritt „gegeben", Punkte gelten als bekannt */
     if (o.m && o.m.giv) {
       const last = steps[steps.length - 1];
@@ -2613,9 +2886,11 @@ function describe(objects, lang, T) {
         assign(prev, o.id);
         prev.o = segUnion(prev.o, o);
         for (const [x, y] of [[o.x1, o.y1], [o.x2, o.y2]]) { const p = unknownAt(x, y); if (p) assign(prev, p.id); }
-        /* Reicht das Ganze von einem bekannten Punkt zum anderen, war es eine Verbindung */
+        /* Reicht das Ganze von einem schon vorher bekannten Punkt zum anderen,
+           war es eine Verbindung. Punkte, die erst dieser Schritt einführt
+           (Strecke zuerst, Punkte danach), zählen nicht. */
         const ka = knownAt(prev.o.x1, prev.o.y1), kb = knownAt(prev.o.x2, prev.o.y2);
-        if (ka && kb) { prev.kind = 'connect'; prev.pairs = [[ka, kb]]; }
+        if (ka && kb && !prev.ids.includes(ka.id) && !prev.ids.includes(kb.id)) { prev.kind = 'connect'; prev.pairs = [[ka, kb]]; }
         return;
       }
       const st = push({ kind: 'seg', ids: [o.id], o, rel, through, start: a0 || b0 });
@@ -3394,12 +3669,21 @@ function sanitizeTask(t) {
    Körper. Daraus folgen 3D-Ansicht, Faltanimation, Klebelaschen (Kanten, die
    nach dem Falten aufeinandertreffen) und das Schrägbild. Koordinaten der
    Körper: x nach rechts, y in die Tiefe, z nach oben. */
-const BODY_KINDS = ['cube', 'cuboid', 'prism3', 'pyramid4', 'cylinder'];
-const BODY_KEYS = { cube: ['a'], cuboid: ['a', 'b', 'c'], prism3: ['a', 'b', 'c', 'h'], pyramid4: ['a', 'h'], cylinder: ['r', 'h'] };
-const BODY_DEFAULTS = { cube: { a: 40 }, cuboid: { a: 50, b: 30, c: 20 }, prism3: { a: 40, b: 35, c: 50, h: 40 }, pyramid4: { a: 40, h: 40 }, cylinder: { r: 20, h: 50 } };
+const BODY_KINDS = ['cube', 'cuboid', 'prism3', 'prismn', 'pyramid4', 'pyramidrect', 'pyramidn', 'tetra', 'octa', 'cylinder', 'cone', 'sphere'];
+const BODY_KEYS = { cube: ['a'], cuboid: ['a', 'b', 'c'], prism3: ['a', 'b', 'c', 'h'], prismn: ['n', 'a', 'h'], pyramid4: ['a', 'h'], pyramidrect: ['a', 'b', 'h'],
+  pyramidn: ['n', 'a', 'h'], tetra: ['a'], octa: ['a'], cylinder: ['r', 'h'], cone: ['r', 'h'], sphere: ['r', 'n'] };
+const BODY_DEFAULTS = { cube: { a: 40 }, cuboid: { a: 50, b: 30, c: 20 }, prism3: { a: 40, b: 35, c: 50, h: 40 }, prismn: { n: 6, a: 25, h: 50 },
+  pyramid4: { a: 40, h: 40 }, pyramidrect: { a: 50, b: 30, h: 40 }, pyramidn: { n: 6, a: 25, h: 50 }, tetra: { a: 50 }, octa: { a: 40 },
+  cylinder: { r: 20, h: 50 }, cone: { r: 25, h: 50 }, sphere: { r: 30, n: 12 } };
+/* Ganzzahlige Angaben (Eckenzahl, Zahl der Schalen) – nicht in mm umgerechnet */
+const BODY_INT = { prismn: { n: [3, 8] }, pyramidn: { n: [3, 8] }, sphere: { n: [8, 16] } };
 function bodyValid(kind, g) {
-  const keys = BODY_KEYS[kind];
-  if (!keys || !g || !keys.every(k => isNum(g[k]) && g[k] >= 5 && g[k] <= 200)) return false;
+  const keys = BODY_KEYS[kind], ints = BODY_INT[kind] || {};
+  if (!keys || !g) return false;
+  for (const k of keys) {
+    if (ints[k]) { if (!Number.isInteger(g[k]) || g[k] < ints[k][0] || g[k] > ints[k][1]) return false; }
+    else if (!isNum(g[k]) || g[k] < 5 || g[k] > 200) return false;
+  }
   if (kind === 'prism3') { const { a, b, c } = g; return a + b > c + 0.5 && a + c > b + 0.5 && b + c > a + 0.5; }
   return true;
 }
@@ -3419,7 +3703,19 @@ function rotAbout(q, p, u, w) {
 }
 /* Netz: { faces: [{ pts:[{x,y}], parent, hinge:[i,j] (Ecken dieser Fläche),
    dihedral }], ground (Index der Fläche, auf der der Körper steht) } */
-function bodyNet(kind, g) {
+function bodyNet(kind, g, variant) {
+  /* Würfel: eines der 11 Würfelnetze (0 = Kreuz wie bisher) */
+  if (kind === 'cube' && variant) {
+    const cells = cubeNets()[variant] || cubeNets()[0];
+    return gridNet(cells, g.a, gridRoot(cells));
+  }
+  const S = bodySolid(kind, g);
+  if (S) {
+    const net = unfoldFaces(S.F, S.parent);
+    net.ground = S.ground;
+    net.smooth = bodySmooth(kind, S.F.length);
+    return net;
+  }
   const R = (x0, y0, x1, y1) => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
   const H = Math.PI / 2;
   if (kind === 'cube' || kind === 'cuboid') {
@@ -3458,14 +3754,30 @@ function bodyNet(kind, g) {
       { pts: [{ x: 0, y: a }, { x: 0, y: 0 }, { x: -s, y: a / 2 }], parent: 0, hinge: [0, 1], dihedral: dih }
     ] };
   }
-  return null;   /* Zylinder: eigenes Netz (gekrümmte Fläche) */
+  return null;
+}
+/* Wurzel eines Kästchennetzes: das Kästchen mit den meisten Nachbarn (steht stabil) */
+function gridRoot(cells) {
+  const has = new Set(cells.map(c => c.join(',')));
+  let best = 0, bn = -1;
+  cells.forEach(([x, y], i) => { const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => has.has((x + dx) + ',' + (y + dy))).length; if (n > bn) { bn = n; best = i; } });
+  return best;
 }
 /* Faltung: 3D-Ecken jeder Fläche bei Faltgrad t (0 … 1) */
 function foldNet(net, t) {
   const tf = [];   /* je Fläche: Liste von Drehungen (Achse in Netzkoordinaten), von der Wurzel aus */
   const out = [];
   const apply = (rots, q) => { for (let i = rots.length - 1; i >= 0; i--) q = rotAbout(q, rots[i].p, rots[i].u, rots[i].w); return q; };
-  net.faces.forEach((f, i) => {
+  /* Eltern vor Kindern, unabhängig von der Reihenfolge in der Liste */
+  const order = [], done = new Set(), visit = i => {
+    if (done.has(i)) return;
+    const pi = net.faces[i].parent;
+    if (pi >= 0) visit(pi);
+    done.add(i); order.push(i);
+  };
+  net.faces.forEach((f, i) => visit(i));
+  order.forEach(i => {
+    const f = net.faces[i];
     if (f.parent < 0) { tf[i] = []; return; }
     const p = f.pts[f.hinge[0]], q = f.pts[f.hinge[1]];
     const P = v3(p.x, p.y, 0), u = vNorm(v3(q.x - p.x, q.y - p.y, 0));
@@ -3478,7 +3790,7 @@ function foldNet(net, t) {
   return out;
 }
 /* Geschlossener Körper, auf seiner Grundfläche stehend (Grundfläche z = 0) */
-function bodyFaces(kind, g) {
+function bodyFaces(kind, g, variant) {
   if (kind === 'cylinder') {
     const n = 48, F = [], { r, h } = g;
     const P = (k, z) => v3(r * Math.cos(k / n * TAU), r * Math.sin(k / n * TAU), z);
@@ -3486,7 +3798,7 @@ function bodyFaces(kind, g) {
     F.push(Array.from({ length: n }, (_, k) => P(n - k, 0)), Array.from({ length: n }, (_, k) => P(k, h)));
     return F;
   }
-  const net = bodyNet(kind, g), faces = foldNet(net, 1), G = faces[net.ground];
+  const net = bodyNet(kind, g, variant), faces = foldNet(net, 1), G = faces[net.ground];
   /* Grundfläche nach unten drehen: Normale (vom Körper weg) → −z */
   const cen = l => vMul(l.reduce((s, p) => vAdd(s, p), v3(0, 0, 0)), 1 / l.length);
   const C = cen([].concat(...faces)), gc = cen(G);
@@ -3501,7 +3813,265 @@ function bodyFaces(kind, g) {
   const x0 = Math.min(...xs), y0 = Math.min(...ys);
   return F.map(f => f.map(p => v3(p.x - x0, p.y - y0, p.z - zMin)));
 }
+/* ---------- Abwickeln beliebiger konvexer Körper ---------- */
+/* F: Flächen als Listen von 3D-Ecken (eben, konvex), parent: Faltbaum (Wurzel −1).
+   Jede Fläche wird an der mit ihrer Elternfläche geteilten Kante in die Ebene
+   gelegt – Abstand entlang der Kante und senkrecht dazu bleiben erhalten.
+   Ergebnis wie bodyNet: { faces: [{ pts, parent, hinge, dihedral }] }. */
+function polyCentroid3(f) { return vMul(f.reduce((s, p) => vAdd(s, p), v3(0, 0, 0)), 1 / f.length); }
+function outwardNormal(f, C) {
+  let n = vNorm(vCross(vSub(f[1], f[0]), vSub(f[2], f[0])));
+  for (let i = 2; vLen(n) < 0.5 && i + 1 < f.length; i++) n = vNorm(vCross(vSub(f[i], f[0]), vSub(f[i + 1], f[0])));
+  return vDot(n, vSub(polyCentroid3(f), C)) < 0 ? vMul(n, -1) : n;
+}
+function sharedEdge(f, g) {
+  const same = (p, q) => vLen(vSub(p, q)) < 1e-6;
+  for (let i = 0; i < f.length; i++) {
+    const a = f[i], b = f[(i + 1) % f.length];
+    for (let j = 0; j < g.length; j++) {
+      const c = g[j], d = g[(j + 1) % g.length];
+      if ((same(a, c) && same(b, d)) || (same(a, d) && same(b, c))) return { fi: [i, (i + 1) % f.length], gi: same(a, c) ? [j, (j + 1) % g.length] : [(j + 1) % g.length, j] };
+    }
+  }
+  return null;
+}
+function unfoldFaces(F, parent) {
+  const C = polyCentroid3([].concat(...F)), N = F.map(f => outwardNormal(f, C));
+  const out = F.map(() => null), order = [], seen = new Set();
+  const root = parent.indexOf(-1);
+  /* Wurzel: Ebene der Fläche → 2D, erste Kante auf der x-Achse */
+  {
+    const f = F[root], e1 = vNorm(vSub(f[1], f[0])), e2 = vCross(N[root], e1);
+    out[root] = { pts: f.map(p => { const d = vSub(p, f[0]); return { x: vDot(d, e1), y: vDot(d, e2) }; }), parent: -1 };
+    seen.add(root); order.push(root);
+  }
+  for (let k = 0; k < order.length; k++) {
+    const pi = order[k];
+    parent.forEach((pp, ci) => {
+      if (pp !== pi || seen.has(ci)) return;
+      const f = F[pi], g = F[ci], se = sharedEdge(f, g);
+      if (!se) throw new Error('tree');
+      const A3 = f[se.fi[0]], B3 = f[se.fi[1]], A = out[pi].pts[se.fi[0]], B = out[pi].pts[se.fi[1]];
+      const L3 = vLen(vSub(B3, A3)), u3 = vMul(vSub(B3, A3), 1 / L3);
+      const L = dist(A.x, A.y, B.x, B.y), ux = (B.x - A.x) / L, uy = (B.y - A.y) / L;
+      /* Senkrechte zur Kante, weg von der Elternfläche */
+      const pc = out[pi].pts.reduce((s, q) => ({ x: s.x + q.x / out[pi].pts.length, y: s.y + q.y / out[pi].pts.length }), { x: 0, y: 0 });
+      let wx = -uy, wy = ux;
+      if ((pc.x - A.x) * wx + (pc.y - A.y) * wy > 0) { wx = -wx; wy = -wy; }
+      const pts = g.map(p => {
+        const d = vSub(p, A3), t = vDot(d, u3), perp = vLen(vSub(d, vMul(u3, t)));
+        return { x: A.x + ux * t + wx * perp, y: A.y + uy * t + wy * perp };
+      });
+      const dihedral = Math.PI - Math.acos(clamp(vDot(N[pi], N[ci]), -1, 1));
+      out[ci] = { pts, parent: pi, hinge: se.gi, dihedral };
+      seen.add(ci); order.push(ci);
+    });
+  }
+  if (out.some(x => !x)) throw new Error('tree');
+  return { faces: out };
+}
+
+/* ---------- Weitere Körper (0.10.2) ---------- */
+/* Regelmäßiges n-Eck mit Kantenlänge a in der Ebene z = z0, Mitte im Ursprung */
+function regPoly3(n, a, z0, rot) {
+  const R = a / (2 * Math.sin(Math.PI / n)), r0 = rot || 0;
+  return Array.from({ length: n }, (_, k) => v3(R * Math.cos(r0 + k * TAU / n), R * Math.sin(r0 + k * TAU / n), z0));
+}
+/* Prisma über einem Grundflächen-Polygon B (z = 0), Höhe h. Faltbaum: Mantel
+   als Streifen (Fläche 0 = erste Seite), Grund- und Deckfläche an Seite 0. */
+function solidPrism(B, h) {
+  const n = B.length, top = B.map(p => v3(p.x, p.y, h));
+  const F = [], parent = [];
+  for (let k = 0; k < n; k++) { F.push([B[k], B[(k + 1) % n], top[(k + 1) % n], top[k]]); parent.push(k ? k - 1 : -1); }
+  F.push(B.slice().reverse()); parent.push(0);
+  F.push(top.slice()); parent.push(0);
+  return { F, parent, ground: n };
+}
+/* Pyramide über B mit Spitze S. Faltbaum: Grundfläche, Dreiecke rundherum
+   (Stern) – oder fan: Dreiecke als Fächer aneinander (Kegelmantel). */
+function solidPyramid(B, S, fan) {
+  const n = B.length, F = [B.slice().reverse()], parent = [-1];
+  for (let k = 0; k < n; k++) { F.push([B[k], B[(k + 1) % n], S]); parent.push(fan && k ? k : 0); }
+  return { F, parent, ground: 0 };
+}
+function solidOcta(a) {
+  const q = a / Math.SQRT2, P = [v3(q, 0, 0), v3(0, q, 0), v3(-q, 0, 0), v3(0, -q, 0)], U = v3(0, 0, q), D = v3(0, 0, -q);
+  /* Obere Dreiecke als Fächer um die Spitze, jedes untere an seinem oberen */
+  const F = [], parent = [];
+  for (let k = 0; k < 4; k++) { F.push([P[k], P[(k + 1) % 4], U]); parent.push(k ? k - 1 : -1); }
+  for (let k = 0; k < 4; k++) { F.push([P[(k + 1) % 4], P[k], D]); parent.push(k); }
+  return { F, parent, ground: 4 };
+}
+/* Kugel als Globus aus n Spalten (Orangenschalen) und m Breitenbändern.
+   Die Bänder einer Spalte hängen aneinander, die Spalten am Äquator. m ist
+   ungerade: Der Äquator liegt dann mitten im mittleren Band, dessen Stücke
+   Rechtecke sind – aneinandergelegt ergeben sie eine gerade Linie. (Bei
+   geradem m hingen die Spalten an Trapezen, das Netz würde zum Fächer.) */
+function solidSphere(r, n, m) {
+  const P = (j, k) => { const phi = -Math.PI / 2 + j * Math.PI / m, lam = k * TAU / n; return v3(r * Math.cos(phi) * Math.cos(lam), r * Math.cos(phi) * Math.sin(lam), r * Math.sin(phi)); };
+  const F = [], idx = (k, j) => k * m + j;
+  for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
+    if (j === 0) F.push([P(1, k + 1), P(1, k), P(0, 0)]);
+    else if (j === m - 1) F.push([P(j, k), P(j, k + 1), P(m, 0)]);
+    else F.push([P(j, k), P(j, k + 1), P(j + 1, k + 1), P(j + 1, k)]);
+  }
+  const e = (m - 1) / 2, parent = F.map(() => -1);
+  for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
+    if (j === e) parent[idx(k, j)] = k ? idx(k - 1, e) : -1;
+    else parent[idx(k, j)] = j > e ? idx(k, j - 1) : idx(k, j + 1);
+  }
+  return { F, parent, ground: 0 };
+}
+/* Feinheit gekrümmter Flächen: fein genug fürs Auge, grob genug zum Falten */
+const BODY_SEG = 36, SPHERE_BANDS = 13;
+function bodySolid(kind, g) {
+  switch (kind) {
+    case 'prismn': return solidPrism(regPoly3(g.n, g.a, 0, -Math.PI / 2 - Math.PI / g.n), g.h);
+    case 'pyramidn': return solidPyramid(regPoly3(g.n, g.a, 0, -Math.PI / 2 - Math.PI / g.n), v3(0, 0, g.h));
+    case 'pyramidrect': return solidPyramid([v3(0, 0, 0), v3(g.a, 0, 0), v3(g.a, g.b, 0), v3(0, g.b, 0)], v3(g.a / 2, g.b / 2, g.h));
+    case 'tetra': return solidPyramid(regPoly3(3, g.a, 0, -Math.PI / 2), v3(0, 0, g.a * Math.sqrt(2 / 3)));
+    case 'octa': return solidOcta(g.a);
+    case 'cylinder': return solidPrism(regPoly3(BODY_SEG, TAU * g.r / BODY_SEG, 0, 0), g.h);
+    case 'cone': return solidPyramid(regPoly3(BODY_SEG, TAU * g.r / BODY_SEG, 0, 0), v3(0, 0, g.h), true);
+    case 'sphere': return solidSphere(g.r, g.n, SPHERE_BANDS);
+  }
+  return null;
+}
+/* Gekrümmte Flächen: Gruppe je Fläche (gleiche Zahl = eine glatte Fläche,
+   −1 = ebene Fläche mit sichtbaren Kanten) */
+function bodySmooth(kind, nFaces) {
+  if (kind === 'cylinder') return Array.from({ length: nFaces }, (_, i) => i < BODY_SEG ? 0 : -1);
+  if (kind === 'cone') return Array.from({ length: nFaces }, (_, i) => i > 0 ? 0 : -1);
+  if (kind === 'sphere') return Array.from({ length: nFaces }, () => 0);
+  return null;
+}
+
 function bodyMeasures(kind, g) {
+  const polyG = (n, a) => n * a * a / (4 * Math.tan(Math.PI / n)), inr = (n, a) => a / (2 * Math.tan(Math.PI / n));
+  switch (kind) {
+    case 'prismn': return { V: polyG(g.n, g.a) * g.h, O: 2 * polyG(g.n, g.a) + g.n * g.a * g.h };
+    case 'pyramidn': { const hs = Math.hypot(g.h, inr(g.n, g.a)); return { V: polyG(g.n, g.a) * g.h / 3, O: polyG(g.n, g.a) + g.n * g.a * hs / 2 }; }
+    case 'pyramidrect': return { V: g.a * g.b * g.h / 3, O: g.a * g.b + g.a * Math.hypot(g.h, g.b / 2) + g.b * Math.hypot(g.h, g.a / 2) };
+    case 'tetra': return { V: g.a ** 3 / (6 * Math.SQRT2), O: Math.sqrt(3) * g.a * g.a };
+    case 'octa': return { V: Math.SQRT2 / 3 * g.a ** 3, O: 2 * Math.sqrt(3) * g.a * g.a };
+    case 'cone': return { V: Math.PI * g.r * g.r * g.h / 3, O: Math.PI * g.r * (g.r + Math.hypot(g.r, g.h)) };
+    case 'sphere': return { V: 4 / 3 * Math.PI * g.r ** 3, O: 4 * Math.PI * g.r * g.r };
+  }
+  return bodyMeasuresOld(kind, g);
+}
+/* ---------- Würfelnetze ---------- */
+/* Alle 35 Sechslinge (Hexominos) aus Kästchen, bis auf Drehen und Spiegeln
+   gleich. Würfelnetz ist einer, wenn das Abrollen eines Würfels über die
+   Kästchen jede der sechs Würfelseiten genau einmal nach unten bringt.
+   Es müssen genau 11 sein – das prüft der Kerntest. */
+function polyNorm(cells) {
+  const x0 = Math.min(...cells.map(c => c[0])), y0 = Math.min(...cells.map(c => c[1]));
+  return cells.map(([x, y]) => [x - x0, y - y0]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+}
+function polyKey(cells) { return polyNorm(cells).map(c => c.join(',')).join(';'); }
+function polyCanon(cells) {
+  let best = null;
+  for (let r = 0; r < 8; r++) {
+    const t = cells.map(([x, y]) => { let a = x, b = y; for (let i = 0; i < r % 4; i++) [a, b] = [-b, a]; return r >= 4 ? [-a, b] : [a, b]; });
+    const k = polyKey(t);
+    if (best === null || k < best) best = k;
+  }
+  return best;
+}
+let HEXOMINOS = null;
+function hexominos() {
+  if (HEXOMINOS) return HEXOMINOS;
+  let level = new Map([[polyCanon([[0, 0]]), [[0, 0]]]]);
+  for (let n = 2; n <= 6; n++) {
+    const next = new Map();
+    for (const cells of level.values()) {
+      const has = new Set(cells.map(c => c.join(',')));
+      for (const [x, y] of cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const c = [x + dx, y + dy];
+        if (has.has(c.join(','))) continue;
+        const nc = cells.concat([c]), k = polyCanon(nc);
+        if (!next.has(k)) next.set(k, polyNorm(nc));
+      }
+    }
+    level = next;
+  }
+  HEXOMINOS = [...level.values()].map(cells => ({ cells, net: cubeRolls(cells) }));
+  return HEXOMINOS;
+}
+/* Abrollen: Würfel liegt auf dem ersten Kästchen; jedes Nachbarkästchen kippt
+   ihn um eine Kante. Unten-Seite je Kästchen → gültig, wenn alle verschieden. */
+function cubeRolls(cells) {
+  const key = c => c.join(','), at = new Map(cells.map((c, i) => [key(c), i]));
+  /* Lage als Zuordnung Richtung → Würfelseite (0–5): unten, oben, +x, −x, +y, −y */
+  const down = new Array(cells.length).fill(-1), st = new Array(cells.length);
+  st[0] = { d: 0, u: 1, px: 2, nx: 3, py: 4, ny: 5 };
+  down[0] = 0;
+  const queue = [0];
+  while (queue.length) {
+    const i = queue.shift(), [x, y] = cells[i], s = st[i];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const j = at.get(key([x + dx, y + dy]));
+      if (j === undefined || down[j] >= 0) continue;
+      let t;
+      if (dx === 1) t = { d: s.px, u: s.nx, px: s.u, nx: s.d, py: s.py, ny: s.ny };
+      else if (dx === -1) t = { d: s.nx, u: s.px, px: s.d, nx: s.u, py: s.py, ny: s.ny };
+      else if (dy === 1) t = { d: s.py, u: s.ny, py: s.u, ny: s.d, px: s.px, nx: s.nx };
+      else t = { d: s.ny, u: s.py, py: s.d, ny: s.u, px: s.px, nx: s.nx };
+      st[j] = t; down[j] = t.d; queue.push(j);
+    }
+  }
+  return new Set(down).size === 6;
+}
+let CUBE_NETS = null;
+function cubeNets() {
+  /* Feste Reihenfolge für die Auswahl: zuerst das Kreuz (wie bisher), dann
+     nach Zeilenzahl und Form */
+  if (!CUBE_NETS) CUBE_NETS = hexominos().filter(h => h.net).map(h => {
+    const c = polyNorm(h.cells), w = Math.max(...c.map(q => q[0])) + 1, hh = Math.max(...c.map(q => q[1])) + 1;
+    return w > hh ? polyNorm(c.map(([x, y]) => [y, x])) : c;   /* hochkant */
+  }).sort((a, b) => polyKey(a) < polyKey(b) ? -1 : 1);
+  /* Das Kreuz zuerst – es ist das Netz, das die App bisher zeigte */
+  const cross = CUBE_NETS.findIndex(c => polyKey(c) === '1,0;0,1;1,1;2,1;1,2;1,3');
+  if (cross > 0) CUBE_NETS.unshift(CUBE_NETS.splice(cross, 1)[0]);
+  return CUBE_NETS;
+}
+function cubeNonNets() { return hexominos().filter(h => !h.net).map(h => polyNorm(h.cells)); }
+/* Netz aus Kästchen (Seitenlänge a): Faltbaum in Breitensuche ab Kästchen root.
+   Bei Nicht-Netzen mit Kreis (2 × 2-Block) bleibt eine Kante offen – genau so
+   würde man das Papier falten. */
+function gridNet(cells, a, root) {
+  const key = c => c.join(','), at = new Map(cells.map((c, i) => [key(c), i]));
+  const r0 = root == null ? 0 : root, faces = cells.map(([x, y]) => ({ pts: [{ x: x * a, y: y * a }, { x: (x + 1) * a, y: y * a }, { x: (x + 1) * a, y: (y + 1) * a }, { x: x * a, y: (y + 1) * a }], parent: -2 }));
+  faces[r0].parent = -1;
+  const queue = [r0];
+  while (queue.length) {
+    const i = queue.shift(), [x, y] = cells[i];
+    for (const [dx, dy, h] of [[1, 0, [0, 3]], [-1, 0, [1, 2]], [0, 1, [0, 1]], [0, -1, [3, 2]]]) {
+      const j = at.get(key([x + dx, y + dy]));
+      if (j === undefined || faces[j].parent !== -2) continue;
+      faces[j].parent = i; faces[j].hinge = h; faces[j].dihedral = Math.PI / 2;
+      queue.push(j);
+    }
+  }
+  return { faces, ground: r0 };
+}
+/* Welche Flächen nach dem Falten übereinanderliegen und welche Würfelseiten
+   offen bleiben (für „Ist das ein Würfelnetz?") */
+function cubeFoldCheck(cells, a) {
+  /* Gleiche Wurzel wie die Darstellung – bei Kreisen (2 × 2-Block) hängt das
+     Faltergebnis davon ab, und Text und Bild müssen übereinstimmen */
+  const net = gridNet(cells, a, gridRoot(cells)), F = foldNet(net, 1);
+  const sides = F.map(f => {
+    const c = polyCentroid3(f), q = v => Math.round(v / a * 2);   /* Mittelpunkt in halben Kanten */
+    return q(c.x) + ',' + q(c.y) + ',' + q(c.z);
+  });
+  const count = new Map();
+  sides.forEach(k => count.set(k, (count.get(k) || 0) + 1));
+  const overlap = sides.map(k => count.get(k) > 1);
+  return { ok: count.size === 6 && overlap.every(v => !v), overlap, missing: 6 - count.size };
+}
+
+function bodyMeasuresOld(kind, g) {
   if (kind === 'cylinder') return { V: Math.PI * g.r * g.r * g.h, O: 2 * Math.PI * g.r * (g.r + g.h) };
   if (kind === 'cube') return { V: g.a ** 3, O: 6 * g.a * g.a };
   if (kind === 'cuboid') return { V: g.a * g.b * g.c, O: 2 * (g.a * g.b + g.a * g.c + g.b * g.c) };
@@ -3513,7 +4083,7 @@ function bodyMeasures(kind, g) {
 /* Netz zum Ausschneiden: Kanten mit Art (cut/fold) und Klebelaschen.
    Laschen: Randkanten des Netzes, die nach dem Falten zusammenfallen,
    paarweise; die erste Kante jedes Paars bekommt die Lasche. */
-function netDrawing(kind, g) {
+function netDrawing(kind, g, variant) {
   const edges = [];   /* { a, b, fold } in Netzkoordinaten */
   const key2 = (p, q) => { const k = r => Math.round(r.x * 100) + ',' + Math.round(r.y * 100); const A = k(p), B = k(q); return A < B ? A + '|' + B : B + '|' + A; };
   const tabs = [];
@@ -3537,7 +4107,23 @@ function netDrawing(kind, g) {
     }
     return { edges, tabs, circles: [{ c: { x: U / 2, y: -r - 6 }, r }, { c: { x: U / 2, y: h + r + 6 }, r }] };
   }
-  const net = bodyNet(kind, g), F3 = foldNet(net, 1);
+  if (kind === 'cone') {
+    /* Mantel = Kreisausschnitt mit Radius s (Mantellinie) und Winkel 2πr/s,
+       Spitze oben; der Grundkreis berührt den Bogen unten */
+    const { r, h } = g, sl = Math.hypot(r, h), th = TAU * r / sl, a0 = Math.PI / 2 - th / 2, a1 = Math.PI / 2 + th / 2;
+    const A = { x: 0, y: 0 }, P = a => ({ x: sl * Math.cos(a), y: sl * Math.sin(a) });
+    edges.push({ a: A, b: P(a0), fold: false }, { a: A, b: P(a1), fold: true });
+    tab(A, P(a1), (() => { const m = (a1 + Math.PI / 2); return { x: Math.cos(m), y: Math.sin(m) }; })(), 7);
+    /* Kleine Laschen am Bogen, die an den Grundkreis geklebt werden */
+    const nT = Math.max(6, Math.round(th * sl / 12)), d = Math.min(5, r * 0.25);
+    for (let k = 0; k < nT; k++) {
+      const u0 = a0 + (k + 0.12) / nT * th, u1 = a0 + (k + 0.88) / nT * th;
+      const Q = (a, rr) => ({ x: rr * Math.cos(a), y: rr * Math.sin(a) });
+      tabs.push([Q(u0, sl), Q(u0 + 0.25 * (u1 - u0), sl + d)], [Q(u0 + 0.25 * (u1 - u0), sl + d), Q(u1 - 0.25 * (u1 - u0), sl + d)], [Q(u1 - 0.25 * (u1 - u0), sl + d), Q(u1, sl)]);
+    }
+    return { edges, tabs, circles: [{ c: { x: 0, y: sl + r + d + 3 }, r }], arcs: [{ c: A, r: sl, a0, sweep: th }] };
+  }
+  const net = bodyNet(kind, g, variant), F3 = foldNet(net, 1);
   const hingeKeys = new Set();
   net.faces.forEach(f => { if (f.parent >= 0) hingeKeys.add(key2(f.pts[f.hinge[0]], f.pts[f.hinge[1]])); });
   const seen = new Set(), boundary = [];
@@ -3545,10 +4131,13 @@ function netDrawing(kind, g) {
     const q = f.pts[(i + 1) % f.pts.length], k = key2(p, q);
     if (seen.has(k)) return;
     seen.add(k);
-    if (hingeKeys.has(k)) { edges.push({ a: p, b: q, fold: true }); return; }
+    if (hingeKeys.has(k)) { if (!net.smooth) edges.push({ a: p, b: q, fold: true }); return; }
     const e = { a: p, b: q, fold: false, face: fi, p3: F3[fi][i], q3: F3[fi][(i + 1) % f.pts.length] };
     edges.push(e); boundary.push(e);
   }));
+  /* Kugel: nur die Umrisse der Schalen – Laschen an hundert kleinen Kanten
+     hülfen beim Basteln nicht; das Netz ist ohnehin nur angenähert */
+  if (kind === 'sphere') return { edges: edges.map(e => ({ a: e.a, b: e.b, fold: false })), tabs: [], circles: [], approx: true };
   /* Randkanten paaren, die im Körper zusammenfallen (Abstand statt Rundung:
      gerundete Schlüssel kippen an Rundungsgrenzen auseinander) */
   const same3 = (p, q) => vLen(vSub(p, q)) < 0.01;
@@ -3575,8 +4164,9 @@ function netDrawing(kind, g) {
    Außennormale gegen d zeigt. Kante verdeckt, wenn alle Nachbarflächen
    abgewandt sind. Zeichnung in Blattkoordinaten (y nach unten). */
 const OBL = { k: 0.5, phi: Math.PI / 4 };
-function obliqueDrawing(kind, g) {
-  const F = bodyFaces(kind, g);
+function obliqueDrawing(kind, g, variant) {
+  const F = bodyFaces(kind, g, variant);
+  const sm = kind === 'cylinder' ? (i => i < F.length - 2) : (() => { const a = bodySmooth(kind, F.length); return a ? (i => a[i] >= 0) : null; })();
   const all = [].concat(...F), C = vMul(all.reduce((s, p) => vAdd(s, p), v3(0, 0, 0)), 1 / all.length);
   const d = v3(-OBL.k * Math.cos(OBL.phi), 1, -OBL.k * Math.sin(OBL.phi));
   const proj = p => ({ x: p.x + OBL.k * p.y * Math.cos(OBL.phi), y: -(p.z + OBL.k * p.y * Math.sin(OBL.phi)) });
@@ -3595,8 +4185,9 @@ function obliqueDrawing(kind, g) {
   }));
   const out = [];
   for (const e of edges.values()) {
-    /* Zylinder: Mantellinien zwischen zwei Mantelstücken nur als Umriss zeichnen */
-    if (kind === 'cylinder' && e.faces.length === 2 && e.faces.every(i => i < F.length - 2)) {
+    /* Gekrümmte Flächen (Zylinder, Kegel, Kugel): Kanten zwischen zwei Stücken
+       derselben Fläche nur als Umriss zeichnen */
+    if (sm && e.faces.length === 2 && e.faces.every(sm)) {
       if (vis[e.faces[0]] === vis[e.faces[1]]) continue;
     }
     out.push({ a: proj(e.p), b: proj(e.q), hidden: !e.faces.some(i => vis[i]) });
@@ -3607,16 +4198,17 @@ function obliqueDrawing(kind, g) {
 /* Objekte fürs Blatt: Netz zum Ausschneiden bzw. Schrägbild.
    Schneidekanten durchgezogen, Faltlinien und verdeckte Kanten gestrichelt,
    Klebelaschen dünn und grau. Oben links beginnt die Zeichnung bei (0|0). */
-function bodySheetObjects(kind, g, mode) {
+function bodySheetObjects(kind, g, mode, variant) {
   const INK = '#3b3f45', SOFT = '#8a8f98', out = [];
   const seg = (a, b, opt) => out.push(Object.assign({ type: 'segment', x1: a.x, y1: a.y, x2: b.x, y2: b.y, c: INK, w: 0.4, al: 1 }, opt || {}));
   if (mode === 'net') {
-    const nd = netDrawing(kind, g);
+    const nd = netDrawing(kind, g, variant);
     nd.edges.forEach(e => seg(e.a, e.b, e.fold ? { d: 1, c: SOFT, w: 0.3 } : null));
     nd.tabs.forEach(([a, b]) => seg(a, b, { c: SOFT, w: 0.3 }));
     nd.circles.forEach(ci => out.push({ type: 'arc', cx: ci.c.x, cy: ci.c.y, r: ci.r, a0: 0, sweep: TAU, c: INK, w: 0.4, al: 1 }));
+    (nd.arcs || []).forEach(ar => out.push({ type: 'arc', cx: ar.c.x, cy: ar.c.y, r: ar.r, a0: ar.a0, sweep: ar.sweep, c: INK, w: 0.4, al: 1 }));
   } else {
-    obliqueDrawing(kind, g).forEach(e => seg(e.a, e.b, e.hidden ? { d: 1, w: 0.3 } : { w: 0.5 }));
+    obliqueDrawing(kind, g, variant).forEach(e => seg(e.a, e.b, e.hidden ? { d: 1, w: 0.3 } : { w: 0.5 }));
   }
   const b = boundsOf(out);
   if (!b) return out;
@@ -3836,6 +4428,32 @@ class PdfCanvas {
     this.out.push(ops + 'ET Q');
   }
   clip(x, y, w, h) { this.out.push(pdfNum(this.X(x)) + ' ' + pdfNum(this.Y(y + h)) + ' ' + pdfNum(w * this.map.s * PDF_PT) + ' ' + pdfNum(h * this.map.s * PDF_PT) + ' re W n'); }
+  /* Bild (Objekt vom Typ image): ganzes JPEG an seine Stelle, auf den
+     sichtbaren Ausschnitt beschnitten. Gleiche Bilder nur einmal in der Datei. */
+  get isPdf() { return true; }
+  imageObj(o) {
+    const im = pdfImage(this.res, o.src);
+    if (!im) return;
+    const r = imgRect(o), S = this.map.s * PDF_PT;
+    const clip = pdfNum(this.X(r.x0)) + ' ' + pdfNum(this.Y(r.y1)) + ' ' + pdfNum((r.x1 - r.x0) * S) + ' ' + pdfNum((r.y1 - r.y0) * S) + ' re W n ';
+    const cm = pdfNum(o.w * S) + ' 0 0 ' + pdfNum(o.h * S) + ' ' + pdfNum(this.X(o.x)) + ' ' + pdfNum(this.Y(o.y + o.h)) + ' cm ';
+    this.out.push('q ' + this.gs() + clip + cm + '/' + im.key + ' Do Q');
+  }
+}
+const HEX2 = Array.from({ length: 256 }, (_, i) => (i < 16 ? '0' : '') + i.toString(16).toUpperCase());
+function pdfImage(res, src) {
+  if (!res.img) res.img = new Map();
+  if (res.img.has(src)) return res.img.get(src);
+  let im = null;
+  const info = jpegFromDataUrl(src);
+  if (info) {
+    const b = b64Bytes(src.slice(JPEG_PREFIX.length));
+    const parts = [];
+    for (let i = 0; i < b.length; i += 4096) { let c = ''; const e = Math.min(b.length, i + 4096); for (let j = i; j < e; j++) c += HEX2[b[j]]; parts.push(c); }
+    im = { key: 'Im' + (res.img.size + 1), w: info.w, h: info.h, nc: info.nc, hex: parts.join('\n') + '>' };
+  }
+  res.img.set(src, im);
+  return im;
 }
 function pdfNum3(r, g, b) { return pdfNum3.f(r) + ' ' + pdfNum3.f(g) + ' ' + pdfNum3.f(b); }
 pdfNum3.f = v => (Math.round(v * 1000) / 1000).toString();
@@ -3975,8 +4593,12 @@ function pdfBuild(pages, res, meta) {
   const f2 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
   const f3 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>');
   const gsKeys = Object.keys(res.gs);
+  /* Bilder: JPEG unverändert (DCTDecode), als Hex verpackt – die Datei bleibt ASCII */
+  const xo = (res.img ? [...res.img.values()].filter(Boolean) : []).map(im => '/' + im.key + ' ' + add('<< /Type /XObject /Subtype /Image /Width ' + im.w + ' /Height ' + im.h +
+    ' /ColorSpace /Device' + (im.nc === 1 ? 'Gray' : 'RGB') + ' /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ' + im.hex.length + ' >>\nstream\n' + im.hex + '\nendstream') + ' 0 R');
   const resources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R >>' +
-    (gsKeys.length ? ' /ExtGState << ' + gsKeys.map(k => '/' + k + ' ' + res.gs[k]).join(' ') + ' >>' : '') + ' >>';
+    (gsKeys.length ? ' /ExtGState << ' + gsKeys.map(k => '/' + k + ' ' + res.gs[k]).join(' ') + ' >>' : '') +
+    (xo.length ? ' /XObject << ' + xo.join(' ') + ' >>' : '') + ' >>';
   const kids = [];
   for (const p of pages) {
     const content = add('<< /Length ' + p.content.length + ' >>\nstream\n' + p.content + '\nendstream');
@@ -4390,7 +5012,7 @@ function linkKey(url) {
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.10.1';
+const APP_VERSION = '0.10.2';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -4422,7 +5044,7 @@ const DEFAULTS = {
   lang: null, theme: 'auto', paper: 'grid', pointStyle: 'cross', snap: true,
   penOnly: 'auto', penSeen: false, toolbarSide: 'left', ppm: null,
   tool: 'pencil', pencilC: '#3b3f45', pencilW: 0.5, markerC: '#ffd400',
-  lastDoc: null, helpSeen: false, calibHint: false, studentName: '', speakSteps: false, fingerHint: false
+  lastDoc: null, helpSeen: false, calibHint: false, studentName: '', speakSteps: false, fingerHint: false, lastBackup: 0
 };
 const ENUMS = {
   theme: ['auto', 'light', 'dark'], paper: ['grid', 'blank'], pointStyle: ['cross', 'dot'],
@@ -4445,6 +5067,7 @@ function loadSettings() {
     else if (k === 'pencilW') s[k] = PENCIL_WIDTHS.includes(v) ? v : DEFAULTS.pencilW;
     else if (k === 'lastDoc') s[k] = typeof v === 'string' ? v : null;
     else if (k === 'studentName') s[k] = cleanStr(v, 30);
+    else if (k === 'lastBackup') s[k] = cleanNum(v, 0, 1e14, 0);
   }
   return s;
 }
@@ -4520,6 +5143,10 @@ const ICONS = {
   lab: '<path d="M3 19.5h18L12 4z"/><path d="m8.6 14.2 2.4 2.4 4.4-4.8"/>',
   dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>',
   warn: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>',
+  expand: '<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-7 7"/><path d="m4 20 7-7"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9.5" r="1.8"/><path d="m21 16-5.5-5.5L5 20"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  backup: '<path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-1 7.9"/><path d="M12 12v8"/><path d="m9 15 3-3 3 3"/>',
   inbox: '<path d="M3 13h5l1.5 3h5l1.5-3h5"/><path d="M5.5 5h13L21 13v6H3v-6z"/>',
   speaker: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
   video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
@@ -4776,7 +5403,7 @@ function renderBase() {
   drawGrid(ctx);
   if (!doc) return;
   worldTransform(ctx);
-  if (PB.on) { const vis = pbVisibleIds(); drawObjects(ctx, visibleObjects(doc.objects.filter(o => vis.has(o.id))), sc(), null); }
+  if (PB.on) { const vis = pbVisibleIds(); drawObjects(ctx, visibleObjects(doc.objects.filter(o => vis.has(o.id) || o.type === 'image')), sc(), null); }
   else drawObjects(ctx, visibleObjects(doc.objects), sc(), null);
 }
 
@@ -4813,8 +5440,11 @@ function drawObjects(ctx, objects, k, highlightIds) {
   const minW = 1 / k;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  /* Bilder ganz unten – wie ein eingeklebter Zettel unter der Zeichnung */
+  for (const o of objects) if (o.type === 'image') drawObject(ctx, o, k, minW, false);
   for (const pass of [0, 1]) {
     for (const o of objects) {
+      if (o.type === 'image') continue;
       const translucent = (o.al || 1) < 1;
       if ((pass === 0) !== translucent) continue;
       drawObject(ctx, o, k, minW, highlightIds && highlightIds.has(o.id));
@@ -4856,6 +5486,17 @@ function drawObject(ctx, o, k, minW, hl) {
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText(o.text, o.x, o.y);
       break;
+    case 'image': {
+      ctx.globalCompositeOperation = 'source-over';
+      if (ctx.isPdf) { ctx.imageObj(o); break; }
+      const r = imgRect(o), im = imageFor(o.src);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); ctx.clip();
+      if (im) ctx.drawImage(im, o.x, o.y, o.w, o.h);
+      else { ctx.fillStyle = '#eceef1'; ctx.fillRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); }   /* lädt noch */
+      ctx.restore();
+      break;
+    }
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -4921,6 +5562,9 @@ function renderOver() {
   if (hintGhost && hintGhost.doc === doc.id) drawHintGhost(ctx, hintGhost.objs, k);
   if (G && G.snapShow) drawSnapMark(ctx, G.snapShow, k);
   if (G && G.ptype === 'touch' && (G.kind === 'pmove' || (G.kind === 'point' && G.pos && G.moved))) drawLoupe(ctx, G.kind === 'pmove' ? G.to : G.pos);
+  if (G && G.ptype === 'touch' && G.kind === 'tmove' && G.moved) drawLoupe(ctx, G.cur);
+  const si = selImage();
+  if (si) drawImageFrame(ctx, si, k);
 }
 
 /* Lupe beim Setzen und Verschieben mit dem Finger: Der Finger verdeckt genau
@@ -5332,6 +5976,15 @@ function startGesture(e, p) {
   /* Wiedergabe: nur verschieben und zoomen, nichts verändern. */
   if (PB.on) return beginPan(base, p);
 
+  /* Ausgewähltes Bild: Ecken skalieren, Kanten schneiden zu, innen verschieben.
+     Ein Tipp daneben beendet die Bearbeitung (und verschiebt höchstens das Blatt). */
+  if (imgSel) {
+    const o = selImage(), h = o && imageHandleAt(o, p, ptype);
+    if (h) return beginImgEdit(base, o, h, w);
+    deselectImage();
+    return beginPan(base, p);
+  }
+
   const ch = hitCompass(w, ptype);
   if (ch) return beginCompass(base, ch, w);
 
@@ -5358,7 +6011,12 @@ function startGesture(e, p) {
     case 'pencil': case 'marker': return beginDraw(base, w);
     case 'eraser': return beginErase(base, w);
     case 'point': return beginPoint(base, w, null);
-    case 'text': G = Object.assign(base, { kind: 'text', w }); return;
+    case 'text': {
+      /* Vorhandenen Text greifen: ziehen verschiebt, antippen bearbeitet */
+      const hit = topObjectAt(doc.objects, w.x, w.y, mm(8), ['text']);
+      G = Object.assign(base, hit ? { kind: 'tmove', o: hit, offX: hit.x - w.x, offY: hit.y - w.y, cur: w } : { kind: 'text', w });
+      return;
+    }
   }
 }
 
@@ -5462,6 +6120,8 @@ function moveGesture(p) {
     case 'edge': moveEdge(w); break;
     case 'erase': moveErase(w); break;
     case 'label': moveLabel(w); break;
+    case 'tmove': moveText(w); break;
+    case 'img': moveImgEdit(w); break;
     case 'point':
       if (G.moved && G.holdTimer) { clearTimeout(G.holdTimer); G.holdTimer = null; }
       G.pos = pointPos(w, G); G.snapShow = G.pos.kind !== 'free' ? G.pos : null; break;
@@ -5484,7 +6144,12 @@ function endGesture(p) {
     case 'point': clearTimeout(g.holdTimer); finishPoint(g); break;
     case 'pmove': finishPointMove(g); break;
     case 'text': if (!g.moved) textTap(g.w); break;
-    case 'pan': if (!g.moved && g.tapTool) fingerTap(g); break;
+    case 'tmove': finishTextMove(g); break;
+    case 'pan':
+      if (!g.moved && g.tapTool) fingerTap(g);
+      else if (!g.moved && S.tool === 'hand' && !PB.on) { const im = imageAt(s2w(g.start.x, g.start.y)); if (im) selectImage(im.id); }
+      break;
+    case 'img': finishImgEdit(g); break;
     case 'label': finishLabel(g); break;
     case 'move': case 'rot1': lastTouched[g.inst] = performance.now(); scheduleSave(false); break;
     case 'cneedle': case 'clead': scheduleSave(false); break;
@@ -5502,8 +6167,8 @@ function cancelGesture() {
   if (G && G.kind === 'point') clearTimeout(G.holdTimer);
   /* Live verschobene Beschriftung bzw. Punkt zurücklegen – und als geändert
      melden, falls zwischendurch (App im Hintergrund) gespeichert wurde */
-  if (G && (G.kind === 'label' || G.kind === 'pmove')) {
-    if (G.kind === 'label') restoreLabel(G); else restorePointMove(G);
+  if (G && (G.kind === 'label' || G.kind === 'pmove' || G.kind === 'tmove' || G.kind === 'img')) {
+    if (G.kind === 'pmove') restorePointMove(G); else restoreLabel(G);
     G = null; contentChanged(); return;
   }
   G = null;
@@ -5521,6 +6186,160 @@ function fingerTap(g) {
   }
   /* Einmal erklären, warum der Finger nicht zeichnet – sonst wirkt es wie ein Fehler */
   if (!S.fingerHint) { S.fingerHint = true; saveSettings(); notify(t('msgFingerPans')); }
+}
+
+/* ---------- Bilder ---------- */
+/* Einfügen: Foto oder Datei (iOS bietet Fotos, Kamera und Dateien an), auf
+   höchstens IMG.maxPx verkleinert und als JPEG gespeichert. Bearbeiten: mit der
+   Hand antippen → Rahmen; Ecken = Größe, Kanten = zuschneiden, innen = schieben.
+   „Fertig" heftet es fest – danach reagiert es auf nichts mehr außer der Hand. */
+const imgCache = new Map();
+function imageFor(src) {
+  let e = imgCache.get(src);
+  if (!e) {
+    if (imgCache.size > 60) imgCache.clear();
+    const im = new Image();
+    e = { im, ok: false };
+    im.onload = () => { e.ok = true; requestRender(true); };
+    im.src = src;
+    imgCache.set(src, e);
+  }
+  return e.ok ? e.im : null;
+}
+let imgSel = null;
+function selImage() { if (!imgSel || !doc) return null; const o = doc.objects.find(x => x.id === imgSel); if (!o) { imgSel = null; updateImgBar(); } return o || null; }
+function imageAt(w) {
+  for (let i = doc.objects.length - 1; i >= 0; i--) {
+    const o = doc.objects[i];
+    if (o.type === 'image' && objectDistance(o, w.x, w.y) === 0) return o;
+  }
+  return null;
+}
+function selectImage(id) { imgSel = id; updateImgBar(); requestRender(false); }
+function deselectImage() { if (!imgSel) return; imgSel = null; updateImgBar(); requestRender(false); }
+function updateImgBar() {
+  const bar = document.getElementById('imgBar');
+  const o = imgSel && doc ? doc.objects.find(x => x.id === imgSel) : null;
+  bar.hidden = !o;
+  if (o) { const f = document.getElementById('imgFade'); f.classList.toggle('on', o.al < 1); f.setAttribute('aria-pressed', o.al < 1 ? 'true' : 'false'); }
+}
+function toggleImageFade() { const o = selImage(); if (o) { modifyObject(o, { al: o.al < 1 ? 1 : 0.45 }); updateImgBar(); } }
+function deleteSelectedImage() { const o = selImage(); if (o) { deleteObjects([o]); deselectImage(); } }
+function insertImage() {
+  if (!doc || PB.on) return;
+  if (doc.objects.filter(o => o.type === 'image').length >= IMG.maxPerDoc) { notify(t('msgImgTooMany', { n: IMG.maxPerDoc }), true); return; }
+  const inp = document.getElementById('imageInput');
+  inp.value = '';
+  inp.click();
+}
+/* Datei → verkleinertes JPEG. Transparenz wird weiß (wie Papier). */
+function shrinkImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const nw = im.naturalWidth, nh = im.naturalHeight;
+      if (!nw || !nh) return reject(new Error('empty'));
+      const s = Math.min(1, IMG.maxPx / Math.max(nw, nh));
+      const w = Math.max(1, Math.round(nw * s)), h = Math.max(1, Math.round(nh * s));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const c = cv.getContext('2d');
+      c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h);
+      c.drawImage(im, 0, 0, w, h);
+      let q = 0.85, src = cv.toDataURL('image/jpeg', q);
+      while (src.length > IMG.maxChars * 0.8 && q > 0.4) { q -= 0.15; src = cv.toDataURL('image/jpeg', q); }
+      const info = jpegFromDataUrl(src);
+      if (!info) return reject(new Error('jpeg'));
+      resolve({ src, pw: info.w, ph: info.h });
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    im.src = url;
+  });
+}
+async function onImageFile(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file || !doc) return;
+  if (file.size > 60 * 1024 * 1024) { notify(t('msgImgFailed'), true); return; }
+  let r;
+  try { r = await shrinkImage(file); } catch (e) { notify(t('msgImgFailed'), true); return; }
+  /* Gut sichtbar mitten in den aktuellen Ausschnitt, höchstens 70 % davon */
+  const c = viewCenter(), f = Math.min(0.7 * mm(stageW) / r.pw, 0.7 * mm(stageH) / r.ph);
+  const w = r.pw * f, h = r.ph * f;
+  if (!addObjects([{ type: 'image', x: c.x - w / 2, y: c.y - h / 2, w, h, cr: [0, 0, 1, 1], src: r.src, pw: r.pw, ph: r.ph, al: 1 }])) return;
+  selectImage(doc.objects[doc.objects.length - 1].id);
+  notify(t('msgImgHint'));
+}
+/* Griffe in Bildschirmpunkten, damit sie bei jedem Zoom gleich gut zu treffen sind */
+function imageHandleAt(o, p, ptype) {
+  const r = imgRect(o), a = w2s(r.x0, r.y0), b = w2s(r.x1, r.y1), R = ptype === 'touch' ? 26 : 18;
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  for (const [x, y, c] of [[a.x, a.y, 'nw'], [b.x, a.y, 'ne'], [b.x, b.y, 'se'], [a.x, b.y, 'sw']]) if (dist(p.x, p.y, x, y) <= R) return { k: 'scale', c };
+  for (const [x, y, e] of [[mx, a.y, 'n'], [b.x, my, 'e'], [mx, b.y, 's'], [a.x, my, 'w']]) if (dist(p.x, p.y, x, y) <= R) return { k: 'crop', e };
+  if (p.x >= a.x && p.x <= b.x && p.y >= a.y && p.y <= b.y) return { k: 'move' };
+  return null;
+}
+function beginImgEdit(base, o, h, w) { G = Object.assign(base, { kind: 'img', o, h, w0: w }); }
+function imgEditResult(o, h, w0, w) {
+  if (h.k === 'move') return { x: o.x + w.x - w0.x, y: o.y + w.y - w0.y };
+  const cr = o.cr.slice(), m = IMG.minCrop;
+  if (h.k === 'crop') {
+    const fx = (w.x - o.x) / o.w, fy = (w.y - o.y) / o.h;
+    if (h.e === 'w') cr[0] = clamp(fx, 0, cr[2] - m);
+    if (h.e === 'e') cr[2] = clamp(fx, cr[0] + m, 1);
+    if (h.e === 'n') cr[1] = clamp(fy, 0, cr[3] - m);
+    if (h.e === 's') cr[3] = clamp(fy, cr[1] + m, 1);
+    return { cr };
+  }
+  /* Größe: die gegenüberliegende Ecke bleibt stehen, Seitenverhältnis bleibt */
+  const r = imgRect(o), rw = r.x1 - r.x0, rh = r.y1 - r.y0;
+  const ax = h.c.includes('w') ? r.x1 : r.x0, ay = h.c.includes('n') ? r.y1 : r.y0;
+  let f = Math.max(Math.abs(w.x - ax) / rw, Math.abs(w.y - ay) / rh);
+  f = clamp(f, 5 / Math.min(rw, rh), IMG.maxMm / Math.max(o.w, o.h));
+  return { x: ax + (o.x - ax) * f, y: ay + (o.y - ay) * f, w: o.w * f, h: o.h * f };
+}
+function moveImgEdit(w) {
+  if (!G.moved) return;
+  const i = indexById(doc.objects, G.o.id);
+  if (i >= 0) { doc.objects[i] = Object.assign({}, G.o, imgEditResult(G.o, G.h, G.w0, w)); G.last = w; requestRender(true); }
+}
+function finishImgEdit(g) {
+  restoreLabel(g);
+  if (!g.moved || !g.last) { requestRender(true); return; }
+  modifyObject(g.o, imgEditResult(g.o, g.h, g.w0, g.last));
+  updateImgBar();
+}
+function drawImageFrame(ctx, o, k) {
+  const r = imgRect(o), hs = 9 / k, bar = 14 / k;
+  ctx.save();
+  ctx.strokeStyle = '#2a6fdb'; ctx.lineWidth = 2 / k; ctx.setLineDash([6 / k, 4 / k]);
+  ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ffffff'; ctx.lineWidth = 2 / k;
+  const mx = (r.x0 + r.x1) / 2, my = (r.y0 + r.y1) / 2;
+  for (const [x, y] of [[r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]]) { ctx.fillRect(x - hs / 2 * 1.4, y - hs / 2 * 1.4, hs * 1.4, hs * 1.4); ctx.strokeRect(x - hs / 2 * 1.4, y - hs / 2 * 1.4, hs * 1.4, hs * 1.4); }
+  /* Kanten: Balken = zuschneiden */
+  ctx.lineWidth = 5 / k; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(mx - bar, r.y0); ctx.lineTo(mx + bar, r.y0); ctx.moveTo(mx - bar, r.y1); ctx.lineTo(mx + bar, r.y1);
+  ctx.moveTo(r.x0, my - bar); ctx.lineTo(r.x0, my + bar); ctx.moveTo(r.x1, my - bar); ctx.lineTo(r.x1, my + bar);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ---------- Text verschieben ---------- */
+/* Wie die Beschriftung: live im Blatt verschoben, beim Abheben ein Rückgängig-
+   Schritt. restoreLabel legt das Original zurück (gleiche Kennung). */
+function moveText(w) {
+  if (!G.moved) return;
+  G.cur = w;
+  const i = indexById(doc.objects, G.o.id);
+  if (i >= 0) { doc.objects[i] = Object.assign({}, G.o, { x: w.x + G.offX, y: w.y + G.offY }); requestRender(true); }
+}
+function finishTextMove(g) {
+  const i = indexById(doc.objects, g.o.id), now = i >= 0 ? doc.objects[i] : null;
+  restoreLabel(g);
+  if (!g.moved) { editText(g.o); return; }
+  if (now && dist(now.x, now.y, g.o.x, g.o.y) > 0.05) modifyObject(g.o, { x: now.x, y: now.y });
 }
 
 /* ---------- Beschriftung ziehen ---------- */
@@ -6129,6 +6948,7 @@ function undo() { if (G || PB.on) return; if (hist.undo(doc.objects)) contentCha
 function redo() { if (G || PB.on) return; if (hist.redo(doc.objects)) contentChanged(); }
 function contentChanged() {
   snapCache = null;
+  if (imgSel) updateImgBar();
   if (hintGhost) { hintGhost = null; requestRender(false); }
   stepsCache = null;
   if (protoOpen()) scheduleProtoRender();
@@ -6240,6 +7060,7 @@ async function loadDoc(d) {
   doc = d;
   hist.clear();
   snapCache = null;
+  imgSel = null; updateImgBar();
   contentDirty = false;
   G = null; ptrs.clear();
   setViewCenter(d.view.cx, d.view.cy, d.view.zoom);
@@ -6256,8 +7077,9 @@ async function loadDoc(d) {
 
 function isPhone() { return Math.min(screen.width, screen.height) < 600; }
 function startZoom() { return isPhone() ? 0.5 : 1; }
-async function createSheet(name) {
+async function createSheet(name, folder) {
   const d = newDoc(uid(), name, Date.now());
+  d.folder = cleanFolder(folder);
   /* Neues Blatt beginnt in echter Größe – auf dem Handy halb so groß,
      sonst passt kaum ein Dreieck auf den Bildschirm. */
   d.view = { cx: 0, cy: 0, zoom: startZoom() };
@@ -6273,7 +7095,7 @@ async function newSheet() {
   const names = new Set(all.map(d => d.name));
   let n = all.length + 1;
   while (names.has(t('defaultSheetName', { n }))) n++;
-  const d = await createSheet(t('defaultSheetName', { n }));
+  const d = await createSheet(t('defaultSheetName', { n }), sheetFolder);
   await loadDoc(d);
   closePanel('sheetsPanel');
 }
@@ -6283,9 +7105,13 @@ async function openSheets() {
   openPanel('sheetsPanel');
   await renderSheetList();
 }
+let sheetFolder = '';   // gewählter Ordner in „Meine Blätter" ('' = alle)
 async function renderSheetList() {
   const list = document.getElementById('sheetList');
-  const all = (await dbAll()).sort((a, b) => b.modified - a.modified);
+  const every = (await dbAll()).sort((a, b) => b.modified - a.modified);
+  renderFolderBar(every);
+  renderBackupInfo(every.length);
+  const all = sheetFolder ? every.filter(d => sameFolder(d.folder, sheetFolder)) : every;
   list.textContent = '';
   const fmt = new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
   for (const d of all) {
@@ -6302,6 +7128,7 @@ async function renderSheetList() {
     const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = sheetName(d);
     const dt = document.createElement('div'); dt.className = 'date'; dt.textContent = isNum(d.modified) ? fmt.format(new Date(d.modified)) : '';   /* kaputtes Datum darf die Liste nicht abbrechen */
     meta.append(nm, dt);
+    if (d.folder && !sheetFolder) { const fd = document.createElement('div'); fd.className = 'folder'; fd.textContent = '▸ ' + d.folder; meta.appendChild(fd); }
     open.append(img, meta);
     open.onclick = async () => {
       /* Das offene Blatt nicht neu laden – das löschte den Rückgängig-Verlauf */
@@ -6330,6 +7157,7 @@ async function sheetActions(id) {
     title: sheetName(d),
     buttons: [
       { label: t('btnRename'), value: 'rename' },
+      { label: t('btnToFolder'), value: 'folder' },
       { label: t('btnDuplicate'), value: 'dup' },
       { label: t('btnExport'), value: 'export' },
       { label: t('btnPdf'), value: 'pdf' },
@@ -6339,6 +7167,7 @@ async function sheetActions(id) {
     ]
   });
   if (a === 'rename') await renameSheet(d);
+  else if (a === 'folder') await moveSheetToFolder(d);
   else if (a === 'dup') await duplicateSheet(d);
   else if (a === 'export') exportSheet(d);
   else if (a === 'pdf') await openPdfExport(d);
@@ -6401,6 +7230,147 @@ function exportSheet(d) {
   deliverFile(safeFileBase(sheetName(src)) + '.zirkelwerk', new Blob([json], { type: 'application/json' }));
 }
 
+/* ---------- Sicherung aller Blätter ---------- */
+const BACKUP_DUE_DAYS = 30;
+function renderBackupInfo(count) {
+  const el = document.getElementById('backupInfo');
+  if (!el) return;
+  const last = S.lastBackup;
+  const due = count >= 3 && (!last || Date.now() - last > BACKUP_DUE_DAYS * 864e5);
+  el.textContent = last
+    ? t('backupLast', { date: new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium' }).format(new Date(last)) })
+    : t('backupNever');
+  el.classList.toggle('due', due);
+}
+async function openBackup() {
+  const a = await openDialog({
+    title: t('backupTitle'), message: t('backupMsg'), menu: true,
+    buttons: [
+      { label: t('btnBackupAll'), value: 'save', icon: 'backup', kind: 'primary' },
+      { label: t('btnRestoreBackup'), value: 'restore', icon: 'import' },
+      { label: t('btnCancel'), value: null }
+    ]
+  });
+  if (a === 'save') await backupAll();
+  else if (a === 'restore') importSheet();
+}
+async function backupAll() {
+  await saveNow();
+  const docs = await dbAll();
+  const data = makeBackup(docs, loadResults(), { app: APP_VERSION, created: Date.now() });
+  const day = new Date().toISOString().slice(0, 10);
+  deliverFile('Zirkelwerk-' + (lang === 'de' ? 'Sicherung' : 'backup') + '-' + day + '.zirkelwerk', new Blob([JSON.stringify(data)], { type: 'application/json' }), ok => {
+    if (!ok) return;
+    S.lastBackup = Date.now(); saveSettings();
+    renderBackupInfo(docs.length);
+    notify(t('msgBackupDone', { n: docs.length }));
+  });
+}
+async function restoreBackup(raw) {
+  let r;
+  try { r = readBackup(raw); }
+  catch (e) { notify(e.message === 'version' ? t('msgImportNewer') : t('msgImportInvalid'), true); return; }
+  await saveNow();
+  const existing = new Map((await dbAll()).map(d => [d.id, d.modified]));
+  const plan = planRestore(existing, r.docs);
+  const nNew = plan.add.length + plan.copy.length;
+  const cur = loadResults(), merged = mergeResults(cur, r.results, RESULTS_MAX);
+  if (!nNew && !merged.added) { notify(t('msgRestoreNothing', { n: plan.same }), false); return; }
+  const ok = await openDialog({
+    title: t('restoreTitle'),
+    message: t('restoreMsg', { n: nNew, r: merged.added, same: plan.same, copy: plan.copy.length }) + (r.bad ? '\n' + t('restoreBad', { n: r.bad }) : ''),
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnRestoreGo'), value: 'ok', kind: 'primary' }]
+  });
+  if (ok !== 'ok') return;
+  let done = 0;
+  try {
+    for (const d of plan.add.concat(plan.copy)) {
+      const isCopy = plan.copy.includes(d);
+      if (!d.keepId || isCopy) d.id = uid();
+      if (isCopy) d.name = t('restoredCopy', { name: sheetName(d) }).slice(0, LIMITS.name);
+      delete d.keepId;
+      try { d.thumb = makeThumb(d); } catch (e) { d.thumb = null; }
+      await dbPut(d);
+      done++;
+    }
+  } catch (e) { notify(t('msgSaveFailed'), true); }
+  if (merged.added) saveResults(merged.list);
+  await renderSheetList();
+  notify(t('msgBackupRestored', { n: done, r: merged.added }));
+}
+
+/* ---------- Ordner ---------- */
+function renderFolderBar(docs) {
+  const bar = document.getElementById('folderBar');
+  const folders = folderList(docs);
+  if (sheetFolder && !folders.some(f => sameFolder(f, sheetFolder))) sheetFolder = '';
+  bar.hidden = !folders.length;
+  bar.textContent = '';
+  if (!folders.length) return;
+  const chip = (label, f, icon) => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (sameFolder(f, sheetFolder) ? ' sel' : '');
+    b.setAttribute('aria-pressed', sameFolder(f, sheetFolder) ? 'true' : 'false');
+    if (icon) b.innerHTML = iconSvg(icon);
+    const sp = document.createElement('span'); sp.textContent = label; b.appendChild(sp);
+    b.onclick = () => { sheetFolder = f; renderSheetList(); };
+    return b;
+  };
+  bar.appendChild(chip(t('folderAll'), '', null));
+  for (const f of folders) bar.appendChild(chip(f, f, 'folder'));
+  if (sheetFolder) {
+    const m = document.createElement('button');
+    m.className = 'btn'; m.textContent = '⋯';
+    m.setAttribute('aria-label', t('ariaFolderActions'));
+    m.onclick = () => folderActions(sheetFolder);
+    bar.appendChild(m);
+  }
+}
+async function askFolderName(title, value) {
+  const v = await openDialog({ title, input: { value: value || '', placeholder: t('phFolder'), maxLength: FOLDER_MAX },
+    buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnOk'), value: 'ok', kind: 'primary' }] });
+  return v === null ? null : cleanFolder(v);
+}
+/* Ordner eines Blatts setzen, ohne „zuletzt geändert" zu verschieben */
+async function setSheetFolder(d, folder) {
+  /* Offenes Blatt: im Speicher ändern und regulär sichern – sonst überschriebe
+     der nächste Speicherlauf den Ordner wieder mit dem alten Stand */
+  if (doc && d.id === doc.id) { doc.folder = folder; await saveNow(); return; }
+  const fresh = await dbGet(d.id);
+  if (fresh) { fresh.folder = folder; await dbPut(fresh); }
+}
+async function moveSheetToFolder(d) {
+  const folders = folderList(await dbAll()).filter(f => !sameFolder(f, d.folder));
+  const buttons = folders.map(f => ({ label: f, value: 'f:' + f, icon: 'folder' }));
+  buttons.push({ label: t('btnNewFolder'), value: 'new', icon: 'plus' });
+  if (d.folder) buttons.push({ label: t('btnNoFolder'), value: 'none' });
+  buttons.push({ label: t('btnCancel'), value: null });
+  const a = await openDialog({ title: t('dlgFolderTitle', { name: sheetName(d) }), menu: true, buttons });
+  if (!a) return;
+  let target = '';
+  if (a === 'new') { const v = await askFolderName(t('btnNewFolder'), ''); if (!v) return; target = v; }
+  else if (a.startsWith('f:')) target = a.slice(2);
+  await setSheetFolder(d, target);
+}
+async function folderActions(f) {
+  const a = await openDialog({ title: f, menu: true, buttons: [
+    { label: t('btnRenameFolder'), value: 'rename' },
+    { label: t('btnDissolveFolder'), value: 'dissolve' },
+    { label: t('btnCancel'), value: null }] });
+  if (!a) return;
+  let target = '';
+  if (a === 'rename') { const v = await askFolderName(t('btnRenameFolder'), f); if (!v || v === f) return; target = v; }
+  else {
+    const ok = await openDialog({ title: t('btnDissolveFolder'), message: t('dlgDissolveMsg', { f }),
+      buttons: [{ label: t('btnCancel'), value: null }, { label: t('btnDissolveFolder'), value: 'ok', kind: 'primary' }] });
+    if (ok !== 'ok') return;
+  }
+  await saveNow();
+  for (const d of await dbAll()) if (sameFolder(d.folder, f)) await setSheetFolder(d, target);
+  sheetFolder = target;
+  await renderSheetList();
+}
+
 /* file.text() fehlt in älteren Android-WebViews (vor Chrome 76) */
 function readFileText(file) {
   if (file.text) return file.text();
@@ -6418,15 +7388,18 @@ function importSheet() {
 async function onImportFile(ev) {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
-  if (file.size > 25 * 1024 * 1024) { notify(t('msgImportTooLarge'), true); return; }
+  if (file.size > 150 * 1024 * 1024) { notify(t('msgImportTooLarge'), true); return; }
   let raw;
   try { raw = JSON.parse(await readFileText(file)); }
   catch (e) { notify(t('msgImportInvalid'), true); return; }
+  if (isBackup(raw)) return restoreBackup(raw);
+  if (file.size > 25 * 1024 * 1024) { notify(t('msgImportTooLarge'), true); return; }
   let d;
   try { d = sanitizeDoc(raw, uid(), Date.now()); }
   catch (e) { notify(e.message === 'version' ? t('msgImportNewer') : t('msgImportInvalid'), true); return; }
   if (!canAddSheet(await dbCount())) return showPaywall('sheets');
   if (!d.name) d.name = file.name.replace(/\.(zirkelwerk|json)$/i, '').slice(0, LIMITS.name);
+  if (!d.folder) d.folder = sheetFolder;   /* landet im gerade gewählten Ordner */
   d.thumb = makeThumb(d);
   await saveNow();
   await dbPut(d);
@@ -6448,7 +7421,8 @@ function iPadShareAnchor() {
      Ohne Angabe wirft UIKit eine Ausnahme und die App stürzt ab. */
   return Math.round(window.innerWidth / 2) + ',' + Math.round(window.innerHeight / 2) + ',0,0';
 }
-function deliverFile(filename, blob) {
+function deliverFile(filename, blob, onDone) {
+  const done = ok => { if (onDone) onDone(ok); };
   const sharer = window.plugins && window.plugins.socialsharing;
   if (window.cordova && sharer && sharer.shareWithOptions) {
     blobToDataUrl(blob).then(url => {
@@ -6456,7 +7430,7 @@ function deliverFile(filename, blob) {
          Teilen-Menü nur "file". */
       sharer.shareWithOptions(
         { subject: filename, files: ['df:' + filename + ';' + url], chooserTitle: filename, iPadPopupCoordinates: iPadShareAnchor() },
-        () => {},
+        r => done(!(r && r.completed === false)),
         err => { console.error('Teilen fehlgeschlagen:', err); notify(t('msgShareFailed'), true); }
       );
     }).catch(() => notify(t('msgExportFailed'), true));
@@ -6469,6 +7443,7 @@ function deliverFile(filename, blob) {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+    done(true);
   } catch (e) { notify(t('msgExportFailed'), true); }
 }
 
@@ -6787,7 +7762,7 @@ function refreshHelpUI() {
    der Reihe nach ins „⋯"-Menü. Gemessen statt geraten – Titel und Sprache
    ändern die Breiten. */
 const TOP_OVERFLOW = [['btnHelp', 'ariaHelp', 'help', () => openHelp()], ['btnSettings', 'ariaSettings', 'gear', () => openSettings()],
-  ['btnPdf', 'ariaPdf', 'pdf', () => openPdfExport()], ['zoomPM', null], ['btnProto', 'ariaProto', 'steps', () => toggleProto()],
+  ['btnPdf', 'ariaPdf', 'pdf', () => openPdfExport()], ['btnImage', 'ariaImage', 'image', () => insertImage()], ['zoomPM', null], ['btnProto', 'ariaProto', 'steps', () => toggleProto()],
   ['btnLab', 'ariaLab', 'lab', () => openLab()]];
 let topHidden = [];
 function topEls(id) { return id === 'zoomPM' ? ['btnZoomOut', 'btnZoomIn'].map(x => document.getElementById(x)) : [document.getElementById(id)]; }
@@ -7616,21 +8591,23 @@ function labGeoNew() { labState.geoGiven[labState.geoKind] = GEO_TASKS[labState.
 /* ---------- Körper und Netze (im Labor) ---------- */
 /* Eingaben in cm wie im Kongruenz-Labor; die Vorschau zeigt das Netz beim
    Falten (Regler 0 = Netz, 100 = Körper) und lässt sich mit dem Finger drehen. */
-const bodyState = { kind: 'cube', values: {}, fold: 1, yaw: -0.75, pitch: 0.5, anim: 0 };
+const bodyState = { kind: 'cube', values: {}, fold: 1, yaw: -0.75, pitch: 0.5, anim: 0, variant: 0, colors: false, zoom: 1, quiz: null };
 for (const k of BODY_KINDS) bodyState.values[k] = {};
 function bodyRead() {
-  const kind = bodyState.kind, g = {};
+  const kind = bodyState.kind, g = {}, ints = BODY_INT[kind] || {};
   for (const key of BODY_KEYS[kind]) {
     const n = parseNum(String(bodyState.values[kind][key] || ''));
     if (!isNum(n)) return null;
-    g[key] = Math.round(n * 100) / 10;
+    g[key] = ints[key] ? n : Math.round(n * 100) / 10;
   }
   return bodyValid(kind, g) ? g : null;
 }
 function bodyVals(kind, g) {
-  return listJoin(BODY_KEYS[kind].map(k => k + ' = ' + fmtCm(g[k], lang)));
+  const ints = BODY_INT[kind] || {};
+  return listJoin(BODY_KEYS[kind].map(k => k + ' = ' + (ints[k] ? String(g[k]) : fmtCm(g[k], lang))));
 }
-function bodySelect(kind) { if (BODY_KINDS.includes(kind)) { bodyStop(); bodyState.kind = kind; bodyRenderPanel(); } }
+function bodyVariant() { return bodyState.kind === 'cube' ? bodyState.variant : 0; }
+function bodySelect(kind) { if (BODY_KINDS.includes(kind)) { bodyStop(); bodyState.kind = kind; bodyState.quiz = null; bodyState.fold = 1; bodyRenderPanel(); } }
 function bodyRenderPanel() {
   const box = document.getElementById('labBodyKinds');
   if (!box.childElementCount) {
@@ -7639,64 +8616,195 @@ function bodyRenderPanel() {
       b.className = 'btn'; b.id = 'bodyKind_' + k; b.onclick = () => bodySelect(k);
       box.appendChild(b);
     }
-    const rng = document.getElementById('bodyFold');
-    rng.addEventListener('input', () => { bodyStop(); bodyState.fold = rng.value / 100; bodyDraw(); });
+    for (const id of ['bodyFold', 'bodyFoldBig']) {
+      const rng = document.getElementById(id);
+      rng.addEventListener('input', () => { bodyStop(); bodyState.fold = rng.value / 100; bodySyncFold(); bodyDraw(); });
+    }
     bodyAttachDrag(document.getElementById('bodyView'));
+    bodyAttachDrag(document.getElementById('bodyBig'));
   }
   const kind = bodyState.kind;
   for (const k of BODY_KINDS) { const b = document.getElementById('bodyKind_' + k); b.textContent = t('body_' + k); sel('bodyKind_' + k, k === kind); }
   document.getElementById('bodyDesc').textContent = t('bodyDesc_' + kind);
   const inputs = document.getElementById('labBodyInputs');
   inputs.textContent = '';
+  const ints = BODY_INT[kind] || {};
   for (const key of BODY_KEYS[kind]) {
     const row = document.createElement('label'); row.className = 'lab-row';
     const name = document.createElement('span'); name.className = 'lab-name'; name.textContent = key;
     const inp = document.createElement('input');
-    inp.type = 'text'; inp.inputMode = 'decimal'; inp.autocomplete = 'off'; inp.id = 'bodyIn_' + key;
+    inp.type = 'text'; inp.inputMode = ints[key] ? 'numeric' : 'decimal'; inp.autocomplete = 'off'; inp.id = 'bodyIn_' + key;
     /* Vorgabe erst hier formatieren – dann mit Komma bzw. Punkt der Sprache */
-    if (bodyState.values[kind][key] == null) { const v = BODY_DEFAULTS[kind][key] / 10; bodyState.values[kind][key] = fmtNum(v, Number.isInteger(v) ? 0 : 1, lang); }
+    if (bodyState.values[kind][key] == null) {
+      const v = ints[key] ? BODY_DEFAULTS[kind][key] : BODY_DEFAULTS[kind][key] / 10;
+      bodyState.values[kind][key] = ints[key] ? String(v) : fmtNum(v, Number.isInteger(v) ? 0 : 1, lang);
+    }
     inp.value = bodyState.values[kind][key];
     inp.addEventListener('input', () => { bodyState.values[kind][key] = inp.value; bodyUpdate(); });
-    const unit = document.createElement('span'); unit.className = 'lab-unit'; unit.textContent = 'cm';
+    const unit = document.createElement('span'); unit.className = 'lab-unit'; unit.textContent = ints[key] ? '' : 'cm';
     row.append(name, inp, unit); inputs.appendChild(row);
   }
+  bodyRenderNetPick();
   bodyUpdate();
 }
+/* Würfel: Auswahl unter den 11 Netzen */
+function bodyRenderNetPick() {
+  const box = document.getElementById('bodyNetPick'), cube = bodyState.kind === 'cube' && !bodyState.quiz;
+  box.hidden = !cube;
+  if (!cube) return;
+  const row = document.getElementById('bodyNetBtns');
+  if (!row.childElementCount) cubeNets().forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'btn net-pick'; b.id = 'bodyNet_' + i; b.textContent = String(i + 1);
+    b.setAttribute('aria-label', t('bodyNetPick') + ' ' + (i + 1));
+    b.onclick = () => { bodyStop(); bodyState.variant = i; bodyState.fold = 0; bodyRenderNetPick(); bodyUpdate(); bodyAnimate(); };
+    row.appendChild(b);
+  });
+  cubeNets().forEach((c, i) => { sel('bodyNet_' + i, i === bodyState.variant); document.getElementById('bodyNet_' + i).setAttribute('aria-pressed', i === bodyState.variant ? 'true' : 'false'); });
+}
 function bodyUpdate() {
-  const g = bodyRead(), kind = bodyState.kind, cyl = kind === 'cylinder';
+  const g = bodyRead(), kind = bodyState.kind, q = bodyState.quiz;
   const st = document.getElementById('bodyStatus');
-  st.hidden = !!g && !cyl;
+  const note = g && kind === 'sphere' ? t('bodySphereNote') : '';
+  st.hidden = !!g && !note;
   st.className = 'lab-status ' + (g ? 'warn' : 'err');
-  st.textContent = !g ? t('bodyInvalid') : cyl ? t('bodyCylNoFold') : '';
-  document.getElementById('bodyFold').disabled = !g || cyl;
-  document.getElementById('bodyPlay').disabled = !g || cyl;
-  document.getElementById('bodyFold').value = Math.round((cyl ? 1 : bodyState.fold) * 100);
-  for (const id of ['btnBodyObl', 'btnBodyNet', 'btnBodyPdf']) document.getElementById(id).disabled = !g;
+  st.textContent = !g ? t('bodyInvalid') : note;
+  for (const id of ['bodyFold', 'bodyFoldBig', 'bodyPlay', 'bodyPlayBig']) document.getElementById(id).disabled = !g && !q;
+  bodySyncFold();
+  for (const id of ['btnBodyObl', 'btnBodyNet', 'btnBodyPdf']) document.getElementById(id).disabled = !g || !!q;
   if (g) {
     const m = bodyMeasures(kind, g);
     document.getElementById('bodyVO').textContent = t('bodyVO', { V: fmtNum(m.V / 1000, 1, lang), O: fmtNum(m.O / 100, 1, lang) });
   } else document.getElementById('bodyVO').textContent = '';
+  bodyRenderQuiz();
   bodyDraw();
 }
-function bodyFacesAt(kind, g, tFold) {
-  if (kind === 'cylinder') return bodyFaces(kind, g);
-  return foldNet(bodyNet(kind, g), tFold);
+function bodySyncFold() { for (const id of ['bodyFold', 'bodyFoldBig']) document.getElementById(id).value = Math.round(bodyState.fold * 100); }
+
+/* ---------- „Ist das ein Würfelnetz?" ---------- */
+function bodyQuizStart() { bodyStop(); bodyState.quiz = { ok: 0, n: 0 }; bodyQuizNext(); }
+function bodyQuizEnd() { bodyStop(); bodyState.quiz = null; bodyState.fold = 1; bodyRenderNetPick(); bodyUpdate(); }
+function bodyQuizNext() {
+  const q = bodyState.quiz;
+  if (!q) return;
+  bodyStop();
+  /* Halb Netze, halb keine; zufällig gedreht und gespiegelt, nie zweimal dasselbe hintereinander */
+  let cells;
+  do {
+    q.isNet = Math.random() < 0.5;
+    const pool = q.isNet ? cubeNets() : cubeNonNets();
+    cells = pool[Math.floor(Math.random() * pool.length)];
+    const r = Math.floor(Math.random() * 8);
+    cells = polyNorm(cells.map(([x, y]) => { let a = x, b = y; for (let i = 0; i < r % 4; i++) [a, b] = [-b, a]; return r >= 4 ? [-a, b] : [a, b]; }));
+  } while (q.cells && polyKey(cells) === polyKey(q.cells));
+  q.cells = cells; q.answered = null;
+  bodyState.fold = 0;
+  bodyRenderNetPick();
+  bodyUpdate();
+}
+function bodyQuizAnswer(yes) {
+  const q = bodyState.quiz;
+  if (!q || q.answered !== null) return;
+  q.answered = yes === q.isNet;
+  q.n++; if (q.answered) q.ok++;
+  bodyRenderQuiz();
+  bodyAnimate();
+}
+function bodyRenderQuiz() {
+  const q = bodyState.quiz, box = document.getElementById('bodyQuiz'), cube = bodyState.kind === 'cube';
+  document.getElementById('btnCubeQuiz').hidden = !cube || !!q;
+  box.hidden = !q;
+  if (!q) return;
+  const txt = document.getElementById('bodyQuizText'), btns = document.getElementById('bodyQuizBtns');
+  btns.textContent = '';
+  const btn = (label, fn, kind) => { const b = document.createElement('button'); b.className = 'btn' + (kind ? ' ' + kind : ''); b.textContent = label; b.onclick = fn; btns.appendChild(b); return b; };
+  if (q.answered === null) {
+    txt.textContent = t('quizAsk');
+    txt.className = 'lab-status';
+    btn(t('btnYes'), () => bodyQuizAnswer(true), 'primary');
+    btn(t('btnNo'), () => bodyQuizAnswer(false), 'primary');
+  } else {
+    const chk = cubeFoldCheck(q.cells, 10);
+    txt.textContent = (q.answered ? t('quizRight') : t('quizWrong')) + ' ' + (q.isNet ? t('quizIsNet') : t('quizNotNet', { n: chk.missing })) + ' · ' + t('quizScore', { ok: q.ok, n: q.n });
+    txt.className = 'lab-status ' + (q.answered ? 'ok' : 'warn');
+    btn(t('btnQuizNext'), bodyQuizNext, 'primary');
+  }
+  btn(t('btnQuizEnd'), bodyQuizEnd);
+}
+
+/* ---------- Darstellung ---------- */
+/* Netz und Flächeneigenschaften für den aktuellen Stand; zwischengespeichert,
+   weil Drehen und Falten bei jedem Bild neu zeichnen. */
+let bodyCache = { key: '', net: null, info: null };
+const BODY_PALETTE = ['#f4c95d', '#6fb1e7', '#93d07a', '#f08f8f', '#b39ef0', '#78d4cc', '#f5a65b', '#d79ad6'];
+function bodyScene() {
+  const q = bodyState.quiz;
+  let kind, g, net, key;
+  if (q) {
+    const gg = bodyState.kind === 'cube' ? bodyRead() : null;
+    kind = 'cube'; g = { a: gg ? gg.a : 40 };
+    key = 'quiz|' + g.a + '|' + polyKey(q.cells);
+    if (bodyCache.key !== key) net = gridNet(q.cells, g.a, gridRoot(q.cells));
+  } else {
+    g = bodyRead(); kind = bodyState.kind;
+    if (!g) return null;
+    key = kind + '|' + JSON.stringify(g) + '|' + bodyVariant();
+    if (bodyCache.key !== key) net = bodyNet(kind, g, bodyVariant());
+  }
+  if (bodyCache.key !== key) bodyCache = { key, net, info: bodyFaceInfo(net, kind, q ? q.cells : null, g) };
+  return { kind, g, net: bodyCache.net, info: bodyCache.info };
+}
+/* Farben: Flächen mit parallelen Ebenen (Gegenseiten) gleich, gekrümmte Flächen
+   einfarbig. Quiz: Würfelseite je Fläche, doppelt belegte und fehlende Seiten. */
+function bodyFaceInfo(net, kind, cells, g) {
+  const F1 = foldNet(net, 1), C = polyCentroid3([].concat(...F1));
+  const N = F1.map(f => outwardNormal(f, C)), groups = [], color = [];
+  const smooth = net.smooth || null;
+  F1.forEach((f, i) => {
+    if (smooth && smooth[i] >= 0) { color[i] = BODY_PALETTE[(smooth[i] + 1) % BODY_PALETTE.length]; return; }
+    let gi = groups.findIndex(n => Math.abs(vDot(n, N[i])) > 0.999);
+    if (gi < 0) { groups.push(N[i]); gi = groups.length - 1; }
+    color[i] = BODY_PALETTE[gi % BODY_PALETTE.length];
+  });
+  let overlap = null, ghosts = [];
+  if (cells) {
+    const chk = cubeFoldCheck(cells, g.a);
+    overlap = chk.overlap;
+    if (chk.missing) {
+      /* Fehlende Würfelseiten: Der Würfelraum ergibt sich aus allen gefalteten
+         Flächen (mindestens vier verschiedene Seiten spannen ihn auf) – egal, in
+         welche Richtung das Netz faltet. */
+      const all = [].concat(...F1), mn = k => Math.min(...all.map(p => p[k])), mx = k => Math.max(...all.map(p => p[k]));
+      const x0 = mn('x'), x1 = mx('x'), y0 = mn('y'), y1 = mx('y'), z0 = mn('z'), z1 = mx('z'), a = g.a;
+      const sides = [
+        [v3(x0, y0, z0), v3(x1, y0, z0), v3(x1, y1, z0), v3(x0, y1, z0)], [v3(x0, y0, z1), v3(x1, y0, z1), v3(x1, y1, z1), v3(x0, y1, z1)],
+        [v3(x0, y0, z0), v3(x1, y0, z0), v3(x1, y0, z1), v3(x0, y0, z1)], [v3(x0, y1, z0), v3(x1, y1, z0), v3(x1, y1, z1), v3(x0, y1, z1)],
+        [v3(x0, y0, z0), v3(x0, y1, z0), v3(x0, y1, z1), v3(x0, y0, z1)], [v3(x1, y0, z0), v3(x1, y1, z0), v3(x1, y1, z1), v3(x1, y0, z1)]];
+      const have = F1.map(f => polyCentroid3(f));
+      ghosts = sides.filter(sd => { const c = polyCentroid3(sd); return !have.some(h => vLen(vSub(h, c)) < a * 0.1); });
+    }
+  }
+  return { color, smooth, overlap, ghosts };
 }
 function bodyDraw() {
-  const cv = document.getElementById('bodyView');
-  if (!cv || document.getElementById('labBody').hidden) return;
+  const small = document.getElementById('bodyView');
+  if (small && !document.getElementById('labBody').hidden) bodyRenderTo(small, false);
+  if (!document.getElementById('bodyFull').hidden) bodyRenderTo(document.getElementById('bodyBig'), true);
+}
+function bodyRenderTo(cv, big) {
   const r = Math.min(window.devicePixelRatio || 1, 3);
-  const W = Math.round((cv.clientWidth || 360) * r), H = Math.round(W * 2 / 3);
+  const W = Math.round((cv.clientWidth || 360) * r), H = big ? Math.round((cv.clientHeight || 300) * r) : Math.round(W * 2 / 3);
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
   const c = cv.getContext('2d');
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H);
-  const g = bodyRead(), kind = bodyState.kind;
-  if (!g) return;
-  const faces = bodyFacesAt(kind, g, bodyState.fold);
-  /* Die Figur füllt die Vorschau in jedem Faltzustand */
+  const sc = bodyScene();
+  if (!sc) return;
+  const { kind, net, info } = sc, q = bodyState.quiz;
+  const faces = foldNet(net, bodyState.fold);
+  /* Die Figur füllt die Vorschau in jedem Faltzustand (Großansicht: mit Zoom) */
   const allRef = [].concat(...faces), C = vMul(allRef.reduce((s, p) => vAdd(s, p), v3(0, 0, 0)), 1 / allRef.length);
   const R = Math.max(1, ...allRef.map(p => vLen(vSub(p, C))));
-  const k = Math.min(W, H) * 0.47 / R;
+  const k = Math.min(W, H) * 0.47 / R * (big ? bodyState.zoom : 1);
   const cy = Math.cos(bodyState.yaw), sy = Math.sin(bodyState.yaw), cp = Math.cos(bodyState.pitch), sp = Math.sin(bodyState.pitch);
   const tr = p => {
     const x = p.x - C.x, y = p.y - C.y, z = p.z - C.z;
@@ -7705,48 +8813,92 @@ function bodyDraw() {
     return { X: W / 2 + x1 * k, Y: H / 2 - z2 * k, d: y2, q: v3(x1, y2, z2) };
   };
   const light = vNorm(v3(-0.4, -0.8, 0.6));
-  const list = faces.map(f => {
+  const showColors = bodyState.colors || !!q;
+  const done = q && q.answered !== null && bodyState.fold > 0.98;
+  const list = faces.map((f, i) => {
     const P = f.map(tr);
     const n = vNorm(vCross(vSub(P[1].q, P[0].q), vSub(P[2].q, P[0].q)));
-    return { P, depth: P.reduce((s, p) => s + p.d, 0) / P.length, shade: 0.55 + 0.45 * Math.abs(vDot(n, light)) };
+    return { i, P, depth: P.reduce((s, p) => s + p.d, 0) / P.length, shade: 0.55 + 0.45 * Math.abs(vDot(n, light)) };
   }).sort((a, b) => b.depth - a.depth);
-  c.lineJoin = 'round'; c.lineWidth = 1.2 * r; c.strokeStyle = '#3b3f45';
+  const lw = (big ? 2 : 1.2) * r;
+  c.lineJoin = 'round';
   for (const f of list) {
     c.beginPath();
     f.P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y)));
     c.closePath();
-    const v = Math.round(255 - (1 - f.shade) * 120);
-    c.fillStyle = 'rgba(' + Math.round(v * 0.80) + ',' + Math.round(v * 0.88) + ',' + v + ',0.92)';
-    c.fill();
-    if (kind !== 'cylinder' || f.P.length !== 4) c.stroke();
+    let rgb;
+    if (done && info.overlap && info.overlap[f.i]) rgb = [224, 72, 72];
+    else if (showColors) { const h = info.color[f.i]; rgb = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+    else rgb = [204, 224, 255];
+    const sh = f.shade;
+    const col = 'rgba(' + rgb.map(v => Math.round(v * (0.62 + 0.38 * sh))).join(',') + ',0.93)';
+    c.fillStyle = col; c.fill();
+    const smooth = info.smooth && info.smooth[f.i] >= 0;
+    /* Gekrümmte Flächen ohne Facettenkanten: Fuge in der Flächenfarbe schließen */
+    if (smooth) { c.strokeStyle = col; c.lineWidth = 1 * r; c.stroke(); }
+    else { c.strokeStyle = '#3b3f45'; c.lineWidth = lw; c.stroke(); }
   }
-  if (kind === 'cylinder') {
-    /* Umriss der Mantelfläche: nur Deckel und Boden umranden */
-    for (const f of list) if (f.P.length > 4) { c.beginPath(); f.P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y))); c.closePath(); c.stroke(); }
+  /* Ebene Flächen gekrümmter Körper (Deckel, Boden) zuletzt umranden */
+  if (info.smooth) for (const f of list) if (info.smooth[f.i] < 0) {
+    c.beginPath(); f.P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y))); c.closePath();
+    c.strokeStyle = '#3b3f45'; c.lineWidth = lw; c.stroke();
+  }
+  /* Quiz: offene Würfelseiten gestrichelt */
+  if (done && info.ghosts.length) {
+    c.save(); c.setLineDash([7 * r, 5 * r]); c.strokeStyle = '#c0392b'; c.lineWidth = lw * 1.3;
+    for (const gh of info.ghosts) { const P = gh.map(tr); c.beginPath(); P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y))); c.closePath(); c.stroke(); }
+    c.restore();
   }
 }
+/* Ein Finger dreht, zwei Finger zoomen (Großansicht), Mausrad zoomt */
 function bodyAttachDrag(cv) {
-  let last = null;
-  cv.addEventListener('pointerdown', e => { last = { x: e.clientX, y: e.clientY, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ } });
+  const ptrs = new Map();
+  let pinch = null;
+  cv.addEventListener('pointerdown', e => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), z: bodyState.zoom }; }
+  });
   cv.addEventListener('pointermove', e => {
-    if (!last || e.pointerId !== last.id) return;
-    bodyState.yaw += (e.clientX - last.x) * 0.012;
-    bodyState.pitch = clamp(bodyState.pitch + (e.clientY - last.y) * 0.012, -1.45, 1.45);
+    const last = ptrs.get(e.pointerId);
+    if (!last) return;
+    if (ptrs.size === 1) {
+      bodyState.yaw += (e.clientX - last.x) * 0.012;
+      bodyState.pitch = clamp(bodyState.pitch + (e.clientY - last.y) * 0.012, -1.45, 1.45);
+    }
     last.x = e.clientX; last.y = e.clientY;
+    if (ptrs.size === 2 && pinch && cv.id === 'bodyBig') {
+      const [a, b] = [...ptrs.values()];
+      bodyState.zoom = clamp(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, 0.4, 4);
+    }
     bodyDraw();
   });
-  const end = () => { last = null; };
+  const end = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('lostpointercapture', end);
+  if (cv.id === 'bodyBig') cv.addEventListener('wheel', e => { e.preventDefault(); bodyState.zoom = clamp(bodyState.zoom * Math.exp(-e.deltaY * 0.002), 0.4, 4); bodyDraw(); }, { passive: false });
 }
+function bodyFullOpen() {
+  if (!bodyScene()) return;
+  bodyState.zoom = 1;
+  document.getElementById('bodyFullName').textContent = bodyState.quiz ? t('quizAsk') : t('body_' + bodyState.kind) + (bodyVariant() ? ' · ' + t('bodyNetPick') + ' ' + (bodyVariant() + 1) : '');
+  sel('bodyColorsBtn', bodyState.colors);
+  openPanel('bodyFull');
+  bodyDraw();
+  requestAnimationFrame(bodyDraw);   /* Größe steht erst nach dem Layout fest */
+}
+function bodyFullClose() { closePanel('bodyFull'); bodyDraw(); }
+function bodyToggleColors() { bodyState.colors = !bodyState.colors; sel('bodyColorsBtn', bodyState.colors); sel('bodyColorsSmall', bodyState.colors); bodyDraw(); }
 function bodyStop() { bodyState.anim++; }
 function bodyAnimate() {
   const token = ++bodyState.anim, t0 = performance.now(), from = bodyState.fold >= 0.999 ? 0 : bodyState.fold, dur = 2400 * (1 - from) + 400;
-  const rng = document.getElementById('bodyFold');
+  /* Sofort auf den Anfang – nicht erst mit dem nächsten Bild */
+  bodyState.fold = from; bodySyncFold(); bodyDraw();
   const step = now => {
-    if (token !== bodyState.anim || document.getElementById('labPanel').hidden || document.getElementById('labBody').hidden) return;
+    const bodyVisible = !document.getElementById('labPanel').hidden && !document.getElementById('labBody').hidden;
+    if (token !== bodyState.anim || (!bodyVisible && document.getElementById('bodyFull').hidden)) return;
     const u = Math.min(1, (now - t0) / dur), e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u);
     bodyState.fold = from + (1 - from) * e;
-    rng.value = Math.round(bodyState.fold * 100);
+    bodySyncFold();
     bodyDraw();
     if (u < 1) requestAnimationFrame(step);
   };
@@ -7758,14 +8910,15 @@ async function bodyToSheet(mode) {
   bodyStop();
   await saveNow();
   if (!canAddSheet(await dbCount())) { showPaywall('sheets'); return null; }
-  const objs = bodySheetObjects(kind, g, mode);
+  const objs = bodySheetObjects(kind, g, mode, bodyVariant());
   if (mode === 'net') {
     /* Hinweis nicht breiter als das Netz – sonst wird das PDF unnötig
        verkleinert und die Bastelvorlage stimmt nicht mehr (Text ≈ 0,6 · Größe je Zeichen) */
-    const nb = boundsOf(objs), lines = wrapText(t('bodyNetHint'), Math.max(24, Math.floor((nb.x1 - nb.x0) / (0.6 * 3.6))));
+    const nb = boundsOf(objs), lines = wrapText(t(kind === 'sphere' ? 'bodyNetHintSphere' : 'bodyNetHint'), Math.max(24, Math.floor((nb.x1 - nb.x0) / (0.6 * 3.6))));
     lines.forEach((line, i) => objs.unshift({ type: 'text', x: 0, y: -6 - (lines.length - 1 - i) * 5, text: line, size: 3.6, c: '#6b7078' }));
   }
-  const name = t(mode === 'net' ? 'bodySheetNet' : 'bodySheetObl', { body: t('body_' + kind), vals: bodyVals(kind, g) }).slice(0, LIMITS.name);
+  const bodyName = t('body_' + kind) + (bodyVariant() ? ', ' + t('bodyNetPick') + ' ' + (bodyVariant() + 1) : '');
+  const name = t(mode === 'net' ? 'bodySheetNet' : 'bodySheetObl', { body: bodyName, vals: bodyVals(kind, g) }).slice(0, LIMITS.name);
   const d = newDoc(uid(), name, Date.now());
   d.objects = objs.map((o, i) => Object.assign({ id: 'o' + (i + 1) }, o));
   d.seq = d.objects.length + 1;
@@ -8002,12 +9155,15 @@ async function showSheetQr(d) {
   let src = d;
   if (doc && d.id === doc.id) src = doc;
   else { try { src = prepareLoaded(clone(d)); } catch (e) { notify(t('msgQrInvalid'), true); return; } }
-  if (!src.objects.length) { notify(t('qrEmpty')); return; }
+  /* Bilder passen nicht in den Code (siehe encodeObjs) – ohne sie prüfen */
+  const objs = src.objects.filter(o => o.type !== 'image'), hadImages = objs.length < src.objects.length;
+  if (!objs.length) { notify(t(hadImages ? 'msgQrNoImages' : 'qrEmpty')); return; }
   /* Reine Laboraufgabe (nur Planfigur) → kurzer Aufgaben-Link; sonst das Blatt */
-  const onlyPlan = src.task && src.objects.every(o => o.m && (o.m.plan || o.m.giv));
+  const onlyPlan = src.task && objs.every(o => o.m && (o.m.plan || o.m.giv));
   const url = onlyPlan ? linkForTask(src.task) : linkForSheet(src);
   const text = onlyPlan ? taskText(src.task) : sheetName(src);
   await showQr(url, text);
+  if (hadImages) notify(t('msgQrNoImages'));
 }
 async function showQr(url, text, opts) {
   opts = opts || {};
@@ -8150,12 +9306,7 @@ const RESULTS_KEY = 'zw.results', RESULTS_MAX = 600;
 function loadResults() {
   let a = [];
   try { a = JSON.parse(localStorage.getItem(RESULTS_KEY) || '[]'); } catch (e) { a = []; }
-  if (!Array.isArray(a)) return [];
-  return a.filter(x => x && typeof x === 'object' && typeof x.key === 'string' && sanitizeTask(x.task)).map(x => ({
-    key: x.key, task: sanitizeTask(x.task), name: cleanStr(x.name, 30), ok: !!x.ok, help: Math.round(cleanNum(x.help, 0, 4, 0)),
-    codes: Array.isArray(x.codes) ? x.codes.filter(c => typeof c === 'string').slice(0, RESULT_MAX_CODES) : [],
-    o: Array.isArray(x.o) ? x.o : [], at: cleanNum(x.at, 0, 1e14, 0)
-  }));
+  return cleanResults(a);
 }
 function saveResults(list) {
   try { localStorage.setItem(RESULTS_KEY, JSON.stringify(list)); return true; }
@@ -8543,6 +9694,7 @@ async function init() {
   if (window.ResizeObserver) new ResizeObserver(() => resizeStage()).observe(st);
   window.addEventListener('keydown', onKey);
   document.getElementById('importInput').addEventListener('change', onImportFile);
+  document.getElementById('imageInput').addEventListener('change', onImageFile);
   if (window.matchMedia) {
     const mq = matchMedia('(prefers-color-scheme: dark)');
     const fn = () => updateStatusBar();

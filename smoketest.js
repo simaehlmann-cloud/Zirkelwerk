@@ -440,6 +440,106 @@ async function main() {
     await page.keyboard.press('Enter');
     o = await objs(page);
     ok(o.some(x => x.type === 'text' && x.text === 'c = 5 cm'), 'Text eingefügt');
+    /* 0.10.2: Text mit dem Text-Werkzeug verschieben */
+    {
+      const tx = o.find(x => x.type === 'text' && x.text === 'c = 5 cm');
+      const nVor = o.length;
+      await stroke(page, 'pen', line([tx.x + 3, tx.y - 2], [tx.x + 33, tx.y + 18], 8));
+      let t2 = (await objs(page)).find(x => x.id === tx.id);
+      ok(near(t2.x, tx.x + 30, 1e-6) && near(t2.y, tx.y + 20, 1e-6) && (await objs(page)).length === nVor, 'Text gezogen: neue Lage, kein neuer Text', t2);
+      ok(!(await page.isVisible('#dialog')), 'Ziehen öffnet keinen Textdialog');
+      await page.click('#btnUndo');
+      t2 = (await objs(page)).find(x => x.id === tx.id);
+      ok(near(t2.x, tx.x) && near(t2.y, tx.y), 'Rückgängig: Text wieder an alter Stelle');
+      await stroke(page, 'pen', [[tx.x + 3, tx.y - 2]]);
+      ok(await page.isVisible('#dialog') && (await page.inputValue('#dialogInput')) === 'c = 5 cm', 'Antippen öffnet den Text zum Bearbeiten');
+      await page.keyboard.press('Escape');
+    }
+
+    /* ---------- 0.10.2: Bilder ---------- */
+    {
+      /* Testbilder im Browser malen: großes Foto (4000 × 3000) und PNG mit Transparenz */
+      const mkImg = (w, h, type) => page.evaluate(([w, h, type]) => {
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const x = c.getContext('2d');
+        if (type === 'image/jpeg') { x.fillStyle = '#f4f1e8'; x.fillRect(0, 0, w, h); }
+        x.fillStyle = '#1f5fbf'; x.fillRect(w * 0.1, h * 0.1, w * 0.4, h * 0.8);
+        x.fillStyle = '#c0392b'; x.beginPath(); x.arc(w * 0.75, h * 0.5, h * 0.3, 0, 7); x.fill();
+        return c.toDataURL(type, 0.9).split(',')[1];
+      }, [w, h, type]);
+      const foto = Buffer.from(await mkImg(4000, 3000, 'image/jpeg'), 'base64');
+      const nVor = (await objs(page)).length;
+      await page.setInputFiles('#imageInput', { name: 'aufgabe.jpg', mimeType: 'image/jpeg', buffer: foto });
+      await page.waitForFunction(n => window.__zw.doc.objects.length === n + 1, nVor, { timeout: 8000 }).catch(() => {});
+      let im = (await objs(page)).find(x => x.type === 'image');
+      ok(im && im.src.startsWith('data:image/jpeg;base64,') && im.pw === 1600 && im.ph === 1200, 'Foto eingefügt, auf 1600 px verkleinert', im && [im.pw, im.ph, im.src.length]);
+      ok(im && Math.abs(im.w / im.h - 4 / 3) < 1e-6 && im.cr.join() === '0,0,1,1', 'Seitenverhältnis bleibt, ganzer Ausschnitt');
+      ok(await page.isVisible('#imgBar') && (await page.textContent('#toast')).includes('Ecken ziehen'), 'Nach dem Einfügen: Bearbeitungsleiste und Hinweis');
+      // Verschieben (innen)
+      await page.waitForTimeout(150);
+      const cx = im.x + im.w / 2, cy = im.y + im.h / 2;
+      await stroke(page, 'pen', line([cx, cy], [cx + 10, cy + 5], 6));
+      let im2 = (await objs(page)).find(x => x.id === im.id);
+      ok(near(im2.x, im.x + 10, 1e-6) && near(im2.y, im.y + 5, 1e-6) && (await objs(page)).length === nVor + 1, 'Bild innen ziehen: verschoben, nichts gezeichnet');
+      // Ecke unten rechts: größer, Verhältnis bleibt, Ecke oben links fest
+      await stroke(page, 'pen', line([im2.x + im2.w, im2.y + im2.h], [im2.x + im2.w * 1.5, im2.y + im2.h * 1.2], 8));
+      let im3 = (await objs(page)).find(x => x.id === im.id);
+      ok(near(im3.x, im2.x, 1e-6) && near(im3.y, im2.y, 1e-6) && near(im3.w, im2.w * 1.5, 1e-6) && near(im3.h, im2.h * 1.5, 1e-6), 'Ecke ziehen: größer, Seitenverhältnis und gegenüberliegende Ecke bleiben', [im2.w, im3.w, im3.h / im2.h]);
+      // Kante rechts nach links: zuschneiden
+      await stroke(page, 'pen', line([im3.x + im3.w, im3.y + im3.h / 2], [im3.x + im3.w * 0.6, im3.y + im3.h / 2], 6));
+      let im4 = (await objs(page)).find(x => x.id === im.id);
+      ok(near(im4.cr[2], 0.6, 1e-6) && near(im4.w, im3.w, 1e-9) && im4.cr[0] === 0, 'Kante ziehen: rechts auf 60 % zugeschnitten', im4.cr);
+      await page.click('#btnUndo');
+      ok((await objs(page)).find(x => x.id === im.id).cr[2] === 1, 'Rückgängig: Zuschnitt zurück');
+      await page.click('#btnRedo');
+      // Blass
+      await page.click('#imgFade');
+      ok((await objs(page)).find(x => x.id === im.id).al === 0.45 && await page.evaluate(() => document.getElementById('imgFade').classList.contains('on')), '„Blass" macht das Bild durchscheinend');
+      // Fertig, dann darüber zeichnen
+      await page.click('#imgBar >> text=Fertig');
+      ok(!(await page.isVisible('#imgBar')), '„Fertig" heftet das Bild fest');
+      await page.click('[data-tool="pencil"]');
+      const nStr = (await objs(page)).length;
+      await stroke(page, 'pen', line([cx - 5, cy - 5], [cx + 5, cy - 3], 6));
+      let after = await objs(page);
+      ok(after.length === nStr + 1 && after.find(x => x.id === im.id).x === im4.x, 'Auf dem festgehefteten Bild wird gezeichnet, das Bild bleibt liegen');
+      ok(await page.evaluate(() => { const id = window.__zw.doc.objects.find(o => o.type === 'image').id; return !window.__zw.steps().some(st => st.ids.includes(id)); }), 'Bild ist kein Konstruktionsschritt');
+      await page.click('#btnUndo');
+      // Radierer: Wischen lässt das Bild liegen, Antippen (ohne Linie in der Nähe) löscht es.
+      // Der Wisch radiert absichtlich auch durch die Konstruktion darunter – alle späteren
+      // Beschreibungsprüfungen müssen trotzdem bestehen (Teilstücke = ein Schritt).
+      await page.click('[data-tool="eraser"]');
+      const r4 = { x0: im4.x, y0: im4.y, x1: im4.x + im4.w * 0.6, y1: im4.y + im4.h };
+      await stroke(page, 'pen', line([r4.x0 + 2, r4.y0 + 2], [r4.x1 - 2, r4.y1 - 2], 12));
+      ok((await objs(page)).some(x => x.id === im.id) && (await objs(page)).find(x => x.id === im.id).al === 0.45, 'Radierer wischt über das Bild: Bild bleibt unverändert');
+      // Hand: Antippen wählt das Bild wieder aus
+      await page.click('[data-tool="hand"]');
+      const free = await page.evaluate(([a, b]) => { for (let y = a.y0 + 3; y < a.y1; y += 3) for (let x = a.x0 + 3; x < a.x1; x += 3) { if (!topObjectAt(window.__zw.doc.objects.filter(o => o.type !== 'image'), x, y, 12)) return { x, y }; } return null; }, [r4, null]);
+      await stroke(page, 'touch', [[free.x, free.y]], 61);
+      ok(await page.isVisible('#imgBar'), 'Hand antippen: Bild wieder in Bearbeitung');
+      await stroke(page, 'touch', [[r4.x1 + 40, r4.y1 + 40]], 62);
+      ok(!(await page.isVisible('#imgBar')), 'Tipp daneben beendet die Bearbeitung');
+      await page.click('[data-tool="eraser"]');
+      await stroke(page, 'pen', [[free.x, free.y]]);
+      ok(!(await objs(page)).some(x => x.id === im.id), 'Radierer antippen: Bild gelöscht');
+      await page.click('#btnUndo');
+      ok((await objs(page)).some(x => x.id === im.id), 'Rückgängig: Bild wieder da');
+      // PNG mit Transparenz → JPEG mit weißem Grund
+      const png = Buffer.from(await mkImg(300, 200, 'image/png'), 'base64');
+      await page.setInputFiles('#imageInput', { name: 'logo.png', mimeType: 'image/png', buffer: png });
+      await page.waitForFunction(() => window.__zw.doc.objects.filter(o => o.type === 'image').length === 2, null, { timeout: 8000 }).catch(() => {});
+      const pngObj = (await objs(page)).filter(x => x.type === 'image')[1];
+      ok(pngObj && pngObj.src.startsWith('data:image/jpeg') && pngObj.pw === 300, 'PNG als JPEG gespeichert (Originalgröße, da klein)');
+      const corner = await page.evaluate(src => new Promise(res => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); c.width = 4; c.height = 4; const x = c.getContext('2d'); x.drawImage(i, 0, 0); res(Array.from(x.getImageData(0, 0, 1, 1).data)); }; i.src = src; }), pngObj.src);
+      ok(corner[0] > 240 && corner[1] > 240 && corner[2] > 240, 'Transparenz wird weiß wie Papier', corner);
+      await page.click('#imgBar >> text=Löschen');
+      ok((await objs(page)).filter(x => x.type === 'image').length === 1 && !(await page.isVisible('#imgBar')), '„Löschen" in der Leiste entfernt das Bild');
+      // Kaputte Datei
+      await page.setInputFiles('#imageInput', { name: 'kaputt.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('kein Bild') });
+      await page.waitForTimeout(300);
+      ok((await page.textContent('#toast')).includes('nicht öffnen'), 'Kaputtes Bild: verständliche Meldung');
+      await page.click('[data-tool="pencil"]');
+    }
 
     /* ================= Stufe 2: Beschreibung und Wiedergabe ================= */
     /* Abgreifen: Spitze auf A, Mine auf B (Radius = |AB|), sperren, Spitze auf C, Bogen */
@@ -604,6 +704,68 @@ async function main() {
     ok(o.find(x => x.type === 'point').label.length <= 12, 'Beschriftung beim Import gekürzt');
     ok(await page.locator('img[src="x"]').count() === 0, 'Kein eingeschleustes HTML');
 
+    /* ---------- 0.10.2: Ordner ---------- */
+    const sheetCount = async n => { await page.waitForFunction(n => document.querySelectorAll('.sheet').length === n, n, { timeout: 3000 }).catch(() => {}); return page.locator('.sheet').count(); };
+    {
+      await page.click('#btnSheets');
+      ok(!(await page.isVisible('#folderBar')), 'Ohne Ordner keine Ordnerleiste');
+      await page.locator('.sheet', { hasText: 'Blatt 2' }).locator('.more').click();
+      await page.click('#dialogButtons .btn >> text=In Ordner');
+      await page.click('#dialogButtons .btn >> text=Neuer Ordner');
+      await page.fill('#dialogInput', '  Klasse 7a ');
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => !document.getElementById('folderBar').hidden, null, { timeout: 3000 }).catch(() => {});
+      ok((await page.textContent('#folderBar')).includes('Klasse 7a'), 'Ordner angelegt, Leiste erscheint');
+      ok((await page.locator('.sheet', { hasText: 'Blatt 2' }).textContent()).includes('Klasse 7a'), 'Blatt zeigt seinen Ordner');
+      await page.click('#folderBar .btn >> text=Klasse 7a');
+      ok(await sheetCount(1) === 1, 'Filter: nur das Blatt im Ordner', await page.locator('.sheet .name').allTextContents());
+      await page.click('text=Neues Blatt');
+      await page.waitForTimeout(150);
+      ok(await page.evaluate(() => window.__zw.doc.folder) === 'Klasse 7a', 'Neues Blatt landet im gewählten Ordner');
+      await page.click('#btnSheets');
+      ok(await sheetCount(2) === 2, 'Ordnerfilter bleibt beim Wiederöffnen');
+      await page.click('#folderBar .btn >> text=⋯');
+      await page.click('#dialogButtons .btn >> text=Ordner umbenennen');
+      await page.fill('#dialogInput', '7a Geometrie');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(200);
+      ok((await page.textContent('#folderBar')).includes('7a Geometrie') && !(await page.textContent('#folderBar')).includes('Klasse 7a') && await page.locator('.sheet').count() === 2, 'Ordner umbenannt, Filter folgt');
+      ok(await page.evaluate(() => window.__zw.doc.folder) === '7a Geometrie', 'Offenes Blatt kennt den neuen Ordnernamen');
+      await page.click('#folderBar .btn >> text=Alle');
+      ok(await sheetCount(4) === 4, '„Alle" zeigt wieder alle Blätter');
+    }
+
+    /* ---------- 0.10.2: Sicherung und Wiederherstellen ---------- */
+    {
+      ok((await page.textContent('#backupInfo')).includes('Noch keine Sicherung') && await page.evaluate(() => document.getElementById('backupInfo').classList.contains('due')), 'Hinweis: noch nie gesichert (rot)');
+      await page.click('#btnBackup');
+      const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dialogButtons .btn >> text=Alle Blätter sichern')]);
+      ok(/^Zirkelwerk-Sicherung-\d{4}-\d{2}-\d{2}\.zirkelwerk$/.test(dl.suggestedFilename()), 'Sicherungsdatei mit Datum im Namen', dl.suggestedFilename());
+      const bpath = path.join(tmp, 'sicherung.zirkelwerk');
+      await dl.saveAs(bpath);
+      const bj = JSON.parse(fs.readFileSync(bpath, 'utf8'));
+      ok(bj.format === 'zirkelwerk-backup' && bj.docs.length === 4 && bj.docs.filter(d => d.folder === '7a Geometrie').length === 2 && bj.docs.every(d => !d.thumb), 'Sicherung enthält alle Blätter mit Ordnern, ohne Vorschaubilder', bj.docs.length);
+      await page.waitForTimeout(100);
+      ok((await page.textContent('#backupInfo')).startsWith('Letzte Sicherung') && !(await page.evaluate(() => document.getElementById('backupInfo').classList.contains('due'))), 'Datum der letzten Sicherung angezeigt');
+      // Blatt 2 löschen, dann wiederherstellen
+      await page.locator('.sheet', { hasText: 'Blatt 2' }).locator('.more').click();
+      await page.click('#dialogButtons .btn >> text=Löschen');
+      await page.click('#dialogButtons .btn.danger >> text=Löschen');
+      await page.waitForTimeout(150);
+      ok(await sheetCount(3) === 3, 'Blatt 2 gelöscht');
+      await page.setInputFiles('#importInput', bpath);
+      await page.waitForFunction(() => document.getElementById('dialogTitle').textContent === 'Sicherung wiederherstellen', null, { timeout: 3000 }).catch(() => {});
+      ok((await page.textContent('#dialogMessage')).startsWith('Neu dazu – Blätter: 1') && (await page.textContent('#dialogMessage')).includes('Schon vorhanden: 3'), 'Rückfrage nennt, was dazukommt', await page.textContent('#dialogMessage'));
+      await page.click('#dialogButtons .btn >> text=Wiederherstellen');
+      await page.waitForTimeout(200);
+      ok(await sheetCount(4) === 4 && (await page.locator('.sheet', { hasText: 'Blatt 2' }).textContent()).includes('7a Geometrie'), 'Blatt 2 samt Ordner wiederhergestellt');
+      await page.evaluate(() => { document.getElementById('importInput').value = ''; });   // wie importSheet()
+      await page.setInputFiles('#importInput', bpath);
+      await page.waitForTimeout(200);
+      ok((await page.textContent('#toast')).includes('schon da') && await page.locator('.sheet').count() === 4, 'Zweites Wiederherstellen: nichts doppelt', [await page.textContent('#toast'), await page.locator('.sheet .name').allTextContents(), await page.isVisible('#dialog') && await page.textContent('#dialogMessage')]);
+      await page.click('#sheetsPanel header .tb');
+    }
+
 
     {
     /* ================= Stufe 3a: Kongruenzsätze-Labor ================= */
@@ -767,6 +929,18 @@ async function main() {
       await page.waitForFunction(() => document.getElementById('dialogTitle').textContent === 'Als PDF (A4)', null, { timeout: 3000 });
       const w3 = await grab();
       ok(w3.pdf.startsWith('%PDF') && w3.pdf.endsWith('%%EOF\n'), 'PDF aus der Blattliste', w3.name);
+      /* 0.10.2: Blatt 1 mit Bild → Bild im PDF, von echten Werkzeugen lesbar */
+      await page.locator('.sheet', { hasText: 'Blatt 1' }).locator('.more').click();
+      await page.click('#dialogButtons .btn >> text=Als PDF');
+      await page.waitForFunction(() => document.getElementById('dialogTitle').textContent === 'Als PDF (A4)', null, { timeout: 3000 });
+      const w4 = await grab();
+      ok((w4.pdf.match(/\/Subtype \/Image \/Width 1600 \/Height 1200/g) || []).length === 1 && / re W n [\d. ]+ 0 0 [\d. ]+ cm \/Im1 Do Q/.test(w4.pdf), 'PDF von Blatt 1 enthält das Bild (zugeschnitten)');
+      if (cp.spawnSync('sh', ['-c', 'command -v pdfimages']).status === 0) {
+        const q = cp.spawnSync('qpdf', ['--check', w4.file], { encoding: 'utf8' });
+        ok(q.status === 0 && !/WARNING/.test(q.stdout + q.stderr), 'PDF mit Bild besteht qpdf --check', q.stdout + q.stderr);
+        const li = cp.spawnSync('pdfimages', ['-list', w4.file], { encoding: 'utf8' }).stdout;
+        ok(/\b1600\s+1200\s+rgb\s+3\s+8\s+jpeg\b/.test(li), 'pdfimages liest das Foto aus dem App-PDF', li);
+      }
       await page.click('#sheetsPanel header .tb');
     }
     await page.click('#taskBar [data-icon="more"]');
@@ -967,12 +1141,97 @@ async function main() {
       ok(await page.evaluate(() => { const o = window.__zw.doc.objects; const bt = boundsOf(o.filter(x => x.type === 'text')), bn = boundsOf(o.filter(x => x.type !== 'text')); return bt.x1 <= bn.x1 + 1; }), 'Netz: Hinweis nicht breiter als das Netz (sonst würde das PDF verkleinert)');
       await page.click('#btnLab');
       await page.click('#bodyKind_cylinder');
-      ok(await page.isDisabled('#bodyFold') && (await page.textContent('#bodyStatus')).includes('rollen'), 'Zylinder: Falten gesperrt, Hinweis');
+      ok(!(await page.isDisabled('#bodyFold')) && !(await page.isVisible('#bodyStatus')), 'Zylinder lässt sich jetzt falten (Mantel in Streifen)');
       await page.click('#btnBodyPdf');
       await page.waitForSelector('#pdfOpt_grid', { timeout: 5000 });
       ok(await page.isVisible('#pdfOpt_grid') && (await page.evaluate(() => window.__zw.doc.objects.filter(o => o.type === 'arc').length)) === 2, 'Netz als PDF: Blatt angelegt, PDF-Dialog offen');
       await page.click('#dialogButtons .btn >> text=Abbrechen');
-      await page.click('#btnLab'); await page.click('#labMode_tri');
+      /* ---------- 0.10.2: weitere Körper, Würfelnetze, Quiz, Großansicht ---------- */
+      await page.click('#btnLab');
+      const inkOf = id => page.evaluate(id => { const c = document.getElementById(id); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 200 || d[i + 2] < 200) n++; return n; }, id);
+      for (const k of ['prismn', 'pyramidrect', 'pyramidn', 'tetra', 'octa', 'cone', 'sphere']) {
+        await page.click('#bodyKind_' + k);
+        await page.evaluate(() => { bodyState.fold = 0.5; bodyDraw(); });
+        const vo = await page.textContent('#bodyVO');
+        ok((await inkOf('bodyView')) > 300 && /^V ≈ [\d,]+ cm³ · O ≈ [\d,]+ cm²$/.test(vo) && !(await page.isDisabled('#btnBodyNet')), 'Körper ' + k + ': halb gefaltet gezeichnet, V und O', vo);
+      }
+      ok((await page.textContent('#bodyStatus')).includes('nicht abwickeln') && await page.isVisible('#bodyStatus'), 'Kugel: Hinweis, dass das Netz angenähert ist');
+      await page.click('#bodyKind_prismn');
+      ok((await page.inputValue('#bodyIn_n')) === '6' && (await page.getAttribute('#bodyIn_n', 'inputmode')) === 'numeric', 'Eckenzahl n als ganze Zahl, Vorgabe 6');
+      await page.fill('#bodyIn_n', '9');
+      ok(await page.isDisabled('#btnBodyNet') && (await page.textContent('#bodyStatus')).includes('3–8'), 'n = 9 abgelehnt');
+      await page.fill('#bodyIn_n', '5');
+      await page.click('#btnBodyNet');
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('Netz Prisma (n-Eck)'), null, { timeout: 5000 });
+      ok((await page.evaluate(() => window.__zw.doc.name)).includes('n = 5') && (await objs(page)).filter(o => o.type === 'segment' && o.d === 1).length >= 6, 'Fünfeckprisma als Netz aufs Blatt', await page.evaluate(() => window.__zw.doc.name));
+      await page.click('#btnLab');
+      await page.click('#bodyKind_cone');
+      await page.click('#btnBodyNet');
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('Netz Kegel'), null, { timeout: 5000 });
+      ok((await objs(page)).filter(o => o.type === 'arc').length === 2, 'Kegelnetz: Kreisausschnitt und Grundkreis');
+      await page.click('#btnLab');
+      await page.click('#bodyKind_sphere');
+      await page.click('#btnBodyNet');
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('Netz Kugel'), null, { timeout: 5000 });
+      ok((await objs(page)).some(o => o.type === 'text' && o.text.startsWith('Angenähert')), 'Kugelnetz: Hinweis „Angenähert" auf dem Blatt');
+      // Würfelnetze
+      await page.click('#btnLab');
+      await page.click('#bodyKind_cube');
+      ok(await page.isVisible('#bodyNetPick') && (await page.locator('#bodyNetBtns .btn').count()) === 11, 'Würfel: elf Netze zur Auswahl');
+      await page.click('#bodyNet_4');
+      await page.waitForFunction(() => bodyState.fold > 0.999, null, { timeout: 6000 });
+      ok(await page.evaluate(() => bodyState.variant === 4 && document.getElementById('bodyNet_4').classList.contains('sel')), 'Netz 5 gewählt und zum Würfel gefaltet');
+      await page.click('#btnBodyNet');
+      await page.waitForFunction(() => window.__zw.doc.name.startsWith('Netz Würfel'), null, { timeout: 5000 });
+      ok((await page.evaluate(() => window.__zw.doc.name)).includes('Würfelnetz 5') && (await objs(page)).filter(o => o.type === 'segment' && o.d === 1).length === 5 + 7, 'Netz 5 aufs Blatt: 5 Faltkanten + 7 Laschenkanten', (await objs(page)).filter(o => o.type === 'segment' && o.d === 1).length);
+      // Quiz
+      await page.click('#btnLab');
+      await page.click('#btnCubeQuiz');
+      ok(await page.isVisible('#bodyQuiz') && !(await page.isVisible('#bodyNetPick')) && (await page.textContent('#bodyQuizText')) === 'Ist das ein Würfelnetz?', 'Quiz: Frage gestellt, Netzauswahl ausgeblendet');
+      ok(await page.evaluate(() => bodyState.fold === 0), 'Quiz: Netz liegt flach');
+      for (let round = 0; round < 6; round++) {
+        const isNet = await page.evaluate(() => bodyState.quiz.isNet);
+        const right = round % 3 !== 2;   /* jede dritte Antwort absichtlich falsch */
+        await page.click('#bodyQuizBtns .btn >> text=' + ((isNet === right) ? 'Ja' : 'Nein'));
+        const txt = await page.textContent('#bodyQuizText');
+        ok(txt.startsWith(right ? 'Richtig!' : 'Nicht ganz.') && txt.includes(isNet ? 'Es ist ein Würfelnetz' : 'Kein Würfelnetz'), 'Quiz Runde ' + (round + 1) + ': Bewertung und Erklärung', txt);
+        await page.waitForFunction(() => bodyState.fold > 0.999, null, { timeout: 6000 });
+        const sc = await page.evaluate(() => { const s = bodyScene(); return { ghosts: s.info.ghosts.length, red: s.info.overlap.filter(Boolean).length }; });
+        ok(isNet ? sc.ghosts === 0 && sc.red === 0 : sc.ghosts >= 1 && sc.red >= 2, 'Quiz Runde ' + (round + 1) + ': ' + (isNet ? 'geschlossen' : 'Doppelte rot, offene Seiten gestrichelt'), sc);
+        await page.click('#bodyQuizBtns .btn >> text=Nächstes');
+      }
+      ok((await page.evaluate(() => bodyState.quiz.ok + '/' + bodyState.quiz.n)) === '4/6', 'Quiz zählt richtig (4 von 6)');
+      /* Alle 24 Nicht-Netze: gestrichelte Seiten = Zahl im Text, Würfelraum a × a × a */
+      const allNon = await page.evaluate(() => cubeNonNets().every(cells => {
+        const net = gridNet(cells, 40, gridRoot(cells)), info = bodyFaceInfo(net, 'cube', cells, { a: 40 });
+        const all = [].concat(...foldNet(net, 1)), span = ['x', 'y', 'z'].map(k => Math.max(...all.map(p => p[k])) - Math.min(...all.map(p => p[k])));
+        return info.ghosts.length === cubeFoldCheck(cells, 40).missing && span.every(v => Math.abs(v - 40) < 1e-6);
+      }));
+      ok(allNon, 'Alle 24 Nicht-Netze: Text und Zeichnung nennen dieselben offenen Seiten');
+      await page.click('#bodyQuizBtns .btn >> text=Beenden');
+      ok(!(await page.isVisible('#bodyQuiz')) && await page.isVisible('#bodyNetPick') && await page.evaluate(() => bodyState.fold === 1), 'Quiz beendet: zurück zum Würfel');
+      // Großansicht
+      const small = await page.evaluate(() => document.getElementById('bodyView').width);
+      await page.click('#btnBodyBig');
+      await page.waitForTimeout(150);
+      const big = await page.evaluate(() => ({ w: document.getElementById('bodyBig').width, h: document.getElementById('bodyBig').height, vis: !document.getElementById('bodyFull').hidden }));
+      ok(big.vis && big.w > small * 1.5 && big.h > 400, 'Großansicht: Vollbild, deutlich größer', [small, big]);
+      ok((await inkOf('bodyBig')) > 20000, 'Großansicht gezeichnet');
+      await page.mouse.move(600, 400);
+      await page.mouse.wheel(0, -400);
+      ok(await page.evaluate(() => bodyState.zoom > 1.2), 'Großansicht: zoomen', await page.evaluate(() => bodyState.zoom));
+      await page.click('#bodyColorsBtn');
+      const colors = await page.evaluate(() => { const c = document.getElementById('bodyBig'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; const set = new Set(); for (let i = 0; i < d.length; i += 4 * 37) if (d[i] + d[i + 1] + d[i + 2] < 700) set.add((d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5)); return set.size; });
+      ok(await page.evaluate(() => bodyState.colors) && colors >= 6, 'Farben: Flächen farbig (Gegenseiten gleich)', colors);
+      await page.click('#bodyPlayBig');
+      ok(await page.evaluate(() => bodyState.fold < 0.5), 'Großansicht: Falten startet von vorn');
+      await page.waitForFunction(() => bodyState.fold > 0.999, null, { timeout: 6000 });
+      ok((await page.inputValue('#bodyFoldBig')) === '100' && (await page.inputValue('#bodyFold')) === '100', 'Beide Regler folgen der Animation');
+      await page.keyboard.press('Escape');
+      ok(!(await page.isVisible('#bodyFull')) && await page.isVisible('#labBody'), 'Escape schließt die Großansicht, Labor bleibt');
+      await page.click('#bodyColorsSmall');
+      await page.click('#btnLab').catch(() => {});
+      await page.click('#labMode_tri');
       ok(await page.isVisible('#btnLabDemo') && !(await page.isVisible('#labBody')), 'Zurück zu den Kongruenzsätzen');
       await page.click('#labPanel header .tb');
     }
@@ -1032,7 +1291,7 @@ async function main() {
       ok(lay.more && lay.outside.length === 0, 'Handy: Kopfleiste passt, Rest im „⋯"-Menü', lay);
       ok(lay.zoom === 0.5 && Math.abs(lay.ppm - 153.33) < 0.01, 'Handy: Start mit 50 %, iPhone-Maß erkannt', lay);
       await pp.click('#btnMore');
-      ok((await pp.textContent('#dialogTitle')) === 'Mehr' && (await pp.locator('#dialogButtons .btn').count()) === 6, 'Handy: Menü mit fünf Einträgen und Abbrechen');
+      ok((await pp.textContent('#dialogTitle')) === 'Mehr' && (await pp.locator('#dialogButtons .btn').count()) === 7, 'Handy: Menü mit sechs Einträgen (mit „Bild einfügen") und Abbrechen');
       await pp.click('#dialogButtons .btn >> text=Einstellungen');
       ok(await pp.isVisible('#settingsPanel'), 'Handy: Einstellungen über das Menü erreichbar');
       await pp.click('#settingsPanel .btn >> text=Kurzanleitung');

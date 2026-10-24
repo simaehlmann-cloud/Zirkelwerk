@@ -1,5 +1,40 @@
 # Änderungen
 
+## 0.10.2 – Bilder, Sicherung, Ordner, mehr Körper (Oktober 2026)
+
+**Neu:**
+- **Bilder auf dem Blatt:** Foto oder Bilddatei einfügen (iOS bietet Fotos, Kamera, Dateien
+  an), z. B. eine Aufgabe aus dem Schulbuch. Ecken ziehen = Größe, Kanten ziehen = zuschneiden,
+  „Blass" macht es durchscheinend, „Fertig" heftet es fest (mit der Hand antippen = wieder
+  bearbeiten). Liegt immer unter der Zeichnung, kommt mit ins PDF; QR-Codes enthalten es nicht
+  (Hinweis). Gespeichert verkleinert als JPEG (höchstens 1600 px, 30 Bilder je Blatt)
+- **Sicherung aller Blätter** samt Ordnern, Bildern und Abgaben in einer Datei; Wiederherstellen
+  ergänzt fehlende Blätter, überschreibt nichts (geänderte als „(Sicherung)"-Kopie); Hinweis in
+  „Meine Blätter", wann zuletzt gesichert wurde (rot, wenn nie oder vor über 30 Tagen)
+- **Ordner** in „Meine Blätter": Blatt über „⋯" in einen Ordner legen, Ordner filtern,
+  umbenennen, auflösen; neue Blätter landen im gewählten Ordner
+- **Texte verschieben** mit dem Text-Werkzeug (greifen und ziehen; Antippen bearbeitet)
+- **Weitere Körper:** Prisma und Pyramide mit regelmäßigem 3- bis 8-Eck, Pyramide mit
+  Rechteck, Tetraeder, Oktaeder, Kegel, Kugel (Orangenschalen-Netz, ausdrücklich angenähert);
+  Zylinder und Kegel lassen sich jetzt falten
+- **Alle 11 Würfelnetze** zur Auswahl, je mit Faltanimation, und das Quiz **„Ist das ein
+  Würfelnetz?"** – bei Nicht-Netzen zeigt die Faltung doppelt belegte Flächen rot und offene
+  Seiten gestrichelt
+- **Großansicht** der Körper: bildschirmfüllend, drehen, zoomen (zwei Finger/Mausrad), falten;
+  **Farben**: Gegenseiten gleich gefärbt
+- Kurzanleitung und Datenschutzerklärung ergänzt (Bilder, Kamera, Sicherung)
+
+**Bei der Prüfung gefunden und behoben:**
+- Neue Übersetzungen überschrieben still die Texte zum Kauf („wiederhergestellt") – der Validator
+  meldet doppelte Schlüssel jetzt
+- Beschreibung: Eine Strecke, die vor ihren Punkten gezeichnet und dann durchradiert wurde, hieß
+  plötzlich „Verbinde A mit B"
+- Quiz: Bewertung und gestrichelte Seiten konnten bei Sechslingen mit 2 × 2-Block voneinander
+  abweichen
+- Falten setzt sofort auf den Anfang zurück (kein kurzer Ruck)
+- iOS: Kamera-Begründung ergänzt (sonst beendet iOS die App bei „Foto aufnehmen"); Texte zur
+  Fotomediathek angepasst; Validator und iOS-Build prüfen das
+
 ## 0.10.1 – Bedienung nach dem ersten TestFlight-Test (Oktober 2026)
 
 - **Tastatur verdeckt nichts mehr:** Fenster mit Eingabefeld (Punktname, Text, Radius,

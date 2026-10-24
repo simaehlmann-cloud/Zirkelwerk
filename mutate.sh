@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.10.1"' 'version="0.10.2"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1001"' 'android-versionCode="1002"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.1" "zirkelwerk-0.10.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.10.2"' 'version="0.10.3"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1002"' 'android-versionCode="1003"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.2" "zirkelwerk-0.10.1"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -95,7 +95,7 @@ pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
-pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.1" "Stand 0.10.0"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.2" "Stand 0.10.1"
 pruefe "Diagnose: Skala übersehen"  coretest.js index.html "if (near(got, 180 - want, T) && Math.abs(want - 90) > 4) return { why: 'scale' };" ""
 pruefe "Diagnose: Tausch übersehen"  coretest.js index.html "if (near(got, g[o], T) && near(meas[o], want, T)) return { why: 'swap', other: o };" ""
 pruefe "Hilfe: Spiegelung ignoriert" coretest.js index.html "for (const flip of [1, -1])" "for (const flip of [1])"
@@ -131,11 +131,30 @@ pruefe "Abgabe ungeprüft übernommen" coretest.js index.html ".map((o, i) => { 
 # 0.10.1: Radierer, Beschriftung, Punkte verschieben
 pruefe "Teilbogen falscher Drehsinn"  coretest.js index.html "sweep: dir * Math.min(v - u, TAU - 1e-6)" "sweep: Math.min(v - u, TAU - 1e-6)"
 pruefe "Vollkreis-Lücke nicht vereint" coretest.js index.html "if (full && keep.length === 2" "if (false && keep.length === 2"
-pruefe "Antippen: Linie vor Punkt"    coretest.js index.html "const pr = o.type === 'point' || o.type === 'text' ? 0 : 1;" "const pr = 1;"
+pruefe "Antippen: Linie vor Punkt"    coretest.js index.html "const pr = o.type === 'point' || o.type === 'text' ? 0 : o.type === 'image' ? 2 : 1;" "const pr = o.type === 'image' ? 2 : 1;"
+pruefe "Antippen: Bild vor Linie"     coretest.js index.html "const pr = o.type === 'point' || o.type === 'text' ? 0 : o.type === 'image' ? 2 : 1;" "const pr = o.type === 'point' || o.type === 'text' ? 0 : 1;"
 pruefe "Gruppe falsch rückgängig"     coretest.js index.html "for (let k = e.list.length - 1; k >= 0; k--) revertEntry(objs, e.list[k]);" "for (let k = 0; k < e.list.length; k++) revertEntry(objs, e.list[k]);"
 pruefe "Einstich verschiebbar"        coretest.js index.html "if (dist(o.cx, o.cy, p.x, p.y) < DESC_EPS || distToArc(p.x, p.y, o) < DESC_EPS) return false;" "if (distToArc(p.x, p.y, o) < DESC_EPS) return false;"
 pruefe "Teilstücke getrennt beschrieben" coretest.js index.html "if (prev && prev.kind === 'seg' && !pending.length && piecesOfOneSeg(prev.o, o))" "if (false)"
 pruefe "Stoß an benanntem Punkt verschmolzen" coretest.js index.html "return !pointAt(best.pa[0], best.pa[1]) && !pointAt(best.pb[0], best.pb[1]);" "return true;"
+# 0.10.2
+pruefe "Doppelter Übersetzungsschlüssel"  validate.js index.html "restoredCopy: '{name} (Sicherung)', msgBackupRestored:" "restoredCopy: '{name} (Sicherung)', msgRestored:"
+pruefe "Ordner geht beim Laden verloren"  coretest.js index.html "    folder: cleanFolder(raw.folder)," ""
+pruefe "Sicherung überschreibt geänderte" coretest.js index.html "    else copy.push(d);" "    else add.push(d);"
+pruefe "Abgaben doppelt beim Zusammenführen" coretest.js index.html "if (!have.has(k(r))) { have.add(k(r)); out.push(r); added++; }" "{ out.push(r); added++; }"
+pruefe "Verbinden ohne Vorbedingung"      coretest.js index.html "if (ka && kb && !prev.ids.includes(ka.id) && !prev.ids.includes(kb.id))" "if (ka && kb)"
+pruefe "Bild ohne JPEG-Prüfung"           coretest.js index.html "      const info = jpegFromDataUrl(o.src);
+      if (!info) return null;" "      const info = { w: 1, h: 1 };"
+pruefe "Bild wird weggewischt"            coretest.js index.html "    case 'image': return null;   /* Bilder nur" "    case 'imageX': return null;   /* Bilder nur"
+pruefe "PDF-Bild falsche Länge"           coretest.js index.html "/Length ' + im.hex.length + ' >>" "/Length ' + (im.hex.length + 1) + ' >>"
+pruefe "Bilder unbegrenzt je Blatt"       coretest.js index.html "if (o && o.type === 'image' && ++nImg > IMG.maxPerDoc) continue;" ""
+pruefe "Würfelnetz-Abrollen falsch"       coretest.js index.html "if (dx === 1) t = { d: s.px, u: s.nx, px: s.u, nx: s.d, py: s.py, ny: s.ny };" "if (dx === 1) t = { d: s.px, u: s.nx, px: s.d, nx: s.u, py: s.py, ny: s.ny };"
+pruefe "Falten nur in Listenreihenfolge"  coretest.js index.html "  net.faces.forEach((f, i) => visit(i));" "  net.faces.forEach((f, i) => { done.add(i); order.push(i); });"
+pruefe "Abwickeln falsche Seite"          coretest.js index.html "if ((pc.x - A.x) * wx + (pc.y - A.y) * wy > 0) { wx = -wx; wy = -wy; }" ""
+pruefe "Kugel mit geradem Bandzahl"       coretest.js index.html "const BODY_SEG = 36, SPHERE_BANDS = 13;" "const BODY_SEG = 36, SPHERE_BANDS = 12;"
+pruefe "Kegel-Formel falsch"              coretest.js index.html "case 'cone': return { V: Math.PI * g.r * g.r * g.h / 3," "case 'cone': return { V: Math.PI * g.r * g.r * g.h / 2,"
+pruefe "Eckenzahl ohne Grenze"            coretest.js index.html "if (!Number.isInteger(g[k]) || g[k] < ints[k][0] || g[k] > ints[k][1]) return false;" ""
+pruefe "Kamera-Begründung fehlt"          validate.js res/ios/de.lproj/InfoPlist.strings '"NSCameraUsageDescription"' '"NSCameraUsageDescriptionX"' 
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="de.zirkelwerk.app"
-        version="0.10.1"
-        android-versionCode="1001"
-        ios-CFBundleVersion="1001"
+        version="0.10.2"
+        android-versionCode="1002"
+        ios-CFBundleVersion="1002"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
@@ -107,13 +107,19 @@
         <!-- Das Teilen-Plugin bringt Schlüssel für die Fotomediathek mit, und
              zwar mit Cordovas Platzhaltertext. Apples automatische Prüfung
              weist Platzhalter ab, bevor ein Mensch die App sieht (bei FairMix
-             Build 12203 passiert). Zirkelwerk liest keine Fotos; die Texte
-             beschreiben nur, was beim Teilen passieren kann. -->
+             Build 12203 passiert). Seit 0.10.2 kann man Fotos aufs Blatt legen:
+             Die Auswahl läuft über den System-Auswahldialog (nur das gewählte
+             Foto erreicht die App), die Texte sagen das ehrlich.
+             Kamera: Der Dateidialog bietet „Foto aufnehmen" an – ohne
+             NSCameraUsageDescription beendet iOS die App in diesem Moment. -->
         <edit-config target="NSPhotoLibraryAddUsageDescription" file="*-Info.plist" mode="overwrite">
             <string>Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden nicht gelesen.</string>
         </edit-config>
         <edit-config target="NSPhotoLibraryUsageDescription" file="*-Info.plist" mode="overwrite">
-            <string>Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden weder gelesen noch verändert.</string>
+            <string>Zirkelwerk legt ein Foto, das du auswählst, auf dein Blatt und sichert auf deinen Wunsch ein Bild deiner Zeichnung. Andere Fotos werden weder gelesen noch verändert.</string>
+        </edit-config>
+        <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="overwrite">
+            <string>Zirkelwerk nutzt die Kamera nur, wenn du ein Foto aufnimmst, um es auf ein Blatt zu legen – zum Beispiel eine Aufgabe aus dem Buch. Das Foto bleibt auf deinem Gerät.</string>
         </edit-config>
 
         <!-- Kein <resource-file> für das Privacy-Manifest: cordova-ios 8 legt

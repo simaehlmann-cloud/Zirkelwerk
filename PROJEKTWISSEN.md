@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.10.1 (Körper & Netze, Sprachförderung, Bedienung nach erstem TestFlight)
+# Zirkelwerk – Projektwissen, Stand 0.10.2 (Bilder, Sicherung, Ordner, Körper & Würfelnetze)
 
 ## Entscheidungen
 
@@ -254,6 +254,52 @@
   `#dialogBody` scrollt. Android verkleinert selbst.
 - Auf Gerät prüfen: Lupe/Verschieben mit dem Finger auf dem iPhone, Tastatur iPhone
   quer, Radierer-Markierung mit dem Pencil.
+
+## Bilder, Sicherung, Ordner (0.10.2)
+
+- **Bild-Objekt** `{type:'image', x, y, w, h, cr:[l,o,r,u], src, pw, ph, al}`: x/y/w/h = ganzes
+  Bild in mm, `cr` = sichtbarer Ausschnitt in Anteilen (`imgRect`). Nur JPEG-Data-URL
+  (`jpegFromDataUrl` liest Maße aus dem SOF, höchstens `IMG.maxChars` 6 MB, `IMG.maxPerDoc` 30).
+  Einfügen: `shrinkImage` (Canvas, ≤ 1600 px, weißer Grund, JPEG 0,85 → kleiner bis 0,4).
+- Gezeichnet zuerst (unter allem), Wiedergabe zeigt Bilder immer; `describe` überspringt sie,
+  `encodeObjs` lässt sie weg (QR-Hinweis `msgQrNoImages`), Radierer: nur Antippen (Priorität
+  nach Linien), nie Wischen.
+- Bearbeiten (`imgSel`): Hand antippen wählt; Ecken = Größe (Gegenecke fest, Verhältnis bleibt),
+  Kanten = `cr`, innen = schieben (`imgEditResult`), Leiste `#imgBar` (Blass/Löschen/Fertig).
+- PDF: `PdfCanvas.imageObj` + `pdfImage` (Hex-verpacktes JPEG, `/ASCIIHexDecode /DCTDecode`,
+  gleiche Bilder einmal) – Datei bleibt ASCII; coretest prüft mit qpdf und pdfimages.
+- iOS: `NSCameraUsageDescription` (config.xml + beide `InfoPlist.strings`), CI-Schritt prüft.
+- **Sicherung** `{format:'zirkelwerk-backup', v:1, docs, results}` (`makeBackup`, `readBackup`,
+  `planRestore`: gleiche Kennung + Stand → übersprungen, anderer Stand → Kopie „(Sicherung)").
+  Import erkennt Sicherungen (bis 150 MB). `S.lastBackup` für den Hinweis (`BACKUP_DUE_DAYS` 30).
+  Hinweis: Wiederherstellen prüft die Grenze der kostenlosen Fassung nicht (Datenrettung).
+- **Ordner** = Feld `folder` am Blatt (`cleanFolder`, `folderList`, `sameFolder` ohne Groß/klein);
+  Filter `sheetFolder`, neue/importierte Blätter landen im gewählten Ordner.
+- **Text verschieben**: Text-Werkzeug auf vorhandenem Text → `tmove` (ein `mod`).
+- Validator: doppelte Übersetzungsschlüssel, Körperschlüssel aus `BODY_KINDS`, Kamera-Texte.
+
+## Körper und Würfelnetze (0.10.2)
+
+- **Abwickler** `unfoldFaces(F, parent)`: konvexe 3D-Flächen + Faltbaum → Netz (Kantenabstände
+  bleiben, Faltwinkel aus den Normalen). `foldNet` faltet jetzt Eltern vor Kindern, unabhängig
+  von der Listenreihenfolge.
+- `bodySolid`: Prisma/Pyramide über beliebigem Polygon (Mantel als Streifen bzw. Stern, Kegel als
+  Fächer), Oktaeder (Fächer + untere Dreiecke), Kugel als Globus (`SPHERE_BANDS` = 13, ungerade:
+  Äquator mitten im Rechteckband → gerade Linie), `BODY_SEG` = 36 für Zylinder/Kegel.
+  `bodySmooth`: Gruppen gekrümmter Flächen (keine Facettenkanten in 3D und Schrägbild).
+- `BODY_INT`: ganzzahlige Angaben (n: Prisma/Pyramide 3–8, Kugelschalen 8–16), nicht in mm.
+- Netze aufs Blatt: Polyeder allgemein (Laschen = Ecken − 1), Kegel exakt (Kreisausschnitt
+  `arcs`, Laschen am Bogen), Kugel nur Schalenumrisse (`approx`).
+- **Würfelnetze**: `hexominos()` erzeugt die 35 Sechslinge, `cubeRolls` prüft durch Abrollen
+  → genau 11 (`cubeNets`, Kreuz zuerst). `gridNet(cells, a, root)`, Wurzel `gridRoot` (meiste
+  Nachbarn) – für Prüfung (`cubeFoldCheck`) und Darstellung gleich, sonst weichen sie bei
+  2 × 2-Blöcken ab. Kästchennetze falten nach −z.
+- Quiz (`bodyState.quiz`): halb Netze, halb nicht, zufällig gedreht/gespiegelt; nach der Antwort
+  Faltung, doppelt belegte Flächen rot, offene Seiten gestrichelt (Würfelraum aus allen Flächen).
+- Großansicht `#bodyFull` (Panel, Escape/Zurück schließt), Zoom `bodyState.zoom`, Farben
+  `bodyState.colors` (Gegenseiten gleich, gekrümmte Flächen einfarbig, `BODY_PALETTE`).
+- Auf Gerät prüfen: Kamera beim Bild einfügen (iOS/Android), Großansicht iPhone, Faltleistung
+  der Kugel mit 16 Schalen auf älteren iPads.
 
 ## Prüfkette
 

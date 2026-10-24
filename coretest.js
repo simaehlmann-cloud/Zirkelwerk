@@ -23,6 +23,9 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
   textFlip, GEO_KINDS, GEO_TASKS, geoStart, geoSolution, geoSolutionSteps, checkGeoTask, sanitizeInst, normAng, diagnose, taskProgress, labSolutionSteps, mapObject, BODY_KINDS, BODY_DEFAULTS, bodyValid, bodyNet, foldNet, bodyFaces, bodyMeasures, netDrawing, obliqueDrawing, bodySheetObjects, clozeSteps, intersectionsAdded, linkForResult, resultCodes, summarizeResults, taskKey, encodeObjs, decodeObjs, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
   eraseTarget, cutObject, CUT_MIN, labelDirFor, pointMovable, pointMoveEntry,
+  IMG, b64Bytes, jpegInfo, jpegFromDataUrl, imgRect, sanitizeObject, encodeObjs,
+  hexominos, cubeNets, cubeNonNets, cubeFoldCheck, gridNet, unfoldFaces, bodySolid, BODY_INT,
+  cleanFolder, folderList, sameFolder, makeBackup, isBackup, readBackup, planRestore, cleanResults, mergeResults,
   PdfCanvas, pdfRuns, pdfTextWidth, pdfWrap, pdfLayout, pdfCompose, pdfColor, pdfEsc, pdfBytes, PDF_PT, PDF_M, PDF_PAD };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
@@ -723,21 +726,80 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
     }
     return V;
   };
+  /* Zwei konvexe Vielecke überlappen (mehr als an Kanten)? Trennende Achse */
+  const overlap2 = (A, B) => {
+    for (const P of [A, B]) for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length], nx = -(b.y - a.y), ny = b.x - a.x, l = Math.hypot(nx, ny);
+      if (l < 1e-12) continue;
+      const pr = Q => Q.map(q => (q.x * nx + q.y * ny) / l);
+      const pa = pr(A), pb = pr(B);
+      if (Math.max(...pa) <= Math.min(...pb) + 1e-6 || Math.max(...pb) <= Math.min(...pa) + 1e-6) return false;
+    }
+    return true;
+  };
+  const netOverlaps = net => { const f = net.faces; for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) if (overlap2(f[i].pts, f[j].pts)) return [i, j]; return null; };
   const tabsWant = { cube: 7, cuboid: 7, prism3: 5, pyramid4: 4 };
+  /* Angenäherte Körper: Facetten statt Rundung (Kegel 36, Kugel 12 Bänder) */
+  const tolOf = { cylinder: 0.01, cone: 0.01, sphere: 0.1 };
+  const sample2 = kind => {
+    if (kind === 'prism3') return { a: 30, b: 45, c: 60, h: 25 };
+    const ints = K.BODY_INT[kind] || {};
+    return Object.fromEntries(Object.keys(K.BODY_DEFAULTS[kind]).map((k, i) => [k, ints[k] ? (kind === 'sphere' ? 10 : 5) : 23 + 9 * i]));
+  };
   for (const kind of K.BODY_KINDS) {
-    for (const g of [K.BODY_DEFAULTS[kind], kind === 'prism3' ? { a: 30, b: 45, c: 60, h: 25 } : Object.fromEntries(Object.keys(K.BODY_DEFAULTS[kind]).map((k, i) => [k, 23 + 9 * i]))]) {
+    for (const g of [K.BODY_DEFAULTS[kind], sample2(kind)]) {
+      ok(K.bodyValid(kind, g), 'Körper ' + kind + ': Testmaße gültig', g);
       const F = K.bodyFaces(kind, g), m = K.bodyMeasures(kind, g);
       const zmin = Math.min(...[].concat(...F).map(p => p.z));
-      const tolV = kind === 'cylinder' ? 0.01 : 1e-6;
+      const tolV = tolOf[kind] || 1e-6;
       ok(Math.abs(volOf(F) - m.V) / m.V < tolV && Math.abs(zmin) < 1e-9, 'Körper ' + kind + ': gefaltet = Formel (V ' + Math.round(m.V) + ' mm³), steht auf z = 0', [volOf(F), m.V]);
-      if (kind !== 'cylinder') {
-        const nd = K.netDrawing(kind, g);
-        const tabs = nd.tabs.length / 3, folds = nd.edges.filter(e => e.fold).length;
-        ok(tabs === tabsWant[kind] && folds === (K.bodyNet(kind, g).faces.length - 1) + tabsWant[kind], 'Netz ' + kind + ': ' + tabs + ' Klebelaschen, Faltkanten gestrichelt', { tabs, folds });
-        /* Flaches Netz bei t = 0 liegt in der Ebene */
-        ok(K.foldNet(K.bodyNet(kind, g), 0).every(f => f.every(p => Math.abs(p.z) < 1e-12)), 'Netz ' + kind + ': bei t = 0 flach');
-      }
+      const net = K.bodyNet(kind, g);
+      ok(net && K.foldNet(net, 0).every(f => f.every(p => Math.abs(p.z) < 1e-9)), 'Netz ' + kind + ': bei t = 0 flach');
+      ok(!netOverlaps(net), 'Netz ' + kind + ': keine Fläche liegt auf einer anderen', netOverlaps(net));
+      if (kind === 'cylinder' || kind === 'cone' || kind === 'sphere') continue;
+      /* Polyeder: Laschen = Ecken − 1 (Euler), Faltkanten = Gelenke + Laschenkanten */
+      const nd = K.netDrawing(kind, g);
+      const verts = new Set([].concat(...F).map(p => [p.x, p.y, p.z].map(v => Math.round(v * 1000)).join(','))).size;
+      const want = tabsWant[kind] != null ? tabsWant[kind] : verts - 1;
+      const tabs = nd.tabs.length / 3, folds = nd.edges.filter(e => e.fold).length;
+      ok(tabs === want && folds === (net.faces.length - 1) + want, 'Netz ' + kind + ': ' + tabs + ' Klebelaschen, Faltkanten gestrichelt', { tabs, folds, want });
     }
+  }
+  /* Neue Körper im Einzelnen */
+  {
+    const eq = K.bodyMeasures('prismn', { n: 3, a: 40, h: 30 }), p3 = K.bodyMeasures('prism3', { a: 40, b: 40, c: 40, h: 30 });
+    ok(Math.abs(eq.V - p3.V) < 1e-6 && Math.abs(eq.O - p3.O) < 1e-6, 'Regelmäßiges Dreiecksprisma = Dreiecksprisma mit gleichen Seiten');
+    const p4 = K.bodyMeasures('pyramidn', { n: 4, a: 40, h: 40 }), q4 = K.bodyMeasures('pyramid4', { a: 40, h: 40 }), r4 = K.bodyMeasures('pyramidrect', { a: 40, b: 40, h: 40 });
+    ok(Math.abs(p4.V - q4.V) < 1e-6 && Math.abs(p4.O - q4.O) < 1e-6 && Math.abs(r4.O - q4.O) < 1e-6, 'Quadratische Pyramide dreifach gleich (n-Eck, Rechteck, bisherige)');
+    ok(!K.bodyValid('prismn', { n: 9, a: 20, h: 20 }) && !K.bodyValid('prismn', { n: 4.5, a: 20, h: 20 }) && !K.bodyValid('sphere', { r: 30, n: 7 }) && K.bodyValid('sphere', { r: 30, n: 16 }), 'Eckenzahl 3–8, Kugelschalen 8–16, nur ganze Zahlen');
+    const t = K.bodyFaces('tetra', { a: 50 });
+    ok(t.length === 4 && t.every(f => f.every((p, i) => Math.abs(Math.hypot(p.x - f[(i + 1) % 3].x, p.y - f[(i + 1) % 3].y, p.z - f[(i + 1) % 3].z) - 50) < 1e-9)), 'Tetraeder: vier gleichseitige Dreiecke');
+    const o = K.bodyFaces('octa', { a: 40 });
+    ok(o.length === 8 && Math.abs(Math.max(...[].concat(...o).map(p => p.z)) - 40 * Math.sqrt(2 / 3)) < 1e-9, 'Oktaeder: acht Dreiecke, steht auf einer Fläche, Höhe a·√(2/3)', Math.max(...[].concat(...o).map(p => p.z)));
+    const cn = K.netDrawing('cone', { r: 30, h: 40 });
+    const s = 50, th = 2 * Math.PI * 30 / 50;
+    ok(cn.arcs.length === 1 && Math.abs(cn.arcs[0].r - s) < 1e-9 && Math.abs(cn.arcs[0].sweep - th) < 1e-9 && cn.circles[0].r === 30, 'Kegelnetz: Kreisausschnitt mit s = 5 cm und Winkel 2πr/s, Grundkreis r', cn.arcs[0]);
+    const cobj = K.bodySheetObjects('cone', { r: 30, h: 40 }, 'net');
+    ok(cobj.filter(x => x.type === 'arc').length === 2 && cobj.every(x => x.type !== 'arc' || x.r > 0), 'Kegelnetz aufs Blatt: Bogen und Kreis als Kreisbögen');
+    const sn = K.netDrawing('sphere', { r: 30, n: 12 });
+    ok(sn.approx && sn.tabs.length === 0 && sn.edges.every(e => !e.fold) && sn.edges.length > 100, 'Kugel: nur Umrisse der Schalen, als angenähert markiert');
+    const sb = K.boundsOf(K.bodySheetObjects('sphere', { r: 30, n: 12 }, 'net'));
+    ok(Math.abs((sb.x1 - sb.x0) - 2 * Math.PI * 30) / (2 * Math.PI * 30) < 0.05 && Math.abs((sb.y1 - sb.y0) - Math.PI * 30) / (Math.PI * 30) < 0.05, 'Orangenschalen: Breite ≈ Umfang 2πr, Höhe ≈ halber Umfang πr', [sb.x1 - sb.x0, sb.y1 - sb.y0]);
+    const obc = K.obliqueDrawing('cone', { r: 25, h: 50 }), obs = K.obliqueDrawing('sphere', { r: 30, n: 12 });
+    ok(obc.length < 120 && obc.some(e => e.hidden) && obs.length < 200 && obs.length > 10, 'Schrägbild Kegel und Kugel: nur Umrisse, keine Facettenlinien', [obc.length, obs.length]);
+  }
+  /* Würfelnetze */
+  {
+    const H = K.hexominos(), nets = K.cubeNets();
+    ok(H.length === 35 && nets.length === 11, 'Genau 35 Sechslinge, davon 11 Würfelnetze', [H.length, nets.length]);
+    ok(nets[0].map(c => c.join()).join(';') === '1,0;0,1;1,1;2,1;1,2;1,3', 'Erstes Würfelnetz ist das Kreuz', nets[0]);
+    ok(nets.every(c => K.cubeFoldCheck(c, 10).ok), 'Alle 11 Würfelnetze falten sich zum Würfel');
+    ok(K.cubeNonNets().length === 24 && K.cubeNonNets().every(c => { const r = K.cubeFoldCheck(c, 10); return !r.ok && r.missing >= 1 && r.overlap.some(Boolean); }), 'Alle 24 anderen: Überlappung und offene Seite');
+    nets.forEach((c, i) => { const F = K.foldNet(K.gridNet(c, 30, 0), 1); ok(Math.abs(volOf(F) - 27000) < 1e-6, 'Würfelnetz ' + (i + 1) + ': gefaltet Volumen a³'); });
+    const bf = K.bodyFaces('cube', { a: 30 }, 5);
+    ok(Math.abs(volOf(bf) - 27000) < 1e-6 && Math.abs(Math.min(...[].concat(...bf).map(p => p.z))) < 1e-9, 'Würfel mit anderem Netz: steht auf seiner Grundfläche');
+    const nd5 = K.netDrawing('cube', { a: 30 }, 5);
+    ok(nd5.tabs.length / 3 === 7, 'Jedes Würfelnetz bekommt 7 Klebelaschen');
   }
   /* Schrägbild eines Würfels: 12 Kanten, davon 3 verdeckt; Tiefe unter 45°, halbe Länge */
   const ob = K.obliqueDrawing('cube', { a: 40 });
@@ -1013,6 +1075,13 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   const sBC = Object.assign({}, seg, { id: 'bc', x1: 100, x2: 200 });
   const D4 = K.describe([A, B, C, Object.assign({}, seg, { id: 'ab' }), sBC], 'de', I18N.de);
   ok(D4[3].text === 'Verbinde A mit B und B mit C.', 'AB und BC (benannter Stoß) werden nicht verschmolzen', D4.map(x => x.text));
+  /* Strecke zuerst, Punkte danach, Mitte radiert: bleibt „Zeichne die Strecke AB" */
+  {
+    const sF = Object.assign({}, seg, { id: 'sf' }), pf = K.cutObject(sF, 50, 0, 5).map((q, i) => Object.assign(q, { id: 'sf' + i }));
+    const Aa = Object.assign({}, A, { id: 'A2' }), Bb = Object.assign({}, B, { id: 'B2' });
+    const T1 = K.describe([sF, Aa, Bb], 'de', I18N.de).map(x => x.text), T2 = K.describe(pf.concat([Aa, Bb]), 'de', I18N.de).map(x => x.text);
+    ok(JSON.stringify(T1) === JSON.stringify(T2) && /Strecke AB/.test(T2[0]), 'Strecke vor ihren Punkten, Mitte radiert: Text unverändert', [T1, T2]);
+  }
   /* Stoß an einem später benannten Punkt: zwei Strecken, keine Teilstücke */
   const sA1 = Object.assign({}, seg, { id: 'h1', x2: 50 }), sA2 = Object.assign({}, seg, { id: 'h2', x1: 50 });
   const Mp = { id: 'Mp', type: 'point', x: 50, y: 0, label: 'M', ld: 7 };
@@ -1043,6 +1112,105 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   ok(!K.pointMovable([P, Object.assign({}, sPQ, { m: { angle: { deg: 50, sym: 'α' } } })], P), 'Scheitel eines angetragenen Winkels liegt fest');
   const e = K.pointMoveEntry([P, Q, sPQ], P, 12, 15);
   ok(e.t === 'mod' && e.before.length === 2 && e.after[0].x === 12 && e.after[1].x1 === 12 && e.after[1].y1 === 15 && e.after[1].x2 === 60, 'Verschieben: Strecke zieht mit, anderes Ende bleibt', e.after);
+}
+
+
+/* ---------- 0.10.2: Ordner und Sicherung ---------- */
+{
+  ok(K.cleanFolder('  Klasse   7a \n') === 'Klasse 7a' && K.cleanFolder(42) === '' && K.cleanFolder('x'.repeat(99)).length === 40, 'Ordnername bereinigt');
+  const docs = [{ folder: 'Klasse 7b' }, { folder: 'klasse 7a' }, { folder: 'Klasse 7a' }, { folder: '' }, { folder: 'Klasse 10' }];
+  const fl = K.folderList(docs);
+  ok(fl.length === 3 && fl[0] === 'Klasse 7a' && fl[2] === 'Klasse 10', 'Ordnerliste: einmalig, natürliche Reihenfolge', fl);
+  ok(K.sameFolder('KLASSE 7A', 'klasse 7a') && !K.sameFolder('7a', '7b') && K.sameFolder('', undefined), 'Ordnervergleich ohne Groß/klein');
+  const d0 = K.newDoc('abc', 'Blatt', 1000);
+  ok(d0.folder === '', 'Neues Blatt ohne Ordner');
+  const dz = K.sanitizeDoc(Object.assign({}, d0, { folder: '  Reihe Dreiecke ' }), 'abc', 5);
+  ok(dz.folder === 'Reihe Dreiecke', 'Ordner übersteht das Laden');
+  ok(K.sanitizeDoc(Object.assign({}, d0, { folder: { x: 1 } }), 'abc', 5).folder === '', 'Kaputter Ordner wird leer');
+
+  const A = Object.assign(K.newDoc('aaa', 'Erstes', 100), { modified: 200, thumb: 'data:image/png;base64,xx', folder: 'Klasse 7a',
+    objects: [{ id: 'o1', type: 'point', x: 1, y: 2, label: 'A', ld: 7, c: '#3b3f45' }], seq: 2 });
+  const B = Object.assign(K.newDoc('bbb', 'Zweites', 100), { modified: 300 });
+  const res = [{ key: 'sss|50|40|30', task: { kind: 'sss', given: { c: 50, b: 40, a: 30 } }, name: 'Lena', ok: true, help: 1, codes: [], o: [], at: 5 }];
+  const bk = JSON.parse(JSON.stringify(K.makeBackup([A, B], res, { app: '0.10.2', created: 999 })));
+  ok(K.isBackup(bk) && bk.docs.length === 2 && !('thumb' in bk.docs[0]) && bk.results.length === 1, 'Sicherung: alle Blätter ohne Vorschaubild, Abgaben dabei');
+  ok(!K.isBackup(A) && !K.isBackup(null), 'Einzelblatt ist keine Sicherung');
+  const rb = K.readBackup(bk);
+  ok(rb.docs.length === 2 && rb.docs[0].id === 'aaa' && rb.docs[0].keepId && rb.docs[0].modified === 200 && rb.docs[0].folder === 'Klasse 7a' && rb.docs[0].objects.length === 1, 'Einlesen: Kennung, Stand, Ordner, Inhalt bleiben', rb.docs[0]);
+  ok(rb.results.length === 1 && rb.results[0].name === 'Lena', 'Einlesen: Abgaben');
+  const evil = JSON.parse(JSON.stringify(bk));
+  evil.docs.push({ format: 'zirkelwerk', v: 1, objects: 'kaputt' }, null, Object.assign({}, bk.docs[1], { id: '../../x' }), Object.assign({}, bk.docs[1]));
+  evil.results.push({ key: 5 }, { key: 'k', task: { kind: 'nix' } });
+  const re = K.readBackup(evil);
+  ok(re.bad === 2 && re.docs.length === 4 && !re.docs[2].keepId && !re.docs[3].keepId && re.results.length === 1, 'Kaputte Blätter gezählt, fremde/doppelte Kennungen neu vergeben, falsche Abgaben verworfen', [re.bad, re.docs.map(d => d.keepId)]);
+  let threw = ''; try { K.readBackup(Object.assign({}, bk, { v: 99 })); } catch (e) { threw = e.message; }
+  ok(threw === 'version', 'Sicherung aus neuerer Version wird erkannt');
+  const plan = K.planRestore(new Map([['aaa', 200], ['bbb', 299]]), rb.docs);
+  ok(plan.same === 1 && plan.copy.length === 1 && plan.copy[0].id === 'bbb' && plan.add.length === 0, 'Wiederherstellen: gleicher Stand übersprungen, geänderter als Kopie', plan);
+  const plan2 = K.planRestore(new Map(), rb.docs);
+  ok(plan2.add.length === 2 && plan2.same === 0, 'Leeres Gerät: alles dazu');
+  const m = K.mergeResults(rb.results, rb.results.concat([Object.assign({}, rb.results[0], { at: 6 })]), 600);
+  ok(m.added === 1 && m.list.length === 2, 'Abgaben: Doppelte erkannt, neue ergänzt');
+  ok(K.mergeResults([], Array.from({ length: 10 }, (_, i) => Object.assign({}, rb.results[0], { at: i })), 4).list.length === 4, 'Abgaben: Obergrenze, älteste fallen weg');
+}
+
+
+/* ---------- 0.10.2: Bilder ---------- */
+{
+  const RGB = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDjbL/j6T8f5Vq0UU+Mf99h/gX5yPquBf8AkXz/AMb/APSYn//Z';
+  const GRAY = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAAHAAUBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/ACv/2Q==';
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAADElEQVR4nGNgIB0AAAA0AAF2Xq7DAAAAAElFTkSuQmCC';
+  ok(K.jpegFromDataUrl(RGB).w === 12 && K.jpegFromDataUrl(RGB).h === 8 && K.jpegFromDataUrl(RGB).nc === 3, 'JPEG-Kopf: Breite, Höhe, drei Kanäle');
+  ok(K.jpegFromDataUrl(GRAY).nc === 1 && K.jpegFromDataUrl(GRAY).w === 5, 'Graustufen-JPEG erkannt');
+  ok(K.jpegFromDataUrl(PNG) === null && K.jpegFromDataUrl('data:image/jpeg;base64,AAAA') === null && K.jpegFromDataUrl('javascript:alert(1)') === null && K.jpegFromDataUrl(RGB + '<') === null, 'Kein JPEG / Fremdes → abgelehnt');
+  ok(K.jpegFromDataUrl('data:image/jpeg;base64,' + 'A'.repeat(K.IMG.maxChars)) === null, 'Zu großes Bild abgelehnt');
+  const bb = K.b64Bytes('SGFsbG8='); ok(bb.length === 5 && String.fromCharCode(...bb) === 'Hallo', 'Base64 mit Auffüllung');
+  const base = { type: 'image', x: 10, y: 20, w: 60, h: 40, src: RGB, pw: 9999, ph: 1, cr: [0.1, 0, 0.9, 1], al: 0.5 };
+  const im = K.sanitizeObject(base, 'i1');
+  ok(im && im.pw === 12 && im.ph === 8 && im.al === 0.5 && im.cr[0] === 0.1, 'Bild: Maße aus dem JPEG, nicht aus der Datei', im);
+  ok(K.sanitizeObject(Object.assign({}, base, { cr: [0.5, 0, 0.51, 1] }), 'i').cr.join() === '0,0,1,1', 'Zu schmaler Ausschnitt → ganzes Bild');
+  ok(K.sanitizeObject(Object.assign({}, base, { cr: [0, 0, 2, 1] }), 'i').cr.join() === '0,0,1,1', 'Ausschnitt außerhalb → ganzes Bild');
+  ok(!K.sanitizeObject(Object.assign({}, base, { w: 0 }), 'i') && !K.sanitizeObject(Object.assign({}, base, { src: PNG }), 'i') && !K.sanitizeObject(Object.assign({}, base, { x: 'a' }), 'i'), 'Ungültige Bilder verworfen');
+  const r = K.imgRect(im);
+  ok(near(r.x0, 16) && near(r.x1, 64) && near(r.y0, 20) && near(r.y1, 60), 'Sichtbares Rechteck aus dem Ausschnitt', r);
+  ok(near(K.boundsOf([im]).x0, 16) && near(K.boundsOf([im]).x1, 64), 'Umriss folgt dem Ausschnitt');
+  ok(near(K.objectDistance(im, 10, 30), 6) && K.objectDistance(im, 30, 30) === 0, 'Abstand zum sichtbaren Teil');
+  ok(K.cutObject(im, 30, 30, 5) === null, 'Wischen radiert kein Bild');
+  const P = { id: 'p', type: 'point', x: 30, y: 30, label: 'P' };
+  const seg = { id: 's', type: 'segment', x1: 0, y1: 31, x2: 100, y2: 31, w: 0.5 };
+  ok(K.eraseTarget([Object.assign({}, im, { id: 'i' }), seg], 30, 30, 3).id === 's' && K.eraseTarget([Object.assign({}, im, { id: 'i' })], 30, 30, 3).id === 'i', 'Antippen: Linien vor Bild, Bild nur allein', [K.eraseTarget([Object.assign({}, im, { id: 'i' }), seg], 30, 30, 3), K.eraseTarget([Object.assign({}, im, { id: 'i' })], 30, 30, 3)].map(x => x && x.id));
+  const many = { format: 'zirkelwerk', v: 1, objects: Array.from({ length: K.IMG.maxPerDoc + 5 }, () => base) };
+  ok(K.sanitizeDoc(many, 'x', 1).objects.length === K.IMG.maxPerDoc, 'Höchstens 30 Bilder je Blatt');
+  const D = K.describe([Object.assign({}, im, { id: 'i' }), P], 'de', I18N.de);
+  ok(D.length === 1 && !D.some(st => st.ids.includes('i')), 'Bilder sind kein Beschreibungsschritt', D);
+  ok(K.encodeObjs([Object.assign({}, im, { id: 'i' }), P]).length === 1, 'QR-Link lässt Bilder weg');
+  /* PDF mit Bild: Struktur, Längen, Ausschnitt */
+  const ctxDraw = (c, objs) => { for (const o of objs) if (o.type === 'image') { c.globalAlpha = o.al; c.imageObj(o); c.globalAlpha = 1; } };
+  const out = K.pdfCompose({ objects: [Object.assign({}, im, { id: 'i' }), Object.assign({}, im, { id: 'j', y: 80 })], draw: ctxDraw, grid: false, head: null, title: 'Bild', date: '20261024' });
+  const pdf = out.pdf;
+  const xobj = pdf.match(/\/Subtype \/Image \/Width 12 \/Height 8 \/ColorSpace \/DeviceRGB \/BitsPerComponent 8 \/Filter \[\/ASCIIHexDecode \/DCTDecode\] \/Length (\d+) >>\nstream\n([0-9A-F\n]+>)\nendstream/);
+  ok(xobj && +xobj[1] === xobj[2].length, 'PDF: Bildobjekt mit richtiger Länge', xobj && [xobj[1], xobj[2].length]);
+  ok((pdf.match(/\/Subtype \/Image/g) || []).length === 1, 'PDF: gleiches Bild nur einmal eingebettet');
+  ok((pdf.match(/\/Im1 Do/g) || []).length === 2 && / re W n [\d. ]+ 0 0 [\d. ]+ cm \/Im1 Do/.test(pdf) && /\/XObject << \/Im1 \d+ 0 R >>/.test(pdf), 'PDF: zweimal gezeichnet, mit Ausschnitt und Ressource');
+  ok(/\/ca 0\.5/.test(pdf), 'PDF: Blasses Bild mit Deckkraft 50 %');
+  ok([...pdf].every(ch => ch.charCodeAt(0) < 128), 'PDF mit Bild bleibt reines ASCII');
+  const hexBytes = xobj[2].replace(/[\n>]/g, '').match(/../g).map(h => parseInt(h, 16));
+  ok(hexBytes[0] === 0xFF && hexBytes[1] === 0xD8 && hexBytes.length === K.b64Bytes(RGB.slice(23)).length, 'PDF: JPEG unverändert enthalten');
+  /* xref stimmt */
+  const xr = +pdf.match(/startxref\n(\d+)/)[1];
+  ok(pdf.slice(xr, xr + 4) === 'xref', 'PDF mit Bild: xref-Position stimmt');
+  /* Gegenprobe mit echten Werkzeugen: Datei gültig, Bild wieder auslesbar */
+  const cp = require('child_process'), os = require('os'), path = require('path');
+  const has = cmd => cp.spawnSync('sh', ['-c', 'command -v ' + cmd]).status === 0;
+  if (has('qpdf') && has('pdfimages')) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zw-img-')), f = path.join(dir, 'bild.pdf');
+    fs.writeFileSync(f, Buffer.from(K.pdfBytes(pdf)));
+    const q = cp.spawnSync('qpdf', ['--check', f], { encoding: 'utf8' });
+    ok(q.status === 0 && /No syntax or stream encoding errors/.test(q.stdout) && !/WARNING/.test(q.stdout + q.stderr), 'PDF mit Bild: qpdf --check ohne Befund', q.stdout + q.stderr);
+    const li = cp.spawnSync('pdfimages', ['-list', f], { encoding: 'utf8' }).stdout;
+    ok(/\b12\s+8\s+rgb\s+3\s+8\s+jpeg\b/.test(li), 'PDF mit Bild: pdfimages liest 12 × 8 JPEG', li);
+    fs.rmSync(dir, { recursive: true, force: true });
+  } else console.log('  (qpdf/pdfimages nicht installiert – Bild-PDF-Gegenprobe übersprungen)');
 }
 
 /* ---------- Ausgabe ---------- */

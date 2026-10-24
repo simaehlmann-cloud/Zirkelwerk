@@ -59,7 +59,8 @@ keine Analyse- oder Trackingdienste, keine Werbung und keine Weitergabe von Date
 <h2>3. Welche Daten auf dem Gerät gespeichert werden</h2>
 <p>Alles, was Sie in der App erstellen, verbleibt ausschließlich auf Ihrem Gerät. Gespeichert werden:</p>
 <ul>
-<li>Ihre Blätter: Name, Zeichnungen (Strecken, Kreisbögen, Freihandstriche, Punkte und Texte),
+<li>Ihre Blätter: Name, Ordner, Zeichnungen (Strecken, Kreisbögen, Freihandstriche, Punkte und Texte),
+  Bilder, die Sie selbst auf ein Blatt gelegt haben (verkleinert),
   die zuletzt eingestellte Ansicht, die Lage der Zeichengeräte, ein kleines Vorschaubild und
   gegebenenfalls eine gestellte Aufgabe (Art der Aufgabe und gegebene Größen bzw. Ausgangsfigur) und die höchste genutzte Hilfestufe</li>
 <li>Ihre Einstellungen, etwa Sprache, Darstellung, Papierart, Farbe und Strichstärke,
@@ -68,6 +69,7 @@ keine Analyse- oder Trackingdienste, keine Werbung und keine Weitergabe von Date
 <li>auf dem Gerät einer Lehrkraft: gesammelte Abgaben (Name oder Kürzel, Aufgabe, Ergebnis der Prüfung, erkannte Fehler, genutzte Hilfestufe und – falls im Code enthalten – die Zeichnung)</li>
 <li>ob Sie bereits mit einem Eingabestift gezeichnet haben, damit Finger danach nur noch
   verschieben und nicht versehentlich zeichnen</li>
+<li>das Datum der letzten Sicherung aller Blätter (für den Hinweis in „Meine Blätter“)</li>
 </ul>
 <p>
 Blätter werden über die Browser-Technik <em>IndexedDB</em>, Einstellungen über
@@ -76,9 +78,11 @@ Zeitpunkt übertragen. Beim Deinstallieren der App werden sie vollständig entfe
 Einzelne Blätter lassen sich in der App unter „Meine Blätter“ löschen.
 </p>
 <p>
-Texte, die Sie auf ein Blatt schreiben, speichert die App wie alle übrigen Inhalte nur lokal.
-Bitte schreiben Sie keine Namen oder anderen personenbezogenen Angaben von Schülerinnen
-und Schülern auf die Blätter, wenn Sie diese weitergeben möchten.
+Texte, die Sie auf ein Blatt schreiben, und Bilder, die Sie einfügen, speichert die App wie
+alle übrigen Inhalte nur lokal. Bitte schreiben oder legen Sie keine Namen oder anderen
+personenbezogenen Angaben von Schülerinnen und Schülern auf die Blätter, wenn Sie diese
+weitergeben möchten. Wenn Sie Seiten aus Schulbüchern abfotografieren, beachten Sie bitte die
+urheberrechtlichen Regeln Ihrer Schule für das Vervielfältigen und Weitergeben.
 </p>
 
 <h2>4. Export, Import, PDF und QR-Codes</h2>
@@ -87,6 +91,16 @@ Beim Export wird ein Blatt als Datei (Endung <em>.zirkelwerk</em>) erzeugt und �
 Teilen-Funktion Ihres Geräts weitergegeben. Wohin die Datei anschließend gelangt
 (z. B. in die Dateien-App, per AirDrop oder E-Mail), entscheiden allein Sie.
 Beim Import wählen Sie eine Datei selbst aus; die App liest nur diese eine Datei.
+</p>
+<p>
+„Alle Blätter sichern“ erzeugt auf die gleiche Weise eine einzige Datei mit allen Blättern
+(samt Bildern und Ordnern) und allen Abgaben. Wo Sie die Sicherung ablegen (z. B. iCloud Drive
+oder ein USB-Stick), entscheiden allein Sie. Beim Wiederherstellen liest die App nur die gewählte
+Datei und ergänzt fehlende Blätter auf dem Gerät.
+</p>
+<p>
+Bilder, die mit auf ein Blatt gelegt wurden, sind in exportierten Dateien, Sicherungen und PDFs
+enthalten. In QR-Codes sind sie nicht enthalten.
 </p>
 <p>
 Ein PDF eines Blatts und ein Video der Wiedergabe werden ebenfalls nur auf dem Gerät erzeugt
@@ -114,10 +128,19 @@ löschen. Bitte nur Vornamen oder Kürzel verwenden.
 
 <h2>5. Berechtigungen</h2>
 <p>
-Die App fordert keine Berechtigungen für Kamera, Mikrofon, Kontakte oder Standort an.
+Die App fordert keine Berechtigungen für Mikrofon, Kontakte oder Standort an.
+</p>
+<p>
+Bilder einfügen: Wählen Sie „Bild einfügen“, öffnet sich der Auswahldialog des Systems.
+Zirkelwerk erhält nur das eine Foto bzw. die eine Datei, die Sie dort auswählen – auf die übrige
+Fotomediathek hat die App keinen Zugriff. Nehmen Sie dabei mit „Foto aufnehmen“ ein neues Foto auf,
+fragt das System einmalig nach der Erlaubnis für die Kamera; die Kamera wird nur in diesem Moment
+und nur auf Ihren Wunsch genutzt. Das Foto wird verkleinert auf dem Blatt gespeichert und nicht
+übertragen.
+</p>
+<p>
 Die Teilen-Funktion des Geräts kann anbieten, ein Bild in der Fotomediathek zu sichern;
-dafür fragt das System gegebenenfalls nach Ihrer Erlaubnis. Vorhandene Fotos werden
-von der App weder gelesen noch verändert.
+dafür fragt das System gegebenenfalls nach Ihrer Erlaubnis.
 </p>
 
 <h2>6. Verbindungen ins Internet</h2>
