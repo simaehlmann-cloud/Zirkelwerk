@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.10.0"' 'version="0.10.1"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1000"' 'android-versionCode="1001"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.0" "zirkelwerk-0.9.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="0.10.1"' 'version="0.10.2"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1001"' 'android-versionCode="1002"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.1" "zirkelwerk-0.10.0"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -95,7 +95,7 @@ pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
-pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.0" "Stand 0.9.0"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.1" "Stand 0.10.0"
 pruefe "Diagnose: Skala übersehen"  coretest.js index.html "if (near(got, 180 - want, T) && Math.abs(want - 90) > 4) return { why: 'scale' };" ""
 pruefe "Diagnose: Tausch übersehen"  coretest.js index.html "if (near(got, g[o], T) && near(meas[o], want, T)) return { why: 'swap', other: o };" ""
 pruefe "Hilfe: Spiegelung ignoriert" coretest.js index.html "for (const flip of [1, -1])" "for (const flip of [1])"
@@ -128,6 +128,14 @@ pruefe "Großes Blatt nicht ladbar"   coretest.js index.html "if (raw.objects.le
 pruefe "Langer Strich verworfen"     coretest.js index.html "const pts = [], nIn = Math.min(o.pts.length, LIMITS.strokePts);" "if (o.pts.length > LIMITS.strokePts) return null; const pts = [], nIn = o.pts.length;"
 pruefe "Beschreibung sieht spätere Linien" coretest.js index.html "      if (k >= i) continue;" ""
 pruefe "Abgabe ungeprüft übernommen" coretest.js index.html ".map((o, i) => { try { return sanitizeObject(o, 'r' + i); } catch (e) { return null; } }).filter(Boolean);" ";"
+# 0.10.1: Radierer, Beschriftung, Punkte verschieben
+pruefe "Teilbogen falscher Drehsinn"  coretest.js index.html "sweep: dir * Math.min(v - u, TAU - 1e-6)" "sweep: Math.min(v - u, TAU - 1e-6)"
+pruefe "Vollkreis-Lücke nicht vereint" coretest.js index.html "if (full && keep.length === 2" "if (false && keep.length === 2"
+pruefe "Antippen: Linie vor Punkt"    coretest.js index.html "const pr = o.type === 'point' || o.type === 'text' ? 0 : 1;" "const pr = 1;"
+pruefe "Gruppe falsch rückgängig"     coretest.js index.html "for (let k = e.list.length - 1; k >= 0; k--) revertEntry(objs, e.list[k]);" "for (let k = 0; k < e.list.length; k++) revertEntry(objs, e.list[k]);"
+pruefe "Einstich verschiebbar"        coretest.js index.html "if (dist(o.cx, o.cy, p.x, p.y) < DESC_EPS || distToArc(p.x, p.y, o) < DESC_EPS) return false;" "if (distToArc(p.x, p.y, o) < DESC_EPS) return false;"
+pruefe "Teilstücke getrennt beschrieben" coretest.js index.html "if (prev && prev.kind === 'seg' && !pending.length && piecesOfOneSeg(prev.o, o))" "if (false)"
+pruefe "Stoß an benanntem Punkt verschmolzen" coretest.js index.html "return !pointAt(best.pa[0], best.pa[1]) && !pointAt(best.pb[0], best.pb[1]);" "return true;"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

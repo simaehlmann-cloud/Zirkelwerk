@@ -1,5 +1,25 @@
 # Änderungen
 
+## 0.10.1 – Bedienung nach dem ersten TestFlight-Test (Oktober 2026)
+
+- **Tastatur verdeckt nichts mehr:** Fenster mit Eingabefeld (Punktname, Text, Radius,
+  Labor, Rückmeldung an die Lehrkraft) rücken über die Bildschirmtastatur und lassen
+  sich dort scrollen
+- **Beschriftung ziehen:** Mit dem Punkt-Werkzeug die Beschriftung greifen und um den
+  Punkt ziehen – sie rastet in acht Richtungen ein; Antippen öffnet weiterhin den Punkt
+- **Punkte verschieben:** Lange drücken auf einen frei gesetzten Punkt und ziehen;
+  Strecken, die dort enden, ziehen mit. Schnittpunkte, Mittelpunkte und Punkte auf
+  Linien sind konstruiert und bleiben fest
+- **Lupe** beim Setzen und Verschieben mit dem Finger: zeigt die Stelle unter dem Finger
+  vergrößert mit Fadenkreuz
+- **Radierer:** Antippen löscht genau ein Objekt (rot markiert, Punkte vor Linien) –
+  ein Punkt im Schnitt zweier Bögen lässt sich allein entfernen. Wischen radiert nur
+  das berührte Stück aus Strecken, Kreisbögen und Freihandstrichen, z. B. zu lange
+  Hilfsbögen; Konstruktionsbeschreibung und Prüfung behandeln die Teile als Ganzes
+- **Stift-Modus:** Ein kurzer Fingertipp öffnet Punkte und Texte, ohne zum Stift zu
+  greifen; ein Tipp ins Leere erklärt einmalig, dass der Finger das Blatt verschiebt
+- Kurzanleitung: Radierer, Beschriftung ziehen und Punkte verschieben ergänzt
+
 ## 0.10.0 – Körper & Netze, Sprachförderung, zweite Prüfung (Oktober 2026)
 
 **Neu:**

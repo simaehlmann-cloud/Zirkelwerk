@@ -22,6 +22,7 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
   compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
   textFlip, GEO_KINDS, GEO_TASKS, geoStart, geoSolution, geoSolutionSteps, checkGeoTask, sanitizeInst, normAng, diagnose, taskProgress, labSolutionSteps, mapObject, BODY_KINDS, BODY_DEFAULTS, bodyValid, bodyNet, foldNet, bodyFaces, bodyMeasures, netDrawing, obliqueDrawing, bodySheetObjects, clozeSteps, intersectionsAdded, linkForResult, resultCodes, summarizeResults, taskKey, encodeObjs, decodeObjs, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
+  eraseTarget, cutObject, CUT_MIN, labelDirFor, pointMovable, pointMoveEntry,
   PdfCanvas, pdfRuns, pdfTextWidth, pdfWrap, pdfLayout, pdfCompose, pdfColor, pdfEsc, pdfBytes, PDF_PT, PDF_M, PDF_PAD };`, ctx);
 const K = ctx.K;
 /* Sprachpakete für die Beschreibung */
@@ -939,6 +940,109 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   for (let i = 0; i < 1000; i++) big.push({ id: 'q' + i, type: 'point', x: rnd() * 300, y: rnd() * 200, label: '' });
   const t0 = Date.now(); K.describe(big, 'de', I18N.de); const dt = Date.now() - t0;
   ok(dt < 3000, 'Beschreibung von 5000 Objekten unter 3 s (Node)', dt);
+}
+
+
+/* ---------- 0.10.1: Radieren in Stücken ---------- */
+{
+  const seg = { id: 's', type: 'segment', x1: 0, y1: 0, x2: 100, y2: 0, c: '#000000', w: 0.5, al: 1, m: { via: 'ruler' } };
+  ok(K.cutObject(seg, 50, 20, 5) === null, 'Strecke: nicht berührt → null');
+  const p = K.cutObject(seg, 50, 0, 5);
+  ok(p.length === 2 && near(p[0].x1, 0) && near(p[0].x2, 50 - 5.25, 1e-9) && near(p[1].x1, 50 + 5.25, 1e-9) && near(p[1].x2, 100), 'Strecke: Mitte heraus, zwei Teile (Strichbreite zählt)', p);
+  ok(p[0].m !== seg.m && p[0].m.via === 'ruler', 'Teile haben eigene Metadaten');
+  ok(K.cutObject(seg, 0, 0, 5).length === 1 && near(K.cutObject(seg, 0, 0, 5)[0].x1, 5.25, 1e-9), 'Strecke: Ende gekürzt');
+  ok(K.cutObject(seg, 50, 0, 60).length === 0, 'Strecke ganz überdeckt → weg');
+  ok(K.cutObject(seg, 0.5, 0, 0.1).length === 1, 'Krümel am Ende fällt weg (kürzer als CUT_MIN)');
+
+  const arc = { id: 'a', type: 'arc', cx: 0, cy: 0, r: 40, a0: 0, sweep: Math.PI, c: '#000000', w: 0.5, al: 1, m: { rs: { t: 'set' } } };
+  ok(K.cutObject(arc, 0, -40, 3) === null, 'Bogen: Gegenseite nicht berührt');
+  const ap = K.cutObject(arc, 0, 40, 4);
+  const endAng = q => q.a0 + q.sweep;
+  ok(ap.length === 2 && near(ap[0].a0, 0) && endAng(ap[0]) < Math.PI / 2 && ap[1].a0 > Math.PI / 2 && near(endAng(ap[1]), Math.PI, 1e-9), 'Bogen: Mitte heraus, zwei Teile in Zeichenrichtung', ap);
+  const rev = Object.assign({}, arc, { a0: Math.PI, sweep: -Math.PI });
+  const rp = K.cutObject(rev, 0, 40, 4);
+  ok(rp.length === 2 && rp.every(q => q.sweep < 0) && near(rp[0].a0, Math.PI, 1e-9), 'Bogen gegen den Uhrzeigersinn: Drehsinn bleibt', rp);
+  const circ = Object.assign({}, arc, { sweep: K.TAU });
+  const cp = K.cutObject(circ, 40, 0, 4);
+  ok(cp.length === 1 && Math.abs(cp[0].sweep) < K.TAU - 0.1 && Math.abs(cp[0].sweep) > K.TAU - 0.3, 'Vollkreis: ein Bogen bleibt, Lücke über 0°', cp);
+  const cq = K.cutObject(circ, 0, 40, 4);
+  ok(cq.length === 1 && K.distToArc(40, 0, cq[0]) < 1e-9 && K.distToArc(0, 40, cq[0]) > 3, 'Vollkreis: Lücke bei 90°, Rest zusammenhängend', cq);
+  ok(K.cutObject(arc, 0, 0, 50).length === 0, 'Bogen ganz im Radierer → weg');
+
+  const st = { id: 't', type: 'stroke', pts: [0, 0, 10, 0, 20, 0, 30, 0, 40, 0], c: '#000000', w: 0.5, al: 1 };
+  const sp = K.cutObject(st, 20, 0, 3);
+  ok(sp.length === 2 && sp[0].pts[0] === 0 && near(sp[0].pts[sp[0].pts.length - 2], 16.75, 1e-9) && near(sp[1].pts[0], 23.25, 1e-9) && sp[1].pts[sp[1].pts.length - 2] === 40, 'Freihand: Mitte heraus', sp.map(q => q.pts));
+  ok(K.cutObject(st, 20, 10, 3) === null, 'Freihand: nicht berührt');
+  ok(K.cutObject({ id: 'p', type: 'point', x: 1, y: 1 }, 0, 0, 2).length === 0, 'Punkt im Radierer: ganz weg');
+
+  /* Antippen: Punkt vor Linie */
+  const P1 = { id: 'p1', type: 'point', x: 50, y: 0.5, label: 'P' };
+  ok(K.eraseTarget([seg, P1], 50, 0, 3) === P1, 'Antippen trifft den Punkt, nicht die Strecke darunter');
+  ok(K.eraseTarget([seg, P1], 80, 0, 3) === seg, 'Antippen abseits des Punkts trifft die Strecke');
+  ok(K.eraseTarget([seg, P1], 80, 30, 3) === null, 'Antippen ins Leere trifft nichts');
+
+  /* Rückgängig: Teilstück einfügen und Gruppe */
+  const L = [{ id: 'x' }, seg, { id: 'y' }];
+  const [q0, q1] = p.map((q, i) => Object.assign(q, { id: i ? 'n1' : 's' }));
+  const g = { t: 'grp', list: [{ t: 'mod', before: [seg], after: [q0] }, { t: 'ins', items: [{ obj: q1, index: 2 }] }] };
+  K.applyEntry(L, g);
+  ok(L.map(o => o.id).join() === 'x,s,n1,y' && L[1] === q0, 'Gruppe: Teil 1 ersetzt, Teil 2 direkt dahinter', L.map(o => o.id));
+  K.revertEntry(L, g);
+  ok(L.map(o => o.id).join() === 'x,s,y' && L[1] === seg, 'Gruppe rückgängig: Original an alter Stelle');
+  /* Reihenfolge beim Zurückspielen: zwei Löschungen mit Index zum Zeitpunkt */
+  const L2 = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const g2 = { t: 'grp', list: [{ t: 'del', items: [{ obj: L2[0], index: 0 }] }, { t: 'del', items: [{ obj: L2[2], index: 1 }] }] };
+  K.applyEntry(L2, g2);
+  ok(L2.map(o => o.id).join() === 'b', 'Gruppe: zwei Löschungen');
+  K.revertEntry(L2, g2);
+  ok(L2.map(o => o.id).join() === 'a,b,c', 'Gruppe rückgängig in umgekehrter Reihenfolge', L2.map(o => o.id));
+  const hh = new K.History(5); hh.push({ t: 'grp', list: [] });
+  ok(!hh.canUndo(), 'Leere Gruppe wird nicht gemerkt');
+
+  /* Beschreibung: Teilstücke bleiben ein Schritt */
+  const A = { id: 'A', type: 'point', x: 0, y: 0, label: 'A', ld: 7 }, B = { id: 'B', type: 'point', x: 100, y: 0, label: 'B', ld: 7 };
+  const M = { id: 'M', type: 'point', x: 0, y: 0, label: 'M', ld: 7 };
+  const full = [A, B, Object.assign({}, seg, { id: 's' })];
+  const cut = [A, B, q0, q1];
+  const D1 = K.describe(full, 'de', I18N.de).map(x => x.text), D2 = K.describe(cut, 'de', I18N.de);
+  ok(D2.length === D1.length && D2[D2.length - 1].text === D1[D1.length - 1] && D2[D2.length - 1].ids.includes('n1'), 'Radierte Strecke: gleiche Beschreibung, beide Teile im Schritt', [D1, D2.map(x => [x.text, x.ids])]);
+  const arcs = K.cutObject(Object.assign({}, arc, { id: 'a' }), 0, 40, 4).map((q, i) => Object.assign(q, { id: 'a' + i }));
+  const D3 = K.describe([M].concat(arcs), 'de', I18N.de);
+  ok(D3.length === 2 && D3[1].ids.length === 2 && D3[1].text === 'Zeichne einen Kreisbogen um M mit dem Radius r = 4 cm.', 'Radierter Bogen: ein Satz', D3.map(x => x.text));
+  const C = { id: 'C', type: 'point', x: 200, y: 0, label: 'C', ld: 7 };
+  const sBC = Object.assign({}, seg, { id: 'bc', x1: 100, x2: 200 });
+  const D4 = K.describe([A, B, C, Object.assign({}, seg, { id: 'ab' }), sBC], 'de', I18N.de);
+  ok(D4[3].text === 'Verbinde A mit B und B mit C.', 'AB und BC (benannter Stoß) werden nicht verschmolzen', D4.map(x => x.text));
+  /* Stoß an einem später benannten Punkt: zwei Strecken, keine Teilstücke */
+  const sA1 = Object.assign({}, seg, { id: 'h1', x2: 50 }), sA2 = Object.assign({}, seg, { id: 'h2', x1: 50 });
+  const Mp = { id: 'Mp', type: 'point', x: 50, y: 0, label: 'M', ld: 7 };
+  const D7 = K.describe([A, sA1, sA2, Mp], 'de', I18N.de);
+  ok(!D7.some(x => x.ids.includes('h1') && x.ids.includes('h2')), 'Strecken mit benanntem Stoßpunkt bleiben getrennt', D7.map(x => [x.text, x.ids]));
+  /* Strecke von A aus, Mitte radiert: weiterhin „Strecke von A aus" mit voller Länge */
+  const sA = Object.assign({}, seg, { id: 'sa' }), pa = K.cutObject(sA, 50, 0, 5).map((q, i) => Object.assign(q, { id: 'sa' + i }));
+  const D5 = K.describe([A, sA], 'de', I18N.de).map(x => x.text), D6 = K.describe([A].concat(pa), 'de', I18N.de).map(x => x.text);
+  ok(JSON.stringify(D5) === JSON.stringify(D6), 'Strecke von A aus, Mitte radiert: Text unverändert', [D5, D6]);
+}
+
+/* ---------- 0.10.1: Beschriftung ziehen, Punkte verschieben ---------- */
+{
+  ok(K.labelDirFor(1, 0) === 0 && K.labelDirFor(1, 1) === 1 && K.labelDirFor(0, 1) === 2 && K.labelDirFor(-1, 0) === 4 && K.labelDirFor(1, -1) === 7 && K.labelDirFor(0, -1) === 6, 'Richtung → Lage der Beschriftung');
+  ok(K.labelDirFor(1, -0.3) === 0 && K.labelDirFor(1, -0.5) === 7, 'Zwischenrichtungen runden zur nächsten Lage');
+  ok(K.labelDirFor(0, 0) === null, 'Ohne Richtung keine Lage');
+
+  const P = { id: 'P', type: 'point', x: 10, y: 10, label: 'P' };
+  const Q = { id: 'Q', type: 'point', x: 60, y: 10, label: 'Q' };
+  const sPQ = { id: 'pq', type: 'segment', x1: 10, y1: 10, x2: 60, y2: 10, w: 0.5 };
+  ok(K.pointMovable([P, Q, sPQ], P), 'Endpunkt einer Strecke ist verschiebbar');
+  const mid = { id: 'S', type: 'point', x: 35, y: 10, label: 'S' };
+  ok(!K.pointMovable([P, Q, sPQ, mid], mid), 'Punkt auf einer Strecke (konstruiert) liegt fest');
+  const arcP = { id: 'k', type: 'arc', cx: 10, cy: 10, r: 20, a0: 0, sweep: 1 };
+  ok(!K.pointMovable([P, arcP], P), 'Zirkeleinstich liegt fest');
+  ok(!K.pointMovable([{ id: 'k2', type: 'arc', cx: 0, cy: 10, r: 10, a0: -1, sweep: 2 }, P], P), 'Punkt auf einem Bogen liegt fest');
+  ok(!K.pointMovable([Object.assign({}, P, { m: { giv: 1 } })], Object.assign({}, P, { m: { giv: 1 } })), 'Ausgangsfigur liegt fest');
+  ok(!K.pointMovable([P, Object.assign({}, sPQ, { m: { angle: { deg: 50, sym: 'α' } } })], P), 'Scheitel eines angetragenen Winkels liegt fest');
+  const e = K.pointMoveEntry([P, Q, sPQ], P, 12, 15);
+  ok(e.t === 'mod' && e.before.length === 2 && e.after[0].x === 12 && e.after[1].x1 === 12 && e.after[1].y1 === 15 && e.after[1].x2 === 60, 'Verschieben: Strecke zieht mit, anderes Ende bleibt', e.after);
 }
 
 /* ---------- Ausgabe ---------- */

@@ -145,6 +145,85 @@ async function main() {
     await page.keyboard.press('Escape');
     ok((await objs(page)).filter(x => x.type === 'point').length === 2, 'Kein doppelter Punkt');
 
+    /* ---------- 0.10.1: Beschriftung um den Punkt ziehen ---------- */
+    {
+      const pA = (await objs(page)).find(x => x.label === 'A');
+      const box = await page.evaluate(id => { const o = window.__zw.doc.objects.find(x => x.id === id); return labelBox(o, window.__zw.sc()); }, pA.id);
+      const cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+      const ldVor = pA.ld == null ? 7 : pA.ld;
+      // Gegenüberliegende Seite: Richtung umkehren
+      const vx = pA.x - (cx - pA.x) * 4, vy = pA.y - (cy - pA.y) * 4;
+      await stroke(page, 'pen', line([cx, cy], [vx, vy], 10));
+      const ldNach = (await objs(page)).find(x => x.label === 'A').ld;
+      ok(ldNach === (ldVor + 4) % 8, 'Beschriftung auf die Gegenseite gezogen', [ldVor, ldNach]);
+      ok(!(await page.isVisible('#dialog')), 'Ziehen öffnet keinen Dialog');
+      ok((await objs(page)).filter(x => x.type === 'point').length === 2, 'Ziehen der Beschriftung setzt keinen Punkt');
+      await page.click('#btnUndo');
+      ok(((await objs(page)).find(x => x.label === 'A').ld) === pA.ld, 'Rückgängig: Beschriftung wieder an alter Stelle');
+      await stroke(page, 'pen', [[cx, cy]]);
+      ok(await page.isVisible('#dialog') && (await page.textContent('#dialogTitle')) === 'Punkt', 'Antippen der Beschriftung öffnet den Punkt');
+      await page.keyboard.press('Escape');
+      // Finger im Stift-Modus: Tipp auf den Punkt öffnet ihn, Ziehen verschiebt nur
+      await stroke(page, 'touch', [[pA.x, pA.y]], 31);
+      ok(await page.isVisible('#dialog'), 'Stift-Modus: Fingertipp auf A öffnet den Punkt-Dialog');
+      await page.keyboard.press('Escape');
+      const ox = await page.evaluate(() => window.__zw.view.ox);
+      await stroke(page, 'touch', line([pA.x, pA.y], [pA.x + 20, pA.y], 6), 32);
+      ok(!(await page.isVisible('#dialog')) && (await page.evaluate(() => window.__zw.view.ox)) !== ox, 'Stift-Modus: Finger auf A ziehen verschiebt das Blatt');
+      await page.evaluate(x => { window.__zw.view.ox = x; viewChanged(); }, ox);
+      await stroke(page, 'touch', [[pA.x + 60, pA.y + 60]], 33);
+      ok(await page.evaluate(() => window.__zw.S.fingerHint) && (await page.textContent('#toast')).includes('Finger'), 'Stift-Modus: Fingertipp ins Leere erklärt einmal das Verhalten');
+      ok((await objs(page)).filter(x => x.type === 'point').length === 2, 'Fingertipp setzt keinen Punkt');
+
+      /* Langes Drücken auf B: freier Punkt wird verschoben, die Strecke zieht mit */
+      const pB = (await objs(page)).find(x => x.label === 'B');
+      await page.evaluate(([x, y]) => window.__ptr('pen', 41, 'down', x, y), [pB.x, pB.y]);
+      await page.waitForTimeout(600);
+      ok(await page.evaluate(() => window.__zw.G && window.__zw.G.kind === 'pmove'), 'Langes Drücken auf B: Verschiebemodus');
+      for (let i = 1; i <= 5; i++) await page.evaluate(([x, y]) => window.__ptr('pen', 41, 'move', x, y), [pB.x + i, pB.y + i * 0.6]);
+      await page.evaluate(([x, y]) => window.__ptr('pen', 41, 'up', x, y), [pB.x + 5, pB.y + 3]);
+      let mv = await objs(page);
+      const nB = mv.find(x => x.label === 'B'), sAB = mv.find(x => x.type === 'segment' && near(x.x1, pA.x) && near(x.y1, pA.y));
+      ok(nB && near(nB.x, pB.x + 5, 1e-6) && near(nB.y, pB.y + 3, 1e-6), 'B ist verschoben', nB);
+      ok(sAB && near(sAB.x2, nB.x, 1e-9) && near(sAB.y2, nB.y, 1e-9), 'Strecke AB endet am neuen B', sAB);
+      ok(mv.filter(x => x.type === 'point').length === 2 && !(await page.isVisible('#dialog')), 'Verschieben: kein neuer Punkt, kein Dialog');
+      await page.click('#btnUndo');
+      mv = await objs(page);
+      ok(near(mv.find(x => x.label === 'B').x, pB.x) && mv.some(x => x.type === 'segment' && near(x.x2, pB.x) && near(x.y2, pB.y)), 'Rückgängig: B und Strecke wieder wie vorher');
+
+      /* Lange drücken ohne Ziehen: öffnet den Punkt wie Antippen */
+      await page.evaluate(([x, y]) => window.__ptr('pen', 42, 'down', x, y), [pB.x, pB.y]);
+      await page.waitForTimeout(600);
+      await page.evaluate(([x, y]) => window.__ptr('pen', 42, 'up', x, y), [pB.x, pB.y]);
+      ok(await page.isVisible('#dialog') && near((await objs(page)).find(x => x.label === 'B').x, pB.x), 'Lange drücken ohne Ziehen öffnet B, ohne es zu verschieben');
+      await page.keyboard.press('Escape');
+
+      /* Lupe beim Setzen mit dem Finger (Finger zeichnet) */
+      await page.evaluate(() => { window.__zw.S.penOnly = 'off'; });
+      const nP = mv.filter(x => x.type === 'point').length;
+      /* Freie Stelle suchen: kein Gerät, kein Objekt in der Nähe */
+      const frei = await page.evaluate(() => {
+        for (const [fx, fy] of [[0.25, 0.7], [0.75, 0.7], [0.5, 0.75], [0.3, 0.5], [0.7, 0.5]]) {
+          const w = window.__zw.s2w(stageW * fx, stageH * fy);
+          if (!hitInstBody(w, 'touch') && !hitCompass(w, 'touch') && !topObjectAt(window.__zw.doc.objects, w.x, w.y, 15)) return w;
+        }
+        return null;
+      });
+      await page.evaluate(w => window.__ptr('touch', 51, 'down', w.x, w.y), frei);
+      for (let i = 1; i <= 4; i++) await page.evaluate(([w, i]) => window.__ptr('touch', 51, 'move', w.x + i, w.y + i), [frei, i]);
+      await page.waitForTimeout(80);
+      const lupe = await page.evaluate(w => {
+        const s = window.__zw.w2s(w.x + 4, w.y + 4), cv = document.getElementById('cvOver'), d = Math.min(window.devicePixelRatio || 1, 3);
+        const px = cv.getContext('2d').getImageData(Math.round(s.x * d), Math.round((s.y - 92 - 40) * d), 1, 1).data;
+        return { a: px[3], kind: window.__zw.G && window.__zw.G.kind };
+      }, frei);
+      ok(frei && lupe.kind === 'point' && lupe.a > 0, 'Lupe erscheint über dem Finger', lupe);
+      await page.evaluate(w => window.__ptr('touch', 51, 'up', w.x + 4, w.y + 4), frei);
+      ok((await objs(page)).filter(x => x.type === 'point').length === nP + 1, 'Finger setzt den Punkt dort, wo er losgelassen wird');
+      await page.click('#btnUndo');
+      await page.evaluate(() => { window.__zw.S.penOnly = 'auto'; });
+    }
+
     /* ---------- Zirkel: Bogen um A mit r = 4 cm ---------- */
     await page.click('[data-tool="pencil"]');
     await page.click('[data-inst="compass"]');
@@ -298,16 +377,65 @@ async function main() {
     await page.click('[data-tool="pencil"]');
     await stroke(page, 'pen', line([-80, 40], [-60, 45], 10));
     let n = (await objs(page)).length;
+    const strich = (await objs(page))[n - 1];
     await page.click('[data-tool="eraser"]');
     await stroke(page, 'pen', line([-75, 35], [-72, 50], 8));
-    ok((await objs(page)).length === n - 1, 'Radierer entfernt den Strich');
+    let er = await objs(page);
+    ok(er.length === n + 1 && er[n - 1].id === strich.id && er[n].type === 'stroke', 'Radierer wischt ein Stück aus dem Strich: zwei Teile', er.slice(n - 1).map(x => x.type));
     await page.click('#btnUndo');
-    ok((await objs(page)).length === n, 'Rückgängig holt ihn zurück');
+    er = await objs(page);
+    ok(er.length === n && JSON.stringify(er[n - 1].pts) === JSON.stringify(strich.pts), 'Rückgängig setzt den Strich wieder zusammen');
+    /* Antippen: nur der Punkt, nicht die Linien durch ihn */
+    const vorTipp = await objs(page);
+    const linien = vorTipp.filter(x => x.type === 'segment' || x.type === 'arc').length;
+    await page.waitForTimeout(120);   // ausstehendes Neuzeichnen abwarten – sonst färbt es die Markierung zufällig mit ein
+    await page.evaluate(([x, y]) => { window.__ptr('pen', 9, 'down', x, y); }, [A.x, A.y]);
+    ok(await page.evaluate(() => { const g = window.__zw.G; return !!(g && g.kind === 'erase' && g.target && g.target.label === 'A'); }), 'Radierer: Antippen markiert den Punkt vor den Linien');
+    await page.waitForTimeout(80);
+    const rot = await page.evaluate(([x, y]) => {
+      const s = window.__zw.w2s(x, y), d = Math.min(window.devicePixelRatio || 1, 3), cv = document.getElementById('cvOver');
+      const k = window.__zw.sc(), r = 9;   // Ring um den Punkt, 9 Bildschirmpunkte
+      const px = cv.getContext('2d').getImageData(Math.round((s.x + r) * d), Math.round(s.y * d), 1, 1).data;
+      return Array.from(px);
+    }, [A.x, A.y]);
+    ok(rot[3] > 0 && rot[0] > 150 && rot[1] < 120, 'Rote Markierung sofort sichtbar, ohne Bewegung', rot);
+    await page.evaluate(([x, y]) => { window.__ptr('pen', 9, 'up', x, y); }, [A.x, A.y]);
+    er = await objs(page);
+    ok(!er.some(x => x.label === 'A') && er.filter(x => x.type === 'segment' || x.type === 'arc').length === linien && er.length === vorTipp.length - 1, 'Antippen löscht genau den Punkt A');
+    await page.click('#btnUndo');
+    ok((await objs(page)).some(x => x.label === 'A'), 'Rückgängig holt A zurück');
+    /* Bogen teilweise radieren: Beschreibung bleibt ein Schritt */
+    await page.evaluate(() => addObjects([{ type: 'point', x: 150, y: 150, label: 'Z', ld: 7, c: '#3b3f45' },
+      { type: 'arc', cx: 150, cy: 150, r: 30, a0: 0, sweep: Math.PI, c: '#3b3f45', w: 0.5, al: 1, m: { rs: { t: 'set' } } }]));
+    const stepsVor = (await page.evaluate(() => window.__zw.steps())).length;
+    n = (await objs(page)).length;
+    await stroke(page, 'pen', line([150, 175], [150, 186], 6));
+    er = await objs(page);
+    const bogen = er.filter(x => x.type === 'arc' && x.cx === 150 && x.cy === 150);
+    ok(er.length === n + 1 && bogen.length === 2, 'Bogen: Mitte herausradiert, zwei Teile', bogen);
+    ok((await page.evaluate(() => window.__zw.steps())).length === stepsVor, 'Bogen-Teile bleiben ein Beschreibungsschritt');
+    await page.click('#btnUndo'); await page.click('#btnUndo');
+    ok((await objs(page)).length === n - 2, 'Rückgängig: Bogen ganz, dann Probeobjekte weg');
 
     /* ---------- Text ---------- */
     await page.click('[data-tool="text"]');
     await stroke(page, 'pen', [[-80, 60]]);
     ok(await page.isVisible('#dialog'), 'Textdialog öffnet');
+    /* 0.10.1: Bildschirmtastatur (wie iOS: nur der sichtbare Ausschnitt schrumpft) */
+    const kb = await page.evaluate(() => {
+      const free = innerHeight - 420;
+      Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => ({ height: free, offsetTop: 0, addEventListener() {} }) });
+      fitToKeyboard();
+      const card = document.querySelector('#dialog .card').getBoundingClientRect();
+      const inp = document.getElementById('dialogInput').getBoundingClientRect();
+      const r = { kb: document.body.classList.contains('kb'), cardBottom: card.bottom, inpBottom: inp.bottom, free };
+      Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => ({ height: innerHeight, offsetTop: 0, addEventListener() {} }) });
+      fitToKeyboard();
+      r.after = document.body.classList.contains('kb');
+      return r;
+    });
+    ok(kb.kb && kb.cardBottom <= kb.free + 1 && kb.inpBottom <= kb.free, 'Tastatur offen: Dialog samt Eingabefeld liegt darüber', kb);
+    ok(!kb.after, 'Tastatur zu: Dialog wieder normal');
     await page.fill('#dialogInput', 'c = 5 cm');
     await page.keyboard.press('Enter');
     o = await objs(page);

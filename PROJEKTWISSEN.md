@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.10.0 (Körper & Netze, Sprachförderung, Prüfung)
+# Zirkelwerk – Projektwissen, Stand 0.10.1 (Körper & Netze, Sprachförderung, Bedienung nach erstem TestFlight)
 
 ## Entscheidungen
 
@@ -227,6 +227,33 @@
 - CSP: `object-src 'none'; base-uri 'none'`.
 - Offen/auf Gerät prüfen: Zurück-Taste Android 16, Ränder Android 15/16, iOS-Dateiauswahl,
   Vorlesen-Stimmen, `target=_blank` in den Rechtstexten.
+
+## Bedienung nach dem ersten TestFlight (0.10.1)
+
+- **Radierer:** Antippen = genau ein Objekt (`eraseTarget`: Punkte/Texte vor Linien),
+  rot markiert bis zum Abheben. Wischen schneidet (`cutObject` → `cutSegment`, `cutArc`,
+  `cutStroke`; Teile < `CUT_MIN` 0,8 mm fallen weg). Erstes Teil behält Kennung und
+  Platz (`mod`), weitere direkt dahinter (`ins`); ein Wisch = ein `grp`-Eintrag.
+- **Rückgängig:** neue Einträge `{t:'ins', items:[{obj,index}]}` und `{t:'grp', list}`.
+- **Beschreibung:** Teilstücke einer Strecke (kollinear, gleiche Herkunft, Stoßenden
+  unbenannt) und direkt folgende Bögen mit gleichem Mittelpunkt, Radius und `m.rs`
+  bilden einen Schritt; Strecke wird als Ganzes beschrieben (`segUnion`), von bekanntem
+  zu bekanntem Punkt als „Verbinde". Prüfung: `segCovered` akzeptiert Teilstücke.
+- **Beschriftung ziehen:** Punkt-Werkzeug, Beschriftung greifen (`hitLabel`, gleiche
+  Maße wie `drawPoint` über `labelBox`), Lage nach `labelDirFor` (8 Richtungen, erst ab
+  10 Bildschirmpunkten Abstand); Antippen öffnet den Punkt.
+- **Punkt verschieben:** langes Drücken (450 ms) auf einen Punkt mit `pointMovable`
+  (frei gesetzt: kein Mittelpunkt, nicht auf Bogen/Strecke, kein `giv`/`plan`, kein
+  Winkelscheitel); `pointMoveEntry` zieht Streckenenden mit; kein Einrasten beim Ziehen.
+- **Lupe** (`drawLoupe`): beim Setzen mit dem Finger (nach Bewegung) und beim Verschieben,
+  2×, über dem Finger bzw. seitlich am oberen Rand.
+- **Stift-Modus:** Fingertipp ohne Bewegung öffnet Punkt/Text bzw. Beschriftung;
+  ins Leere einmal Hinweis `msgFingerPans` (`S.fingerHint`).
+- **Tastatur:** `fitToKeyboard` über `visualViewport`; bei offener Tastatur (> 80 pt
+  verdeckt, Eingabefeld fokussiert) `body.kb` → Panels nur im sichtbaren Teil,
+  `#dialogBody` scrollt. Android verkleinert selbst.
+- Auf Gerät prüfen: Lupe/Verschieben mit dem Finger auf dem iPhone, Tastatur iPhone
+  quer, Radierer-Markierung mit dem Pencil.
 
 ## Prüfkette
 
