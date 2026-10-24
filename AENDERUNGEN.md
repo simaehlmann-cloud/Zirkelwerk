@@ -1,5 +1,18 @@
 # Änderungen
 
+## 1.0.0 – Store-Start mit Vollversion (Oktober 2026)
+
+- **In-App-Kauf aktiv:** Zirkelwerk ist kostenlos; die Vollversion (einmalig, kein Abo,
+  Familienfreigabe) schaltet unbegrenzt viele Blätter, die ausformulierte Beschreibung, das Labor
+  (Kongruenzsätze, Grundkonstruktionen, Körper & Netze), PDF- und Video-Export, QR-Aufgaben und
+  Abgaben frei
+- Kaufknopf zeigt den Preis aus dem Store, ist während des Kaufs gesperrt (kein Doppelkauf)
+- Die Einstellungen beschreiben, was die Vollversion enthält; „Ansehen" im Hinweis springt direkt
+  zum Kaufbereich
+- Ein Kauf bleibt erhalten, auch wenn die App ohne Netz startet
+- Prüfung: Ablauftest für die kostenlose Fassung (Sperren, Blattgrenze, Kaufbereich), iOS-Build
+  prüft, dass StoreKit eingebunden ist
+
 ## 0.10.3 – Körper frei drehen (Oktober 2026)
 
 - **Körper stehen aufrecht:** Das Netz liegt flach und klappt nach oben zum Körper – die

@@ -985,8 +985,8 @@ const i18n = {
     scaleEstimated: 'Dieses Gerät ließ sich nicht sicher erkennen. Für genaue Zentimeter bitte einmal kalibrieren.',
     scaleCalibrated: 'Von dir kalibriert. Bei 100 % entspricht 1 cm auf dem Bildschirm 1 cm in echt.',
     device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android-Gerät', device_desktop: 'Computer',
-    setFull: 'Vollversion', btnBuy: 'Vollversion freischalten', btnRestore: 'Käufe wiederherstellen',
-    fullInfo: 'Die Vollversion schaltet alle Funktionen dauerhaft frei – einmal kaufen, kein Abo.',
+    setFull: 'Vollversion', btnBuy: 'Vollversion freischalten', btnBuyPrice: 'Vollversion freischalten – {price}', btnRestore: 'Käufe wiederherstellen',
+    fullInfo: 'Die Vollversion schaltet dauerhaft frei: beliebig viele Blätter, die ausformulierte Konstruktionsbeschreibung, das Labor (Kongruenzsätze, Grundkonstruktionen, Körper & Netze), PDF- und Video-Export, Aufgaben per QR-Code und Abgaben. Einmal kaufen, kein Abo, mit der Familienfreigabe teilbar.',
     fullOwned: 'Die Vollversion ist freigeschaltet. Danke!',
     setAbout: 'Über', aboutLine: 'Zirkelwerk {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Impressum', btnPrivacy: 'Datenschutz',
@@ -1318,8 +1318,8 @@ const i18n = {
     scaleEstimated: 'This device could not be identified reliably. Please calibrate once for exact centimetres.',
     scaleCalibrated: 'Calibrated by you. At 100 %, 1 cm on screen is 1 cm in reality.',
     device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android device', device_desktop: 'computer',
-    setFull: 'Full version', btnBuy: 'Unlock full version', btnRestore: 'Restore purchases',
-    fullInfo: 'The full version unlocks all features permanently – one purchase, no subscription.',
+    setFull: 'Full version', btnBuy: 'Unlock full version', btnBuyPrice: 'Unlock full version – {price}', btnRestore: 'Restore purchases',
+    fullInfo: 'The full version permanently unlocks: unlimited sheets, the written construction description, the lab (congruence theorems, basic constructions, solids & nets), PDF and video export, tasks via QR code and submissions. One purchase, no subscription, shareable with Family Sharing.',
     fullOwned: 'The full version is unlocked. Thank you!',
     setAbout: 'About', aboutLine: 'Compasswork {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Legal notice', btnPrivacy: 'Privacy',
@@ -5012,18 +5012,18 @@ function linkKey(url) {
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.10.3';
+const APP_VERSION = '1.0.0';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
 
-/* Stufe 1: Die Kauflogik ist vorbereitet, aber nichts ist gesperrt.
-   LIMITS_ACTIVE schaltet die Grenzen der kostenlosen Fassung ein,
-   IAP_ENABLED den Kaufbereich in den Einstellungen. Beides erst, wenn
-   cordova-plugin-purchase in der config.xml steht und das Produkt in
-   App Store Connect und der Play Console angelegt ist. */
-const LIMITS_ACTIVE = false;
-const IAP_ENABLED = false;
+/* Ab 1.0.0 aktiv: LIMITS_ACTIVE schaltet die Grenzen der kostenlosen
+   Fassung ein, IAP_ENABLED den Kaufbereich in den Einstellungen. Beides
+   setzt cordova-plugin-purchase in der config.xml und das Produkt
+   de.zirkelwerk.app.vollversion in App Store Connect (und Play Console)
+   voraus – der Validator prüft, dass Schalter und Plugin zusammenpassen. */
+const LIMITS_ACTIVE = true;
+const IAP_ENABLED = true;
 const FREE_SHEETS = 3;
 
 const PENCIL_COLORS = ['#3b3f45', '#1f5fbf', '#d0342c', '#1e8a4c', '#e07b00', '#7b3fb5'];
@@ -7836,7 +7836,10 @@ function refreshSettingsUI() {
   document.getElementById('purchaseSection').hidden = !IAP_ENABLED;
   if (IAP_ENABLED) {
     document.getElementById('purchaseState').textContent = Purchase.owned ? t('fullOwned') : t('fullInfo');
-    document.getElementById('btnBuy').hidden = Purchase.owned;
+    const buy = document.getElementById('btnBuy'), price = Purchase.price();
+    buy.hidden = Purchase.owned;
+    buy.disabled = Purchase.busy;
+    buy.textContent = price ? t('btnBuyPrice', { price }) : t('btnBuy');
   }
 }
 
@@ -7951,52 +7954,88 @@ function updateStatusBar() {
 const Purchase = {
   ready: false,
   owned: false,
-  init() {
+  busy: false,
+  /* Merkt sich den Kauf auf dem Gerät: Die App startet auch ohne Netz und
+     ohne Cordova (Browser, Ablauftest) mit dem richtigen Stand. */
+  load() {
     try { this.owned = localStorage.getItem('zw.full') === '1'; } catch (e) { this.owned = false; }
+  },
+  init() {
+    this.load();
     if (!IAP_ENABLED || !window.CdvPurchase || !window.cordova) return;
     const { store, ProductType, Platform } = window.CdvPurchase;
     const platform = window.cordova.platformId === 'ios' ? Platform.APPLE_APPSTORE : Platform.GOOGLE_PLAY;
     store.register([{ id: PRODUCT_FULL, type: ProductType.NON_CONSUMABLE, platform }]);
+    /* Ohne eigenen Prüfserver: freigegebene Käufe sofort abschließen
+       (Google Play erstattet nicht bestätigte Käufe nach drei Tagen). */
     store.when()
       .approved(tr => tr.finish())
       .finished(() => this.refresh())
       .productUpdated(() => this.refresh())
       .receiptUpdated(() => this.refresh());
     store.error(err => console.warn('Kauf:', err && err.message));
-    store.initialize([platform]).then(() => { this.ready = true; this.refresh(); });
+    store.initialize([platform])
+      .catch(e => console.warn('Kauf: Start fehlgeschlagen', e && e.message))
+      .then(() => { this.ready = true; this.refresh(); });
   },
+  /* Einmal gekauft bleibt gekauft: Beim Start ohne Netz oder bevor der Beleg
+     gelesen ist, meldet der Store kurz „nicht gekauft" – das darf die
+     Vollversion nicht wieder sperren. Erstattungen werden bewusst nicht
+     nachgezogen (kein Prüfserver, lieber großzügig als ungerecht). */
   refresh() {
     const p = window.CdvPurchase && window.CdvPurchase.store.get(PRODUCT_FULL);
-    if (!p) return;
-    this.owned = !!p.owned;
-    try { localStorage.setItem('zw.full', this.owned ? '1' : '0'); } catch (e) { /* egal */ }
-    refreshSettingsUI();
+    if (p && p.owned && !this.owned) {
+      this.owned = true;
+      try { localStorage.setItem('zw.full', '1'); } catch (e) { /* egal */ }
+    }
+    if (appStarted) refreshSettingsUI();
   },
   price() {
-    const p = this.ready && window.CdvPurchase.store.get(PRODUCT_FULL);
+    const p = this.ready && window.CdvPurchase && window.CdvPurchase.store.get(PRODUCT_FULL);
     return p && p.pricing ? p.pricing.price : '';
   }
 };
 async function buyFull() {
+  if (Purchase.busy || Purchase.owned) return;
   if (!Purchase.ready) { notify(t('msgStoreUnavailable'), true); return; }
   const p = window.CdvPurchase.store.get(PRODUCT_FULL);
   const offer = p && p.getOffer();
   if (!offer) { notify(t('msgStoreUnavailable'), true); return; }
-  const err = await offer.order();
-  if (err && err.code !== window.CdvPurchase.ErrorCode.PAYMENT_CANCELLED) notify(t('msgPurchaseFailed'), true);
+  Purchase.busy = true; refreshSettingsUI();
+  try {
+    const err = await offer.order();
+    if (err && err.code !== window.CdvPurchase.ErrorCode.PAYMENT_CANCELLED) notify(t('msgPurchaseFailed'), true);
+  } catch (e) {
+    notify(t('msgPurchaseFailed'), true);
+  } finally {
+    Purchase.busy = false; Purchase.refresh(); refreshSettingsUI();
+  }
 }
 async function restorePurchases() {
+  if (Purchase.busy) return;
   if (!Purchase.ready) { notify(t('msgStoreUnavailable'), true); return; }
-  await window.CdvPurchase.store.restorePurchases();
-  Purchase.refresh();
-  notify(Purchase.owned ? t('msgRestored') : t('msgNothingToRestore'));
+  Purchase.busy = true; refreshSettingsUI();
+  try {
+    const err = await window.CdvPurchase.store.restorePurchases();
+    Purchase.refresh();
+    if (err && !Purchase.owned) notify(t('msgStoreUnavailable'), true);
+    else notify(Purchase.owned ? t('msgRestored') : t('msgNothingToRestore'));
+  } catch (e) {
+    notify(t('msgStoreUnavailable'), true);
+  } finally {
+    Purchase.busy = false; refreshSettingsUI();
+  }
 }
 async function showPaywall(reason) {
   const a = await openDialog({
     title: t('paywallTitle'), message: t('paywall_' + reason, { n: FREE_SHEETS }),
     buttons: [{ label: t('btnLater'), value: null }, { label: t('btnShowFull'), value: 'show', kind: 'primary' }]
   });
-  if (a === 'show') openSettings();
+  if (a === 'show') {
+    openSettings();
+    const sec = document.getElementById('purchaseSection');
+    if (sec && !sec.hidden) sec.scrollIntoView({ block: 'center' });
+  }
 }
 
 /* ---------------------------------------------------------
@@ -9683,6 +9722,7 @@ function onFieldFocus(e) {
 }
 
 async function init() {
+  Purchase.load();
   applyIcons();
   cvBase = document.getElementById('cvBase');
   cvOver = document.getElementById('cvOver');

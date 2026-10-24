@@ -5,7 +5,7 @@
 /* Der Name trägt die App-Version. validate.js vergleicht ihn mit
    APP_VERSION in der index.html – wer die Version anhebt und diese Zeile
    vergisst, liefert sonst weiter die alte Fassung aus dem Cache. */
-const CACHE = 'zirkelwerk-0.10.3';
+const CACHE = 'zirkelwerk-1.0.0';
 
 const ASSETS = [
   './',

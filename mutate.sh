@@ -34,15 +34,15 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="0.10.3"' 'version="0.10.4"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="1003"' 'android-versionCode="1004"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-0.10.3" "zirkelwerk-0.10.2"
+pruefe "Version auseinander"        validate.js config.xml 'version="1.0.0"' 'version="1.0.1"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="10000"' 'android-versionCode="10001"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-1.0.0" "zirkelwerk-0.10.3"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
 pruefe "ID-Tippfehler"              validate.js index.html "getElementById('zoomLabel').textContent = Math.round(view.zoom * 100)" "getElementById('zoomLable').textContent = Math.round(view.zoom * 100)"
-pruefe "Kauf ohne Plugin"           validate.js index.html "const IAP_ENABLED = false;" "const IAP_ENABLED = true;"
-pruefe "Sperre ohne Kauf"           validate.js index.html "const LIMITS_ACTIVE = false;" "const LIMITS_ACTIVE = true;"
+pruefe "Kauf ohne Plugin"           validate.js config.xml '<plugin name="cordova-plugin-purchase" spec="13.19.1" />' ""
+pruefe "Sperre ohne Kauf"           validate.js index.html "const IAP_ENABLED = true;" "const IAP_ENABLED = false;"
 pruefe "Fremdinhalt geladen"        validate.js index.html '<link rel="icon" href="icon-192.png">' '<link rel="icon" href="https://example.com/x.png">'
 pruefe "Deutscher Name fehlt"       validate.js res/android/values-de/strings.xml '<string name="app_name">Zirkelwerk</string>' '<string name="app_name">Compasswork</string>'
 pruefe "Zugriff auf alles"          validate.js config.xml '<allow-intent href="mailto:*" />' '<access origin="*" /><allow-intent href="mailto:*" />'
@@ -95,7 +95,7 @@ pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
-pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 0.10.3" "Stand 0.10.2"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 1.0.0" "Stand 0.10.3"
 pruefe "Diagnose: Skala übersehen"  coretest.js index.html "if (near(got, 180 - want, T) && Math.abs(want - 90) > 4) return { why: 'scale' };" ""
 pruefe "Diagnose: Tausch übersehen"  coretest.js index.html "if (near(got, g[o], T) && near(meas[o], want, T)) return { why: 'swap', other: o };" ""
 pruefe "Hilfe: Spiegelung ignoriert" coretest.js index.html "for (const flip of [1, -1])" "for (const flip of [1])"

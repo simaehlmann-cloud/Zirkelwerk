@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.10.3 (Bilder, Sicherung, Ordner, Körper & Würfelnetze)
+# Zirkelwerk – Projektwissen, Stand 1.0.0 (Store-Start mit In-App-Kauf)
 
 ## Entscheidungen
 
@@ -12,7 +12,7 @@
 - **Preis:** kostenlos + Einmalkauf „Vollversion" für 2,99 €, kein Abo, Familienfreigabe an.
   Produkt-ID: `de.zirkelwerk.app.vollversion` (nicht verbrauchbar).
 - **Kostenlos:** alle Werkzeuge, bis 3 gespeicherte Blätter.
-  **Vollversion (geplant):** unbegrenzte Blätter, automatische Konstruktionsbeschreibung,
+  **Vollversion (ab 1.0.0 aktiv):** unbegrenzte Blätter, automatische Konstruktionsbeschreibung,
   Kongruenzsätze-Labor, Aufgaben per QR-Code, Körper/Netze/Schrägbild, PDF-Export.
 - **Keine Kids-Kategorie** (sonst Elternschranke vor jedem Kauf/Link), Kategorie Bildung, 4+.
 
@@ -320,7 +320,24 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
   Prüfung:** es löscht alle `<resource-file>`-Kopien (cleanFileResources). Englischer
   Grundname steht bei cordova-android 15 in `values/cdv_strings.xml`.
 
+## Vollversion / In-App-Kauf (1.0.0)
+
+- Aktiv: `LIMITS_ACTIVE = true`, `IAP_ENABLED = true`, `cordova-plugin-purchase` fest 13.19.1
+  (Validator: Schalter und Plugin passen zusammen; iOS-CI: `InAppPurchase.m` + StoreKit im Projekt).
+- Produkt `de.zirkelwerk.app.vollversion`, nicht verbrauchbar. Ohne Prüfserver:
+  `approved → finish` (Android bestätigt damit, sonst Erstattung nach 3 Tagen).
+- Besitz in `localStorage['zw.full']`, gelesen beim Start (`Purchase.load`, auch ohne Cordova).
+  **Einmal gekauft bleibt gekauft:** `refresh` setzt nur auf „gekauft", nie zurück
+  (Start ohne Netz/Beleg noch nicht gelesen). Folge: Erstattungen behalten die Vollversion;
+  zum erneuten Sandbox-Test die App löschen.
+- Kaufknopf zeigt den Store-Preis (`btnBuyPrice`), gesperrt während Kauf/Wiederherstellen
+  (`Purchase.busy`). Paywall „Ansehen" → Einstellungen, Kaufbereich in Sicht gescrollt.
+- Kostenlos: alle Werkzeuge, Bilder, Texte, Farben, Wiedergabe und Kurzbeschreibung,
+  3 Blätter, QR-Aufgaben öffnen und prüfen, Rückmeldung zeigen.
+- Entschieden: Wiederherstellen aus einer Sicherung prüft die Blattgrenze nicht (Datenrettung).
+- Ablauftest: Hauptteil als Besitzer (`zw.full = 1`), eigener Abschnitt für die kostenlose Fassung.
+
 ## Offen
 
-- In-App-Kauf aktivieren (siehe Kommentar in config.xml; `IAP_ENABLED`, `LIMITS_ACTIVE`).
-- Store-Texte und Bildschirmfotos.
+- Kauf auf echtem Gerät mit Sandbox-Konto testen (Kaufen, Abbrechen, Wiederherstellen, Neustart offline).
+- Store-Texte, Bildschirmfotos, Vorschauvideos, YouTube-Video.

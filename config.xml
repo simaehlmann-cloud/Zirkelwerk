@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="de.zirkelwerk.app"
-        version="0.10.3"
-        android-versionCode="1003"
-        ios-CFBundleVersion="1003"
+        version="1.0.0"
+        android-versionCode="10000"
+        ios-CFBundleVersion="10000"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
@@ -161,12 +161,10 @@
         <variable name="ANDROID_HOST" value="s" />
     </plugin>
 
-    <!-- Vollversion per In-App-Kauf: erst aktivieren, wenn das Produkt
-         de.zirkelwerk.app.vollversion in App Store Connect und der Play
-         Console angelegt ist. Dann diese Zeile einkommentieren und in der
-         index.html LIMITS_ACTIVE und IAP_ENABLED auf true setzen.
-         Datenschutzerklärung und Data-Safety-Formular sind darauf
-         vorbereitet.
-    <plugin name="cordova-plugin-purchase" spec="^13.12.0" />
-    -->
+    <!-- Vollversion per In-App-Kauf (ab 1.0.0): Produkt
+         de.zirkelwerk.app.vollversion, nicht verbrauchbar, in App Store
+         Connect (und Play Console) angelegt. Gehört zu LIMITS_ACTIVE und
+         IAP_ENABLED in der index.html – der Validator prüft beides.
+         Version fest, damit TestFlight- und Store-Build gleich bauen. -->
+    <plugin name="cordova-plugin-purchase" spec="13.19.1" />
 </widget>

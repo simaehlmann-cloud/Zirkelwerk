@@ -52,6 +52,9 @@ function line(a, b, n) { const out = []; for (let i = 0; i <= n; i++) out.push([
 async function main() {
   const { srv, url } = await startServer(__dirname);
   const { browser, context } = await launch({ locale: 'de-DE' });
+  /* Der Hauptablauf prüft alle Funktionen – also als Besitzer der Vollversion.
+     Die kostenlose Fassung prüft ein eigener Abschnitt weiter unten. */
+  await context.addInitScript(() => { try { localStorage.setItem('zw.full', '1'); } catch (e) { /* egal */ } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -1291,6 +1294,57 @@ async function main() {
     await page.keyboard.press('Escape');
     ok(await page.evaluate(() => document.activeElement && document.activeElement.id === 'btnHelp'), 'Fokus kehrt nach dem Schließen zurück');
     ok(await page.evaluate(() => document.getElementById('labMode_tri').getAttribute('aria-pressed') !== null), 'Umschalter melden ihren Zustand (aria-pressed)');
+    /* ---------- Kostenlose Fassung (ohne Kauf) ---------- */
+    {
+      const fr = await launch({ locale: 'de-DE' });
+      const fp = await fr.context.newPage();
+      const ferr = []; fp.on('pageerror', e => ferr.push(e.message));
+      await fp.goto(url); await fp.waitForFunction(() => window.__zw && window.__zw.ready);
+      await fp.click('#helpPanel header .tb');
+      const dlg = async () => ({ title: await fp.textContent('#dialogTitle'), msg: await fp.textContent('#dialogMessage') });
+      const later = () => fp.click('#dialogButtons .btn >> text=Später');
+      /* Gesperrte Bereiche zeigen den Hinweis auf die Vollversion */
+      await fp.click('#btnLab');
+      let d = await dlg();
+      ok(await fp.isVisible('#dialog') && d.title === 'Vollversion' && /Labor/.test(d.msg) && !(await fp.isVisible('#labPanel')), 'Kostenlos: Labor zeigt den Hinweis auf die Vollversion', d);
+      await later();
+      await fp.click('#btnPdf');
+      d = await dlg();
+      ok(d.title === 'Vollversion' && /PDF/.test(d.msg), 'Kostenlos: PDF-Export gesperrt', d);
+      await later();
+      for (const [fn, re, name] of [['exportVideo()', /Video/, 'Video-Export'], ["showQr('zirkelwerk://a?v=1', 'x')", /QR/, 'QR-Aufgabe erstellen'], ['openResults()', /Abgaben/, 'Abgaben']]) {
+        await fp.evaluate(f => { (0, eval)(f); }, fn);
+        await fp.waitForSelector('#dialog:not([hidden])');
+        d = await dlg();
+        ok(d.title === 'Vollversion' && re.test(d.msg), 'Kostenlos: ' + name + ' gesperrt', d);
+        await later();
+      }
+      /* Drei Blätter frei, das vierte nicht */
+      const count = () => fp.evaluate(() => new Promise(r => { const q = indexedDB.open('zirkelwerk'); q.onsuccess = () => { const c = q.result.transaction('docs').objectStore('docs').count(); c.onsuccess = () => r(c.result); }; }));
+      await fp.evaluate(() => newSheet()); await fp.evaluate(() => newSheet());
+      ok(await count() === 3 && !(await fp.isVisible('#dialog')), 'Kostenlos: drei Blätter ohne Hinweis');
+      await fp.evaluate(() => { newSheet(); });
+      await fp.waitForSelector('#dialog:not([hidden])');
+      d = await dlg();
+      ok(d.title === 'Vollversion' && /3 Blätter/.test(d.msg) && await count() === 3, 'Kostenlos: viertes Blatt verweist auf die Vollversion', d);
+      /* „Ansehen" führt zum Kaufbereich */
+      await fp.click('#dialogButtons .btn >> text=Ansehen');
+      ok(await fp.isVisible('#settingsPanel') && await fp.isVisible('#purchaseSection') && await fp.isVisible('#btnBuy'), 'Kostenlos: „Ansehen" öffnet den Kaufbereich');
+      ok((await fp.textContent('#btnBuy')) === 'Vollversion freischalten' && /Labor/.test(await fp.textContent('#purchaseState')), 'Kostenlos: Kaufknopf und Inhalt der Vollversion beschrieben');
+      ok(await fp.isVisible('#purchaseSection .btn >> text=Käufe wiederherstellen'), 'Kostenlos: „Käufe wiederherstellen" sichtbar (Apple verlangt ihn)');
+      /* Ohne Store (Browser): klare Meldung statt stiller Fehler */
+      await fp.click('#btnBuy');
+      ok(/nicht erreichbar/.test(await fp.textContent('#toast')), 'Kostenlos: ohne Store verständliche Meldung');
+      /* Gekauft (gemerkt) → alles offen, Kaufknopf weg */
+      await fp.evaluate(() => localStorage.setItem('zw.full', '1'));
+      await fp.reload(); await fp.waitForFunction(() => window.__zw && window.__zw.ready);
+      await fp.evaluate(() => openLab());
+      ok(await fp.isVisible('#labPanel') && !(await fp.isVisible('#dialog')), 'Gekauft: Labor öffnet');
+      await fp.evaluate(() => { closePanel('labPanel'); openSettings(); });
+      ok(!(await fp.isVisible('#btnBuy')) && /freigeschaltet/.test(await fp.textContent('#purchaseState')), 'Gekauft: Kaufknopf verschwindet, Dank angezeigt');
+      ok(ferr.length === 0, 'Kostenlos: keine Skriptfehler', ferr);
+      await fr.browser.close();
+    }
     /* ---------- Handy (iPhone hochkant) ---------- */
     {
       const ph = await launch({ locale: 'de-DE', viewport: { width: 390, height: 844 }, screen: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
@@ -1315,7 +1369,7 @@ async function main() {
       await pp.click('#dialogButtons .btn >> text=Einstellungen');
       ok(await pp.isVisible('#settingsPanel'), 'Handy: Einstellungen über das Menü erreichbar');
       await pp.click('#settingsPanel .btn >> text=Kurzanleitung');
-      ok(await pp.isVisible('#helpPanel') && !(await pp.isVisible('#helpLangTop')) && (await pp.textContent('#helpAboutLine')).startsWith('Zirkelwerk 0.'), 'Handy: Kurzanleitung aus den Einstellungen, „Über" mit Version');
+      ok(await pp.isVisible('#helpPanel') && !(await pp.isVisible('#helpLangTop')) && (await pp.textContent('#helpAboutLine')).match(/^Zirkelwerk \d+\.\d+\.\d+/) !== null, 'Handy: Kurzanleitung aus den Einstellungen, „Über" mit Version');
       await pp.click('#helpPanel header .tb');
       await pp.setViewportSize({ width: 844, height: 390 });
       await pp.waitForTimeout(200);
