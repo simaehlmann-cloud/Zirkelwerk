@@ -2,4 +2,5 @@
 "CFBundleDisplayName" = "Zirkelwerk";
 "CFBundleName" = "Zirkelwerk";
 "NSPhotoLibraryAddUsageDescription" = "Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden nicht gelesen.";
-"NSPhotoLibraryUsageDescription" = "Zirkelwerk legt auf deinen Wunsch ein Bild deiner Zeichnung in der Fotomediathek ab. Vorhandene Fotos werden weder gelesen noch verändert.";
+"NSPhotoLibraryUsageDescription" = "Zirkelwerk legt ein Foto, das du auswählst, auf dein Blatt und sichert auf deinen Wunsch ein Bild deiner Zeichnung. Andere Fotos werden weder gelesen noch verändert.";
+"NSCameraUsageDescription" = "Zirkelwerk nutzt die Kamera nur, wenn du ein Foto aufnimmst, um es auf ein Blatt zu legen – zum Beispiel eine Aufgabe aus dem Buch. Das Foto bleibt auf deinem Gerät.";
