@@ -5012,7 +5012,7 @@ function linkKey(url) {
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '0.10.2';
+const APP_VERSION = '0.10.3';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -8591,7 +8591,19 @@ function labGeoNew() { labState.geoGiven[labState.geoKind] = GEO_TASKS[labState.
 /* ---------- Körper und Netze (im Labor) ---------- */
 /* Eingaben in cm wie im Kongruenz-Labor; die Vorschau zeigt das Netz beim
    Falten (Regler 0 = Netz, 100 = Körper) und lässt sich mit dem Finger drehen. */
-const bodyState = { kind: 'cube', values: {}, fold: 1, yaw: -0.75, pitch: 0.5, anim: 0, variant: 0, colors: false, zoom: 1, quiz: null };
+/* Ansicht als Drehmatrix (Welt → Bildschirm: x rechts, y Tiefe, z oben). Drehen
+   wie eine Kugel in der Hand – ohne Anschlag, auch kopfüber. */
+const BODY_VIEW0 = { yaw: -0.75, pitch: 0.5 };
+function m3Mul(A, B) { return A.map(r => [0, 1, 2].map(j => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j])); }
+function m3RotX(a) { const c = Math.cos(a), s = Math.sin(a); return [[1, 0, 0], [0, c, -s], [0, s, c]]; }
+function m3RotZ(a) { const c = Math.cos(a), s = Math.sin(a); return [[c, -s, 0], [s, c, 0], [0, 0, 1]]; }
+function bodyViewHome() { return m3Mul(m3RotX(BODY_VIEW0.pitch), m3RotZ(BODY_VIEW0.yaw)); }
+/* Kleine Rundungsfehler summieren sich beim Drehen – Matrix orthonormal halten */
+function m3Ortho(M) {
+  const a = vNorm(v3(...M[0])), b0 = v3(...M[1]), b = vNorm(vSub(b0, vMul(a, vDot(a, b0)))), c = vCross(a, b);
+  return [[a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z]];
+}
+const bodyState = { kind: 'cube', values: {}, fold: 1, view: bodyViewHome(), anim: 0, variant: 0, colors: false, zoom: 1, quiz: null };
 for (const k of BODY_KINDS) bodyState.values[k] = {};
 function bodyRead() {
   const kind = bodyState.kind, g = {}, ints = BODY_INT[kind] || {};
@@ -8737,6 +8749,7 @@ function bodyRenderQuiz() {
    weil Drehen und Falten bei jedem Bild neu zeichnen. */
 let bodyCache = { key: '', net: null, info: null };
 const BODY_PALETTE = ['#f4c95d', '#6fb1e7', '#93d07a', '#f08f8f', '#b39ef0', '#78d4cc', '#f5a65b', '#d79ad6'];
+function bodyFlip(net) { const all = [].concat(...foldNet(net, 1)); return all.reduce((s, p) => s + p.z, 0) / all.length < 0; }
 function bodyScene() {
   const q = bodyState.quiz;
   let kind, g, net, key;
@@ -8751,8 +8764,12 @@ function bodyScene() {
     key = kind + '|' + JSON.stringify(g) + '|' + bodyVariant();
     if (bodyCache.key !== key) net = bodyNet(kind, g, bodyVariant());
   }
-  if (bodyCache.key !== key) bodyCache = { key, net, info: bodyFaceInfo(net, kind, q ? q.cells : null, g) };
-  return { kind, g, net: bodyCache.net, info: bodyCache.info };
+  if (bodyCache.key !== key) {
+    /* Netze falten zur Unterseite ihrer Ebene. Für die Ansicht spiegeln, damit
+       das Netz flach liegt und nach oben zum Körper klappt (Pyramidenspitze oben). */
+    bodyCache = { key, net, flip: bodyFlip(net), info: bodyFaceInfo(net, kind, q ? q.cells : null, g) };
+  }
+  return { kind, g, net: bodyCache.net, info: bodyCache.info, flip: bodyCache.flip };
 }
 /* Farben: Flächen mit parallelen Ebenen (Gegenseiten) gleich, gekrümmte Flächen
    einfarbig. Quiz: Würfelseite je Fläche, doppelt belegte und fehlende Seiten. */
@@ -8800,17 +8817,17 @@ function bodyRenderTo(cv, big) {
   const sc = bodyScene();
   if (!sc) return;
   const { kind, net, info } = sc, q = bodyState.quiz;
-  const faces = foldNet(net, bodyState.fold);
+  const up = p => sc.flip ? v3(p.x, p.y, -p.z) : p;
+  const faces = foldNet(net, bodyState.fold).map(f => f.map(up));
   /* Die Figur füllt die Vorschau in jedem Faltzustand (Großansicht: mit Zoom) */
   const allRef = [].concat(...faces), C = vMul(allRef.reduce((s, p) => vAdd(s, p), v3(0, 0, 0)), 1 / allRef.length);
   const R = Math.max(1, ...allRef.map(p => vLen(vSub(p, C))));
   const k = Math.min(W, H) * 0.47 / R * (big ? bodyState.zoom : 1);
-  const cy = Math.cos(bodyState.yaw), sy = Math.sin(bodyState.yaw), cp = Math.cos(bodyState.pitch), sp = Math.sin(bodyState.pitch);
+  const M = bodyState.view;
   const tr = p => {
     const x = p.x - C.x, y = p.y - C.y, z = p.z - C.z;
-    const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
-    const y2 = y1 * cp - z * sp, z2 = y1 * sp + z * cp;
-    return { X: W / 2 + x1 * k, Y: H / 2 - z2 * k, d: y2, q: v3(x1, y2, z2) };
+    const vx = M[0][0] * x + M[0][1] * y + M[0][2] * z, vy = M[1][0] * x + M[1][1] * y + M[1][2] * z, vz = M[2][0] * x + M[2][1] * y + M[2][2] * z;
+    return { X: W / 2 + vx * k, Y: H / 2 - vz * k, d: vy, q: v3(vx, vy, vz) };
   };
   const light = vNorm(v3(-0.4, -0.8, 0.6));
   const showColors = bodyState.colors || !!q;
@@ -8846,16 +8863,16 @@ function bodyRenderTo(cv, big) {
   /* Quiz: offene Würfelseiten gestrichelt */
   if (done && info.ghosts.length) {
     c.save(); c.setLineDash([7 * r, 5 * r]); c.strokeStyle = '#c0392b'; c.lineWidth = lw * 1.3;
-    for (const gh of info.ghosts) { const P = gh.map(tr); c.beginPath(); P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y))); c.closePath(); c.stroke(); }
+    for (const gh of info.ghosts) { const P = gh.map(p => tr(up(p))); c.beginPath(); P.forEach((p, i) => (i ? c.lineTo(p.X, p.Y) : c.moveTo(p.X, p.Y))); c.closePath(); c.stroke(); }
     c.restore();
   }
 }
 /* Ein Finger dreht, zwei Finger zoomen (Großansicht), Mausrad zoomt */
 function bodyAttachDrag(cv) {
   const ptrs = new Map();
-  let pinch = null;
+  let pinch = null, lastTap = null;
   cv.addEventListener('pointerdown', e => {
-    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), z: bodyState.zoom }; }
   });
@@ -8863,8 +8880,9 @@ function bodyAttachDrag(cv) {
     const last = ptrs.get(e.pointerId);
     if (!last) return;
     if (ptrs.size === 1) {
-      bodyState.yaw += (e.clientX - last.x) * 0.012;
-      bodyState.pitch = clamp(bodyState.pitch + (e.clientY - last.y) * 0.012, -1.45, 1.45);
+      /* Waagerecht: um die Bildschirm-Senkrechte, senkrecht: nach vorn/hinten kippen */
+      const dx = (e.clientX - last.x) * 0.012, dy = (e.clientY - last.y) * 0.012;
+      bodyState.view = m3Ortho(m3Mul(m3RotX(dy), m3Mul(m3RotZ(dx), bodyState.view)));
     }
     last.x = e.clientX; last.y = e.clientY;
     if (ptrs.size === 2 && pinch && cv.id === 'bodyBig') {
@@ -8874,9 +8892,19 @@ function bodyAttachDrag(cv) {
     bodyDraw();
   });
   const end = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
-  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('lostpointercapture', end);
+  /* Doppeltippen: Ausgangsansicht (falls man sich verdreht hat) */
+  cv.addEventListener('pointerup', e => {
+    const p = ptrs.get(e.pointerId), now = performance.now();
+    if (p && ptrs.size === 1 && now - p.t0 < 300 && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10) {
+      if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { bodyViewReset(); lastTap = null; }
+      else lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
+    end(e);
+  });
+  cv.addEventListener('pointercancel', end); cv.addEventListener('lostpointercapture', end);
   if (cv.id === 'bodyBig') cv.addEventListener('wheel', e => { e.preventDefault(); bodyState.zoom = clamp(bodyState.zoom * Math.exp(-e.deltaY * 0.002), 0.4, 4); bodyDraw(); }, { passive: false });
 }
+function bodyViewReset() { bodyState.view = bodyViewHome(); bodyState.zoom = 1; bodyDraw(); }
 function bodyFullOpen() {
   if (!bodyScene()) return;
   bodyState.zoom = 1;

@@ -1219,6 +1219,26 @@ async function main() {
       ok((await inkOf('bodyBig')) > 20000, 'Großansicht gezeichnet');
       await page.mouse.move(600, 400);
       await page.mouse.wheel(0, -400);
+      /* 0.10.3: Körper stehen aufrecht, freies Drehen, Doppeltippen */
+      {
+        const upright = await page.evaluate(() => BODY_KINDS.map(k => {
+          const g = BODY_DEFAULTS[k], net = bodyNet(k, g), flip = bodyFlip(net);
+          const F = foldNet(net, 1).map(f => f.map(p => flip ? v3(p.x, p.y, -p.z) : p)), all = [].concat(...F);
+          const zs = all.map(p => p.z), top = Math.max(...zs), cz = zs.reduce((a, b) => a + b, 0) / zs.length;
+          return { k, ok: Math.min(...zs) > -1e-6 && cz > 0, apex: (k === 'pyramid4' || k === 'pyramidn' || k === 'pyramidrect' || k === 'cone') ? Math.abs(top - g.h) < 1e-6 && all.filter(p => Math.abs(p.z - top) < 1e-6).length === all.filter(p => Math.abs(p.z - top) < 1e-6 && Math.hypot(p.x - all.find(q => Math.abs(q.z - top) < 1e-6).x, p.y - all.find(q => Math.abs(q.z - top) < 1e-6).y) < 1e-6).length : true };
+        }));
+        ok(upright.every(u => u.ok && u.apex), 'Alle Körper falten nach oben, Spitzen von Pyramiden und Kegel oben', upright.filter(u => !u.ok || !u.apex));
+        const drag = (id, x0, y0, x1, y1, pid) => page.evaluate(([id, x0, y0, x1, y1, pid]) => {
+          const cv = document.getElementById(id), r = cv.getBoundingClientRect(), ev = (t, x, y) => cv.dispatchEvent(new PointerEvent('pointer' + t, { pointerId: pid, pointerType: 'touch', isPrimary: true, bubbles: true, clientX: r.left + x, clientY: r.top + y, buttons: t === 'up' ? 0 : 1 }));
+          ev('down', x0, y0); for (let i = 1; i <= 20; i++) ev('move', x0 + (x1 - x0) * i / 20, y0 + (y1 - y0) * i / 20); ev('up', x1, y1);
+        }, [id, x0, y0, x1, y1, pid]);
+        await drag('bodyBig', 300, 100, 300, 400, 81);   /* 300 Punkte senkrecht ≈ 206° */
+        ok(await page.evaluate(() => bodyState.view[2][2] < -0.5), 'Freies Drehen: Körper lässt sich kopfüber drehen', await page.evaluate(() => bodyState.view[2][2]));
+        ok(await page.evaluate(() => { const M = bodyState.view; const d = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; return Math.abs(d(M[0], M[0]) - 1) < 1e-9 && Math.abs(d(M[0], M[1])) < 1e-9; }), 'Drehmatrix bleibt orthonormal');
+        await drag('bodyBig', 200, 200, 200, 200, 82); await drag('bodyBig', 201, 200, 201, 200, 83);
+        ok(await page.evaluate(() => JSON.stringify(bodyState.view) === JSON.stringify(bodyViewHome()) && bodyState.zoom === 1), 'Doppeltippen: zurück zur Ausgangsansicht');
+        await page.mouse.move(600, 400); await page.mouse.wheel(0, -400);
+      }
       ok(await page.evaluate(() => bodyState.zoom > 1.2), 'Großansicht: zoomen', await page.evaluate(() => bodyState.zoom));
       await page.click('#bodyColorsBtn');
       const colors = await page.evaluate(() => { const c = document.getElementById('bodyBig'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; const set = new Set(); for (let i = 0; i < d.length; i += 4 * 37) if (d[i] + d[i + 1] + d[i + 2] < 700) set.add((d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5)); return set.size; });

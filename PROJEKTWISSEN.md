@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 0.10.2 (Bilder, Sicherung, Ordner, Körper & Würfelnetze)
+# Zirkelwerk – Projektwissen, Stand 0.10.3 (Bilder, Sicherung, Ordner, Körper & Würfelnetze)
 
 ## Entscheidungen
 
@@ -296,6 +296,11 @@
   2 × 2-Blöcken ab. Kästchennetze falten nach −z.
 - Quiz (`bodyState.quiz`): halb Netze, halb nicht, zufällig gedreht/gespiegelt; nach der Antwort
   Faltung, doppelt belegte Flächen rot, offene Seiten gestrichelt (Würfelraum aus allen Flächen).
+- **3D-Ansicht (0.10.3):** `foldNet` faltet zur Unterseite der Netzebene (−z). Die Ansicht
+  spiegelt dann (`bodyFlip`, im Szenen-Cache), damit Körper aufrecht stehen; Blattzeichnungen
+  nutzen weiter `bodyFaces` (eigene Ausrichtung). Drehung als Matrix `bodyState.view`
+  (Welt → x rechts, y Tiefe, z oben), Wischen = `m3RotZ(dx)`/`m3RotX(dy)` von links, `m3Ortho`
+  gegen Drift, Doppeltippen → `bodyViewReset` (`bodyViewHome`).
 - Großansicht `#bodyFull` (Panel, Escape/Zurück schließt), Zoom `bodyState.zoom`, Farben
   `bodyState.colors` (Gegenseiten gleich, gekrümmte Flächen einfarbig, `BODY_PALETTE`).
 - Auf Gerät prüfen: Kamera beim Bild einfügen (iOS/Android), Großansicht iPhone, Faltleistung

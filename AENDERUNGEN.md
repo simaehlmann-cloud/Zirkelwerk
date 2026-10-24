@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.10.3 – Körper frei drehen (Oktober 2026)
+
+- **Körper stehen aufrecht:** Das Netz liegt flach und klappt nach oben zum Körper – die
+  Pyramidenspitze zeigt nach oben (vorher falteten alle Netze nach unten)
+- **Frei drehen wie eine Kugel in der Hand:** waagerecht wischen dreht, senkrecht wischen kippt –
+  ohne Anschlag, auch kopfüber (vorher nur ±83° kippbar)
+- **Doppeltippen** auf die 3D-Ansicht stellt die Ausgangsansicht wieder her
+
 ## 0.10.2 – Bilder, Sicherung, Ordner, mehr Körper (Oktober 2026)
 
 **Neu:**
