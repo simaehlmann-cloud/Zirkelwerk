@@ -809,6 +809,14 @@ async function main() {
     await page.click('#btnLabSelf');
     await page.waitForFunction(() => window.__zw.doc.task, null, { timeout: 5000 });
     ok(await page.isVisible('#taskBar') && (await page.textContent('#taskText')).replace(/\u00a0/g, ' ') === 'Konstruiere das Dreieck ABC mit c = 5 cm, b = 4 cm und a = 3 cm.', 'Aufgabenleiste zeigt die Aufgabe', await page.textContent('#taskText'));
+    {
+      /* Leiste einzeilig auf dem iPad und mittig im Zeichenbereich (früher halbe Breite, Umbruch) */
+      /* Neben der offenen Konstruktionsleiste: mittig im freien Bereich, Text nicht gequetscht */
+      const tb = await page.evaluate(() => { const bar = document.getElementById('taskBar'), b = bar.getBoundingClientRect(), t = document.getElementById('taskText'), p = bar.offsetParent.getBoundingClientRect();
+        const pw = protoOpen() ? document.getElementById('protoPanel').offsetWidth : 0, right = S.toolbarSide === 'right';
+        return { text: t.getBoundingClientRect().width, l: b.left - p.left - (right ? pw : 0), r: p.right - b.right - (right ? 0 : pw) }; });
+      ok(tb.text > 300 && Math.abs(tb.l - tb.r) < 2, 'Aufgabenleiste breit genug und mittig im freien Bereich', tb);
+    }
     ok((await objs(page)).every(o => o.m && o.m.plan), 'Aufgabenblatt enthält nur die Planfigur');
     await page.click('#taskBar .btn');
     ok((await page.textContent('#dialogTitle')) === 'Noch nicht ganz' && (await page.textContent('#dialogMessage')).includes('Beschrifte die Eckpunkte mit A, B und C.'), 'Prüfen ohne Konstruktion: Hinweis auf Beschriftung');
@@ -1294,6 +1302,19 @@ async function main() {
     await page.keyboard.press('Escape');
     ok(await page.evaluate(() => document.activeElement && document.activeElement.id === 'btnHelp'), 'Fokus kehrt nach dem Schließen zurück');
     ok(await page.evaluate(() => document.getElementById('labMode_tri').getAttribute('aria-pressed') !== null), 'Umschalter melden ihren Zustand (aria-pressed)');
+    /* Großansicht im dunklen Modus: Knöpfe lesbar (früher dunkle Schrift auf dunklem Grund) */
+    {
+      const ct = await page.evaluate(() => {
+        const old = document.documentElement.dataset.theme;
+        document.documentElement.dataset.theme = 'dark';
+        openLab(); labSetMode('body'); bodySelect('cube'); bodyUpdate(); bodyFullOpen();
+        const lum = c => { const v = c.match(/[\d.]+/g).slice(0, 3).map(Number).map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+        const out = ['bodyPlayBig', 'bodyColorsBtn'].map(id => { const cs = getComputedStyle(document.getElementById(id)); const a = lum(cs.color), b = lum(cs.backgroundColor); return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 10) / 10; });
+        bodyFullClose(); closePanel('labPanel'); document.documentElement.dataset.theme = old;
+        return out;
+      });
+      ok(ct.every(c => c >= 4.5), 'Großansicht dunkel: Falten/Farben gut lesbar (Kontrast ≥ 4,5)', ct);
+    }
     /* ---------- Kostenlose Fassung (ohne Kauf) ---------- */
     {
       const fr = await launch({ locale: 'de-DE' });
@@ -1375,6 +1396,11 @@ async function main() {
       await pp.waitForTimeout(200);
       ok(await pp.evaluate(() => document.getElementById('btnMore').hidden && !document.getElementById('btnSettings').hidden), 'Handy quer: alles in der Kopfleiste, kein Menü');
       ok(await pp.evaluate(() => { const tb = document.getElementById('toolbar'); return tb.scrollHeight <= tb.clientHeight + 1; }), 'Handy quer: Werkzeugleiste ohne Blättern');
+      await pp.setViewportSize({ width: 390, height: 844 });
+      await pp.evaluate(() => createLabSheet('sws', { c: 60, b: 45, alpha: 50 }, 'task'));
+      await pp.waitForTimeout(200);
+      const tw = await pp.evaluate(() => { const t = document.getElementById('taskText'); return { w: t.getBoundingClientRect().width, lines: Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight)) }; });
+      ok(tw.w > 150 && tw.lines <= 4, 'Handy hochkant: Aufgabentext nutzt die Breite (kein Umbruch Wort für Wort)', tw);
       ok(perr.length === 0, 'Handy: keine Skriptfehler', perr);
       await ph.browser.close();
     }

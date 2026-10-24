@@ -1,5 +1,14 @@
 # Änderungen
 
+## 1.0.1 – Aufgabenleiste (Oktober 2026)
+
+- **Behoben:** Die Aufgabenleiste oben war nie breiter als der halbe Bildschirm – auf dem iPad
+  brach der Aufgabentext in zwei Zeilen, auf dem iPhone fast Wort für Wort um. Jetzt nutzt sie
+  die volle Breite (neben einer offenen Konstruktionsleiste den freien Bereich)
+- Auf dem iPhone hochkant steht der Aufgabentext in eigener Zeile, die Knöpfe darunter
+- **Behoben:** In der Großansicht der Körper waren „Falten“ und „Farben“ im dunklen Modus kaum
+  zu sehen (dunkle Schrift auf dunklem Knopf). Die Großansicht ist immer hell, jetzt auch ihre Knöpfe
+
 ## 1.0.0 – Store-Start mit Vollversion (Oktober 2026)
 
 - **In-App-Kauf aktiv:** Zirkelwerk ist kostenlos; die Vollversion (einmalig, kein Abo,

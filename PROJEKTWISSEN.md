@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 1.0.0 (Store-Start mit In-App-Kauf)
+# Zirkelwerk – Projektwissen, Stand 1.0.1 (Store-Start mit In-App-Kauf)
 
 ## Entscheidungen
 
@@ -319,6 +319,15 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
 - Android: deutscher App-Name in `values-de`. **Nie `cordova clean android` vor einer
   Prüfung:** es löscht alle `<resource-file>`-Kopien (cleanFileResources). Englischer
   Grundname steht bei cordova-android 15 in `values/cdv_strings.xml`.
+
+## Aufgabenleiste und Großansicht (1.0.1)
+
+- `#taskBar` mit `left`/`right` (aus `updateTaskBar`, Konstruktionsleiste berücksichtigt),
+  `margin: 0 auto`, `width: fit-content`. Früher `left: 50%` + `translate` → höchstens halbe
+  Breite, Text brach auf dem iPhone Wort für Wort um. Ablauftest prüft die Breite.
+- Schmal: `flex-wrap`, `#taskText { flex: 1 1 240px }` → Text eigene Zeile, Knöpfe darunter.
+- Großansicht der Körper ist immer hell: `.body-full-card` setzt die hellen Farbvariablen
+  (sonst im dunklen Modus dunkle Schrift auf dunklem Knopf). Ablauftest prüft Kontrast ≥ 4,5.
 
 ## Vollversion / In-App-Kauf (1.0.0)
 

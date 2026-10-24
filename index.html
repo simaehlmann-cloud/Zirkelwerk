@@ -440,19 +440,30 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 #bodyQuizBtns { flex-wrap: wrap; }
 /* Großansicht: ganzer Bildschirm, Steuerung unten */
 .panel.body-full { padding: 0; background: #ffffff; align-items: stretch; justify-content: stretch; }
+/* Die Großansicht ist immer hell (weiße Zeichenfläche) – auch im dunklen Modus.
+   Darum hier die hellen Farben setzen, sonst stehen die Knöpfe dunkel auf dunkel. */
+.body-full-card {
+  --chrome: #faf8f3; --chrome-2: #f1ede4; --line: #c9c0ae; --ink: #1d2a3a; --ink-soft: #5d6878;
+  --accent: #234e8c; --accent-soft: #dfe8f5; --panel: #ffffff;
+}
 .body-full-card { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); color: #1d2a3a; }
 .body-full-name { margin: 10px 16px 0; font-size: 18px; }
 #bodyBig { flex: 1; min-height: 0; width: 100%; touch-action: none; cursor: grab; display: block; }
 .body-full-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px 14px; font-size: 15px; }
 .body-full-bar input[type=range] { flex: 1; min-width: 120px; accent-color: #2a6fdb; }
+/* Breite = Inhalt, höchstens der freie Bereich zwischen left und right (setzt
+   updateTaskBar). Nicht über left: 50% + translate zentrieren – dann bekommt
+   die Leiste nur die halbe Breite und der Text bricht Wort für Wort um. */
 #taskBar {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-  max-width: calc(100% - 24px); display: flex; align-items: center; gap: 8px;
+  position: absolute; top: 10px; left: 12px; right: 12px; margin: 0 auto;
+  width: -webkit-fit-content; width: fit-content; display: flex; flex-wrap: wrap; justify-content: flex-end;
+  align-items: center; gap: 8px;
   padding: 6px 6px 6px 16px; border-radius: 16px;
   background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
   z-index: 5;
 }
-#taskText { font-weight: 600; line-height: 1.35; }
+/* Schmal (iPhone hochkant): Text in eigener Zeile, Knöpfe darunter rechts */
+#taskText { font-weight: 600; line-height: 1.35; flex: 1 1 240px; min-width: 0; }
 #taskBar .btn { min-height: 40px; white-space: nowrap; }
 
 /* ---------------- Meldung ---------------- */
@@ -5012,7 +5023,7 @@ function linkKey(url) {
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -9552,9 +9563,9 @@ function updateTaskBar() {
   /* Neben einer offenen Konstruktionsleiste im freien Bereich zentrieren –
      sonst verdeckt die Leiste den Prüfen- bzw. Menüknopf. */
   const panelW = protoOpen() ? document.getElementById('protoPanel').offsetWidth : 0;
-  const free = Math.max(200, stageW - panelW), offX = S.toolbarSide === 'right' ? panelW : 0;
-  bar.style.left = (offX + free / 2) + 'px';
-  bar.style.maxWidth = (free - 24) + 'px';
+  const right = S.toolbarSide === 'right';
+  bar.style.left = ((right ? panelW : 0) + 12) + 'px';
+  bar.style.right = ((right ? 0 : panelW) + 12) + 'px';
 }
 async function checkCurrentTask() {
   if (!doc || !doc.task || PB.on) return;
