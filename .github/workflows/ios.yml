@@ -5,18 +5,30 @@ name: Build Zirkelwerk (iOS)
 # und andere Geheimnisse. In einer gemeinsamen Datei waeren beide Haelften
 # staendig mit "if: runner.os == ..." durchsetzt.
 #
-# Zirkelwerk gibt es nur als eine App; die Vollversion kommt per In-App-Kauf.
+# Zwei Editionen aus demselben Quelltext:
+#   normal  de.zirkelwerk.app     kostenlos, Vollversion per In-App-Kauf
+#   schule  de.zirkelwerk.schule  fester Kaufpreis, alles frei, kein In-App-Kauf
+# Die Schul-Edition gibt es, weil Apple School Manager keine In-App-Käufe
+# kann. Sie wird nur bei manuellem Start gebaut (Edition "schule");
+# make-schule.js baut index.html und config.xml dafür auf dem Läufer um.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      edition:
+        description: 'Welche App bauen?'
+        type: choice
+        options: [normal, schule]
+        default: normal
 
 
 # Zwei schnelle Pushes: der ältere Lauf wird abgebrochen, damit nicht zwei
 # Builds gleichzeitig signieren oder hochladen.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Je Edition eine eigene Gruppe: Ein Schul-Build bricht keinen normalen ab.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.edition || 'normal' }}
   cancel-in-progress: true
 
 jobs:
@@ -52,7 +64,9 @@ jobs:
     runs-on: macos-26
 
     env:
-      APP_ID: de.zirkelwerk.app
+      # Beim Push gibt es keine Eingabe – dann immer die normale App.
+      EDITION: ${{ inputs.edition || 'normal' }}
+      APP_ID: ${{ inputs.edition == 'schule' && 'de.zirkelwerk.schule' || 'de.zirkelwerk.app' }}
       APP_NAME: Compasswork
       CORDOVA_CLI: '13.0.0'
       CORDOVA_IOS: '8.1.1'
@@ -80,6 +94,17 @@ jobs:
           [ -n "$APP" ] || { echo "Kein Xcode 26 auf diesem Laeufer gefunden."; exit 1; }
           sudo xcode-select -switch "$APP"
           xcodebuild -version
+
+      # Muss vor allem anderen laufen: Alle folgenden Schritte (auch die
+      # Prüfung des erzeugten Projekts) sollen die Schul-Fassung sehen.
+      - name: Schul-Edition vorbereiten
+        if: env.EDITION == 'schule'
+        run: |
+          set -e
+          node make-schule.js
+          # Gegenprobe mit dem normalen Validator: Bundle-ID in index.html und
+          # config.xml gleich, Kauf-Schalter und Plugin passen zusammen.
+          node validate.js
 
       - name: Icons und Startbild erzeugen
         run: |
@@ -221,6 +246,21 @@ jobs:
           # In-App-Kauf: Schaltet die App ihn ein, muss das Plugin samt StoreKit
           # im Xcode-Projekt stecken – sonst bleibt der Kaufknopf tot und die
           # App-Prüfung lehnt ab (Kauf nicht möglich).
+          # Schul-Edition: Es darf überhaupt kein Kaufcode im Projekt sein –
+          # eine App ohne In-App-Käufe mit StoreKit fällt in der Prüfung auf.
+          if [ "$EDITION" = "schule" ]; then
+            if grep -q 'const IAP_ENABLED = false' www/index.html && grep -q 'const LIMITS_ACTIVE = false' www/index.html; then
+              echo "Schul-Edition: alle Funktionen frei, Kaufbereich aus."
+            else
+              echo "::error::Schul-Edition, aber IAP_ENABLED oder LIMITS_ACTIVE nicht false."; FEHLER=1
+            fi
+            if [ -n "$(find platforms/ios -name InAppPurchase.m -print -quit)" ] || grep -q 'StoreKit.framework' platforms/ios/*.xcodeproj/project.pbxproj; then
+              echo "::error::Schul-Edition, aber Kauf-Plugin/StoreKit im Xcode-Projekt."; FEHLER=1
+            else
+              echo "Schul-Edition: kein StoreKit im Projekt."
+            fi
+          fi
+
           if grep -q 'const IAP_ENABLED = true' www/index.html; then
             if [ -n "$(find platforms/ios -name InAppPurchase.m -print -quit)" ] && grep -q 'StoreKit.framework' platforms/ios/*.xcodeproj/project.pbxproj; then
               echo "In-App-Kauf (StoreKit) eingebunden."
@@ -244,6 +284,8 @@ jobs:
       #                                als .p12 exportiert
       #   IOS_CERTIFICATE_PASSWORD     Passwort dieses .p12
       #   IOS_PROVISIONING_PROFILE     .mobileprovision (App Store), base64
+      #   IOS_PROVISIONING_PROFILE_SCHULE  dasselbe für de.zirkelwerk.schule
+      #                                (nur für die Schul-Edition nötig)
       #   IOS_TEAM_ID                  zehnstellige Team-ID
       #   IOS_SIGNING_IDENTITY          z. B. "Apple Distribution: Simon Mählmann (TEAMID)"
       # Zertifikat und Team sind dieselben wie bei FairMix; das Profil
@@ -253,9 +295,21 @@ jobs:
         env:
           ZERT_B64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
           ZERT_PW: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-          PROFIL_B64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          PROFIL_NORMAL: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          PROFIL_SCHULE: ${{ secrets.IOS_PROVISIONING_PROFILE_SCHULE }}
         run: |
           set -e
+          # Bewusst in der Shell gewählt, nicht per Ausdruck: Fehlt das
+          # Schul-Profil, soll der Lauf klar scheitern – nicht still mit dem
+          # Profil der Hauptapp signieren.
+          if [ "$EDITION" = "schule" ]; then
+            PROFIL_B64="$PROFIL_SCHULE"
+            if [ -n "$ZERT_B64" ] && [ -z "$PROFIL_B64" ]; then
+              echo "::error::Secret IOS_PROVISIONING_PROFILE_SCHULE fehlt."; exit 1
+            fi
+          else
+            PROFIL_B64="$PROFIL_NORMAL"
+          fi
           if [ -z "$ZERT_B64" ] || [ -z "$PROFIL_B64" ]; then
             echo "vorhanden=false" >> "$GITHUB_OUTPUT"
             echo "Kein Zertifikat hinterlegt – signierter Build wird übersprungen."
@@ -294,8 +348,18 @@ jobs:
 
           # Profil dorthin legen, wo Xcode es sucht.
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' \
-                   /dev/stdin <<< "$(security cms -D -i "$PROFIL")")
+          PROFIL_PLIST="$RUNNER_TEMP/profil.plist"
+          security cms -D -i "$PROFIL" > "$PROFIL_PLIST"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFIL_PLIST")
+          # Passt das Profil zur App? Ein vertauschtes Secret fiele sonst erst
+          # beim Signieren mit einer schwer lesbaren Xcode-Meldung auf.
+          PROFIL_APP=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFIL_PLIST")
+          rm -f "$PROFIL_PLIST"
+          echo "Profil gilt für: $PROFIL_APP"
+          case "$PROFIL_APP" in
+            *".$APP_ID") ;;
+            *) echo "::error::Profil gehört zu '$PROFIL_APP', gebaut wird '$APP_ID'."; exit 1 ;;
+          esac
           cp "$PROFIL" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
           echo "Profil installiert: $UUID"
 
@@ -322,7 +386,7 @@ jobs:
         if: steps.signieren.outputs.vorhanden == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: Zirkelwerk-ios-ipa
+          name: Zirkelwerk-ios-ipa-${{ env.EDITION }}
           path: build/platforms/ios/build/**/*.ipa
           if-no-files-found: error
 
