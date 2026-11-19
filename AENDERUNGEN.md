@@ -1,5 +1,36 @@
 # Änderungen
 
+## 1.0.2 – Präsentieren, Teilen, dichtere QR-Codes (November 2026)
+
+- **Präsentationsmodus** (Vollversion, neues Bildschirm-Symbol oben): Vorführen am Beamer oder
+  Smartboard, z. B. in Räumen ohne Tafel. Kopf- und Werkzeugleiste verschwinden, eine kleine
+  schwebende Leiste bleibt (Werkzeuge aufklappen, Rückgängig, Zeigestift, Kräftig,
+  Schritt für Schritt, Beenden)
+  - Kräftig (abschaltbar): dickere Linien, größere Beschriftung, dunkleres Grau, deutlicheres
+    Karo – nur am Bildschirm, Blatt, PDF und Vorschaubilder bleiben unverändert
+  - Schritt für Schritt: Tippen aufs Blatt, ›, Pfeiltaste oder Presenter (Bild ab) zeigt den
+    nächsten Schritt; der Schritt steht groß über der Steuerung. Escape beendet erst die
+    Vorführung, dann die Präsentation
+  - Zeigestift: roter Punkt mit verblassender Spur, verändert nichts
+  - Läuft mit normaler Bildschirmspiegelung (AirPlay, HDMI)
+- **Teilen-Menü** statt des PDF-Symbols: QR-Code für die Klasse, Als PDF, Als Datei exportieren,
+  Als Video, Abgaben. Der QR-Code war vorher nur im Labor, im Aufgabenmenü und in der Blattliste
+- **QR-Codes fassen viel mehr Handschrift:** neues dichtes Linkformat (v2) – Freihand binär und
+  für den Code etwas gröber vereinfacht, alles gepackt (Deflate). Drei geschriebene Wörter: vorher
+  rund 2 300 Zeichen (zu groß), jetzt rund 500. Codes bis Version 32 statt 27. Kleine Blätter
+  bekommen weiter das alte Format, damit auch Geräte mit 1.0.1 sie lesen
+- **Zu groß?** Die Meldung sagt, was den Platz kostet (Freihandstriche), und bietet „Ohne
+  Freihandstriche teilen“ an, wenn die Konstruktion ohne sie passt – oder direkt den Export als Datei
+- QR-Code wird auf ganze Gerätepixel gezeichnet (gleich breite Module, besser vom Beamer lesbar)
+- **Körper: „Farben“ in drei Stufen** – aus, Gegenseiten gleich, kongruente Flächen gleich (z. B.
+  alle Seitendreiecke einer Pyramide, die gespiegelten Grundflächen eines Dreiecksprismas)
+- **Bitte um Bewertung** über den Dialog von App Store bzw. Play Store: erst nach drei Erfolgen
+  (Aufgabe richtig, Konstruktion ganz vorgeführt), frühestens drei Tage nach dem ersten Start,
+  höchstens alle 120 Tage, nie beim Vorführen. Nicht in der Schul-Edition
+- Prüfung: Kerntest (Deflate/Inflate gegen zlib, Link v2, kaputte Daten, Kongruenz),
+  Ablauftest (Teilen, QR v2, „Ohne Freihandstriche“, Präsentation, Zeigestift, Bewertung),
+  neue Gegenproben in mutate.sh
+
 ## 1.0.1 – Aufgabenleiste (Oktober 2026)
 
 - **Behoben:** Die Aufgabenleiste oben war nie breiter als der halbe Bildschirm – auf dem iPad

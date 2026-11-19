@@ -396,6 +396,46 @@ body.playing #protoList li.done::before { background: var(--accent-soft); color:
 body.playing #toolbar { opacity: .35; pointer-events: none; }
 body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
 
+/* ---------------- Präsentationsmodus (1.0.2) ---------------- */
+/* Kopfleiste weg, Werkzeugleiste nur auf Wunsch (überlagert das Blatt, damit
+   sich die Zeichenfläche beim Auf- und Zuklappen nicht verschiebt). */
+body.present { --top-h: 0px; }
+body.present #topbar { display: none; }
+body.present #stage, body.present.tools-right #stage { left: 0; right: 0; }
+body.present #toolbar { display: none; }
+body.present.present-tools #toolbar { display: flex; box-shadow: 6px 0 24px rgba(20,30,50,.18); }
+/* unter der schwebenden Leiste beginnen – auf schmalen Geräten läge sie sonst über „Hand“ */
+body.present #toolbar { top: calc(72px + env(safe-area-inset-top)); border-top: 1px solid var(--line); border-top-right-radius: 14px; }
+body.present.tools-right #toolbar { border-top-right-radius: 0; border-top-left-radius: 14px; }
+body.present.present-tools.tools-right #toolbar { box-shadow: -6px 0 24px rgba(20,30,50,.18); }
+#presentBar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  top: calc(10px + env(safe-area-inset-top));
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  border-radius: 28px; background: rgba(29, 42, 58, .88); color: #fff;
+  box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 25;
+}
+#presentBar .tb { color: #fff; min-width: 48px; height: 48px; border-radius: 24px; }
+#presentBar .tb:active { background: rgba(255,255,255,.15); }
+#presentBar .tb.sel { background: var(--pencil); color: #1d2a3a; }
+#presentBar .tb:disabled { opacity: .35; }
+/* Aufgabenleiste und Bildleiste unter die schwebende Leiste (sonst verdeckt) */
+body.present #taskBar, body.present .img-bar { top: 74px; }
+body.present #pbPill .tb { min-width: 56px; height: 56px; border-radius: 28px; }
+body.present #pbPill .tb svg { width: 28px; height: 28px; }
+body.present #pbPillStatus { font-size: 18px; }
+/* Der aktuelle Schritt groß über der Steuerung – lesbar bis in die letzte Reihe */
+#presentCap {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: max-content; max-width: min(960px, calc(100vw - 32px));
+  padding: 12px 22px; border-radius: 16px;
+  background: rgba(29, 42, 58, .9); color: #fff;
+  font-size: clamp(18px, 2.4vw, 30px); font-weight: 600; line-height: 1.3; text-align: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 19; pointer-events: none;
+}
+#presentCap .n { opacity: .7; margin-right: .45em; font-variant-numeric: tabular-nums; }
+
 /* ---------------- Kongruenzsätze-Labor ---------------- */
 .lab-kinds .btn { min-width: 76px; font-size: 17px; }
 .lab-grid { display: grid; gap: 10px; margin: 14px 0; }
@@ -495,6 +535,7 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   .tool svg { width: 23px; height: 23px; }
   .sep { grid-column: 1 / -1; margin: 2px 8px; }
 }
+@media (max-height: 480px) { body.present.present-tools #toolbar { display: grid; } }
 .help-lang { margin-bottom: 18px; }
 .help-about { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .help-about h3 { margin: 0 0 6px; font-size: 17px; }
@@ -518,7 +559,8 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   <button class="tb" id="btnLab" data-icon="lab" onclick="openLab()" data-i18n-aria="ariaLab" aria-label="Kongruenzsätze-Labor"></button>
   <button class="tb" id="btnProto" data-icon="steps" onclick="toggleProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
   <button class="tb" id="btnImage" data-icon="image" onclick="insertImage()" data-i18n-aria="ariaImage" aria-label="Bild einfügen"></button>
-  <button class="tb" id="btnPdf" data-icon="pdf" onclick="openPdfExport()" data-i18n-aria="ariaPdf" aria-label="Als PDF exportieren"></button>
+  <button class="tb" id="btnShare" data-icon="share" onclick="openShareMenu()" data-i18n-aria="ariaShare" aria-label="Teilen"></button>
+  <button class="tb" id="btnPresent" data-icon="present" onclick="presentEnter()" data-i18n-aria="ariaPresent" aria-label="Präsentieren"></button>
   <button class="tb" id="btnHelp" data-icon="help" onclick="openHelp()" data-i18n-aria="ariaHelp" aria-label="Hilfe und Über"></button>
   <button class="tb" id="btnSettings" data-icon="gear" onclick="openSettings()" data-i18n-aria="ariaSettings" aria-label="Einstellungen"></button>
   <button class="tb" id="btnMore" data-icon="more" onclick="openMoreMenu()" data-i18n-aria="ariaMore" aria-label="Mehr" hidden></button>
@@ -594,6 +636,18 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
   <button class="tb" data-icon="steps" onclick="openProto()" data-i18n-aria="ariaProto" aria-label="Konstruktion"></button>
   <button class="tb" data-icon="close" onclick="pbExit()" data-i18n-aria="btnPbExit" aria-label="Wiedergabe beenden"></button>
 </div>
+
+<!-- Präsentationsmodus (1.0.2): statt Kopf- und Werkzeugleiste eine kleine,
+     schwebende Leiste; die Werkzeuge klappen bei Bedarf am Rand auf. -->
+<div id="presentBar" hidden>
+  <button class="tb" id="presTools" data-icon="pencil" onclick="presentToggleTools()" data-i18n-aria="ariaPresTools" aria-label="Werkzeuge"></button>
+  <button class="tb" id="presUndo" data-icon="undo" onclick="undo()" data-i18n-aria="ariaUndo" aria-label="Rückgängig"></button>
+  <button class="tb" id="presLaser" data-icon="laser" onclick="presentToggleLaser()" data-i18n-aria="ariaPresLaser" aria-label="Zeigestift"></button>
+  <button class="tb" id="presBold" data-icon="bold" onclick="presentToggleBold()" data-i18n-aria="ariaPresBold" aria-label="Kräftig darstellen"></button>
+  <button class="tb" id="presSteps" data-icon="steps" onclick="presentSteps()" data-i18n-aria="ariaPresSteps" aria-label="Schritt für Schritt vorführen"></button>
+  <button class="tb" id="presExit" data-icon="close" onclick="presentExit()" data-i18n-aria="ariaPresExit" aria-label="Präsentation beenden"></button>
+</div>
+<div id="presentCap" hidden aria-live="polite"><span class="n" id="presentCapN"></span><span id="presentCapText"></span></div>
 
 <div id="stylePop" class="pop" hidden>
   <h4 id="stylePopTitle" data-i18n="styleColor">Farbe</h4>
@@ -855,10 +909,11 @@ body.playing #btnUndo, body.playing #btnRedo { visibility: hidden; }
       <div class="help-item"><div class="ic" data-icon="image"></div><div><strong data-i18n="helpImageT">Bilder auf dem Blatt</strong><p data-i18n="helpImage">Das Bild-Symbol oben legt ein Foto oder eine Bilddatei aufs Blatt, z. B. eine Aufgabe aus dem Buch. Ecken ziehen ändert die Größe, Kanten ziehen schneidet zu, „Blass“ macht es durchscheinend. „Fertig“ heftet es fest – mit der Hand antippen, um es wieder zu bearbeiten. Bilder kommen mit ins PDF, aber nicht in QR-Codes.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="backup"></div><div><strong data-i18n="helpBackupT">Sichern und Ordner</strong><p data-i18n="helpBackup">Unter „Meine Blätter → Sicherung“ speicherst du alle Blätter mit Ordnern und Abgaben in einer Datei, z. B. in iCloud Drive. Wiederherstellen ergänzt fehlende Blätter, ohne etwas zu überschreiben. Über „⋯“ an einem Blatt legst du es in einen Ordner, etwa je Klasse.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="lab"></div><div><strong data-i18n="helpLabT">Labor</strong><p data-i18n="helpLab">Über das Dreieck-Symbol oben: Kongruenzsätze (SSS, SWS, WSW, SsW) oder Grundkonstruktionen (Mittelsenkrechte, Winkelhalbierende, Lot, Parallele, Umkreis, Inkreis, Thaleskreis). „Vorführen“ zeigt die Konstruktion als Animation, „Selbst konstruieren“ stellt die Aufgabe. Die Glühbirne gibt Hilfe in vier Stufen, „Prüfen“ sagt nicht nur ob, sondern warum etwas nicht stimmt.</p></div></div>
-      <div class="help-item"><div class="ic" data-icon="cube"></div><div><strong data-i18n="helpBodyT">Körper und Netze</strong><p data-i18n="helpBody">Im Labor unter „Körper &amp; Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="cube"></div><div><strong data-i18n="helpBodyT">Körper und Netze</strong><p data-i18n="helpBody">Im Labor unter „Körper &amp; Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen: „Farben“ wechselt zwischen Gegenseiten gleich und kongruenten Flächen gleich. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="steps"></div><div><strong data-i18n="helpProtoT">Konstruktion abspielen</strong><p data-i18n="helpProto">Oben rechts öffnet die Liste aller Konstruktionsschritte. Mit ▶ spielst du die Konstruktion Schritt für Schritt ab – Lineal, Geodreieck und Zirkel zeichnen sie vor. Ideal zum Zeigen am Beamer.</p></div></div>
-      <div class="help-item"><div class="ic" data-icon="pdf"></div><div><strong data-i18n="helpPdfT">Als PDF drucken</strong><p data-i18n="helpPdf">Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.</p></div></div>
-      <div class="help-item"><div class="ic" data-icon="qr"></div><div><strong data-i18n="helpQrT">Aufgaben per QR-Code</strong><p data-i18n="helpQr">Im Labor, im Aufgabenmenü (⋯) oder über „⋯“ in der Blattliste einen QR-Code zeigen. Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt. Zurück geht es genauso: Nach dem Prüfen zeigen Schüler „Rückmeldung (QR)“, du scannst – unter „Meine Blätter → Abgaben“ siehst du, wer fertig ist und welche Fehler am häufigsten vorkommen.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="present"></div><div><strong data-i18n="helpPresentT">Präsentieren</strong><p data-i18n="helpPresent"></p></div></div>
+      <div class="help-item"><div class="ic" data-icon="pdf"></div><div><strong data-i18n="helpPdfT">Als PDF drucken</strong><p data-i18n="helpPdf">„Teilen“ oben (Pfeil aus dem Kasten) → „Als PDF“ erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.</p></div></div>
+      <div class="help-item"><div class="ic" data-icon="qr"></div><div><strong data-i18n="helpQrT">Aufgaben per QR-Code</strong><p data-i18n="helpQr">Oben über „Teilen“ → „QR-Code für die Klasse“ (auch im Labor, im Aufgabenmenü ⋯ und in der Blattliste). Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt. Zurück geht es genauso: Nach dem Prüfen zeigen Schüler „Rückmeldung (QR)“, du scannst – unter „Meine Blätter → Abgaben“ siehst du, wer fertig ist und welche Fehler am häufigsten vorkommen.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="hand"></div><div><strong data-i18n="helpNavT">Blatt bewegen</strong><p data-i18n="helpNav">Mit zwei Fingern verschieben und zoomen. „100 %“ zeigt das Blatt in echter Größe: 1 cm auf dem Bildschirm ist 1 cm.</p></div></div>
       <div class="help-item"><div class="ic" data-icon="pencil"></div><div><strong data-i18n="helpPenT">Apple Pencil</strong><p data-i18n="helpPen">Der Stift zeichnet, die Finger bewegen Blatt und Geräte. Ein kurzer Fingertipp öffnet trotzdem Punkte und Texte. Das lässt sich in den Einstellungen ändern.</p></div></div>
       <section class="help-about">
@@ -997,7 +1052,7 @@ const i18n = {
     scaleCalibrated: 'Von dir kalibriert. Bei 100 % entspricht 1 cm auf dem Bildschirm 1 cm in echt.',
     device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android-Gerät', device_desktop: 'Computer',
     setFull: 'Vollversion', btnBuy: 'Vollversion freischalten', btnBuyPrice: 'Vollversion freischalten – {price}', btnRestore: 'Käufe wiederherstellen',
-    fullInfo: 'Die Vollversion schaltet dauerhaft frei: beliebig viele Blätter, die ausformulierte Konstruktionsbeschreibung, das Labor (Kongruenzsätze, Grundkonstruktionen, Körper & Netze), PDF- und Video-Export, Aufgaben per QR-Code und Abgaben. Einmal kaufen, kein Abo, mit der Familienfreigabe teilbar.',
+    fullInfo: 'Die Vollversion schaltet dauerhaft frei: beliebig viele Blätter, die ausformulierte Konstruktionsbeschreibung, das Labor (Kongruenzsätze, Grundkonstruktionen, Körper & Netze), PDF- und Video-Export, Aufgaben per QR-Code, Abgaben und den Präsentationsmodus für Beamer und Smartboard. Einmal kaufen, kein Abo, mit der Familienfreigabe teilbar.',
     fullOwned: 'Die Vollversion ist freigeschaltet. Danke!',
     setAbout: 'Über', aboutLine: 'Zirkelwerk {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Impressum', btnPrivacy: 'Datenschutz',
@@ -1130,7 +1185,7 @@ const i18n = {
     bodyDesc_cone: 'Radius r der Grundfläche – Höhe h', bodyDesc_sphere: 'Radius r – n Schalen (8 bis 16) für das angenäherte Netz',
     bodySphereNote: 'Eine Kugel lässt sich nicht abwickeln. Das Netz aus Schalen ist nur angenähert – wie bei einem Globus.',
     bodyNetHintSphere: 'Angenähert: Eine Kugel lässt sich nicht genau abwickeln. Schalen ausschneiden und an den Rändern zusammenkleben.',
-    bodyNetPick: 'Würfelnetz', bodyNetPickHint: 'Elf verschiedene Würfelnetze – antippen zum Falten:', bodyColors: 'Farben', ariaBodyBig: 'Großansicht',
+    bodyNetPick: 'Würfelnetz', bodyNetPickHint: 'Elf verschiedene Würfelnetze – antippen zum Falten:', bodyColors: 'Farben', bodyColors1: 'Farben: Gegenseiten', bodyColors2: 'Farben: kongruent', ariaBodyBig: 'Großansicht',
     btnCubeQuiz: 'Ist das ein Würfelnetz?', quizAsk: 'Ist das ein Würfelnetz?', btnYes: 'Ja', btnNo: 'Nein', quizRight: 'Richtig!', quizWrong: 'Nicht ganz.',
     quizIsNet: 'Es ist ein Würfelnetz: Jede Seite wird genau einmal belegt.', quizNotNet: 'Kein Würfelnetz: Rot liegt doppelt, offen bleibt (gestrichelt): {n}.',
     quizScore: '{ok} von {n} richtig', btnQuizNext: 'Nächstes', btnQuizEnd: 'Beenden',
@@ -1143,7 +1198,7 @@ const i18n = {
     bodySheetNet: 'Netz {body} ({vals})', bodySheetObl: 'Schrägbild {body} ({vals})',
     bodyNetHint: 'Ausschneiden an den durchgezogenen Linien, an den gestrichelten falten, an den grauen Laschen kleben.',
     helpBodyT: 'Körper und Netze',
-    helpBody: 'Im Labor unter „Körper & Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.',
+    helpBody: 'Im Labor unter „Körper & Netze“: Würfel, Quader, Prismen, Pyramiden, Tetraeder, Oktaeder, Zylinder, Kegel oder Kugel wählen, Maße eingeben, mit dem Finger drehen und falten. Beim Würfel stehen alle elf Würfelnetze zur Wahl, dazu das Quiz „Ist das ein Würfelnetz?“. Die Großansicht zeigt den Körper bildschirmfüllend, auf Wunsch mit farbigen Flächen: „Farben“ wechselt zwischen Gegenseiten gleich und kongruenten Flächen gleich. Netz mit Klebelaschen oder Schrägbild aufs Blatt legen – das Netz als PDF in Originalgröße zum Basteln drucken.',
     geo_msk: 'Mittelsenkrechte', geo_wh: 'Winkelhalbierende', geo_lot: 'Lot', geo_senk: 'Senkrechte', geo_par: 'Parallele', geo_umk: 'Umkreis', geo_ink: 'Inkreis', geo_thal: 'Thaleskreis',
     geo_sheetTask: 'Aufgabe: {name}', geo_sheetDemo: '{name}', geo_sheetSolution: 'Lösung: {name}',
     task_msk: 'Konstruiere die Mittelsenkrechte der Strecke AB.',
@@ -1184,6 +1239,11 @@ const i18n = {
     paywall_pdf: 'Der PDF-Export gehört zur Vollversion.',
     paywall_qr: 'Aufgaben per QR-Code zu erstellen gehört zur Vollversion. Öffnen können sie alle.',
     paywall_results: 'Abgaben sammeln und auswerten gehört zur Vollversion. Rückmeldungen zeigen können alle.',
+    paywall_present: 'Der Präsentationsmodus zum Vorführen am Beamer oder Smartboard gehört zur Vollversion.',
+    ariaPresent: 'Präsentieren', ariaPresTools: 'Werkzeuge', ariaPresLaser: 'Zeigestift', ariaPresBold: 'Kräftig darstellen',
+    ariaPresSteps: 'Schritt für Schritt vorführen', ariaPresExit: 'Präsentation beenden',
+    msgPresentOn: 'Präsentation: Der Stift oben öffnet die Werkzeuge, ✕ beendet.',
+    presCapStart: 'Tippe aufs Blatt oder auf ›, um den ersten Schritt zu zeigen.',
     btnResult: 'Rückmeldung (QR)', resNameTitle: 'Rückmeldung an die Lehrkraft',
     resNameMsg: 'Dein Vorname oder Kürzel erscheint bei deiner Lehrkraft. Er bleibt auf diesem Gerät und auf dem der Lehrkraft.',
     resNamePh: 'Vorname oder Kürzel', resTitle: 'Rückmeldung', resHint: 'Zeig diesen Code deiner Lehrkraft. Sie scannt ihn mit der Kamera-App.',
@@ -1204,14 +1264,17 @@ const i18n = {
     btnQr: 'QR-Code', qrTitle: 'Aufgabe per QR-Code', btnQrSheet: 'Als QR-Code', btnQrTask: 'QR-Code für die Klasse',
     qrHint: 'Mit der Kamera-App scannen. Ist Zirkelwerk installiert, öffnet sich die Aufgabe als neues Blatt.',
     qrTooBigTitle: 'Zu groß für einen QR-Code',
-    qrTooBig: 'Dieses Blatt enthält zu viel für einen QR-Code. Teile es stattdessen über „Als Datei exportieren“ (AirDrop, Mail, Lernplattform).',
+    qrTooBig: 'Dieses Blatt enthält zu viel für einen QR-Code. Teile es stattdessen als Datei (AirDrop, Mail, Lernplattform).',
+    qrTooBigAll: 'Dieses Blatt enthält zu viel für einen QR-Code – auch ohne die Freihandstriche ({n}). Teile es stattdessen als Datei (AirDrop, Mail, Lernplattform).',
+    qrTooBigStrokes: 'Den meisten Platz brauchen die Freihandstriche ({n}). Ohne sie passt das Blatt in einen Code – Konstruktion, Punkte und Texte bleiben vollständig.',
+    btnQrNoStrokes: 'Ohne Freihandstriche teilen',
     qrEmpty: 'Das Blatt ist leer – es gibt nichts zu teilen.',
     msgQrInvalid: 'Dieser Code enthält keine gültige Zirkelwerk-Aufgabe.',
     msgQrNewer: 'Diese Aufgabe stammt aus einer neueren Zirkelwerk-Version. Bitte die App aktualisieren.',
     msgQrOpened: 'Aufgabe geöffnet: {name}', msgQrAgain: 'Diese Aufgabe hast du schon – sie ist wieder geöffnet.',
     helpQrT: 'Aufgaben per QR-Code',
-    helpQr: 'Im Labor, im Aufgabenmenü (⋯) oder über „⋯“ in der Blattliste einen QR-Code zeigen. Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt. Zurück geht es genauso: Nach dem Prüfen zeigen Schüler „Rückmeldung (QR)“, du scannst – unter „Meine Blätter → Abgaben“ siehst du, wer fertig ist und welche Fehler am häufigsten vorkommen.',
-    ariaPdf: 'Als PDF exportieren', btnPdf: 'Als PDF', pdf_title: 'Als PDF (A4)', pdf_create: 'PDF erstellen',
+    helpQr: 'Oben über „Teilen“ → „QR-Code für die Klasse“ (auch im Labor, im Aufgabenmenü ⋯ und in der Blattliste). Die Klasse scannt ihn mit der Kamera-App und bekommt die Aufgabe als eigenes Blatt. Zurück geht es genauso: Nach dem Prüfen zeigen Schüler „Rückmeldung (QR)“, du scannst – unter „Meine Blätter → Abgaben“ siehst du, wer fertig ist und welche Fehler am häufigsten vorkommen. Viel Freihand braucht viel Platz; passt ein Blatt nicht, bietet die App an, es ohne Freihandstriche zu teilen.',
+    ariaShare: 'Teilen', shareTitle: 'Teilen', btnPdf: 'Als PDF', pdf_title: 'Als PDF (A4)', pdf_create: 'PDF erstellen',
     pdf_grid: 'Karopapier', pdf_head: 'Zeile für Name und Datum',
     pdf_desc: 'Konstruktionsbeschreibung', pdf_descHint: 'Unter der Zeichnung oder auf der nächsten Seite.',
     pdf_taskOnly: 'Nur die Aufgabe', pdf_taskOnlyHint: 'Arbeitsblatt ohne Lösung: Planfigur und Gegebenes, darunter Platz zum Konstruieren.',
@@ -1220,7 +1283,9 @@ const i18n = {
     pdf_scaled: 'Verkleinert auf {p} % – Längen nicht nachmessen.', pdf_fileTask: 'Aufgabe',
     msgPdfFailed: 'Das PDF konnte nicht erstellt werden.', msgPdfEmpty: 'Das Blatt ist leer.',
     helpPdfT: 'Als PDF drucken',
-    helpPdf: 'Das Blatt-Symbol mit Pfeil erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.',
+    helpPresentT: 'Präsentieren (Beamer, Smartboard)',
+    helpPresent: 'Das Bildschirm-Symbol oben blendet alles aus, was die Klasse nicht sehen muss. Linien und Beschriftung werden kräftiger (abschaltbar). Der Stift in der schwebenden Leiste klappt die Werkzeuge auf, der Zeigestift zeigt ohne Spuren. „Schritt für Schritt“ führt die Konstruktion vor: Tippen aufs Blatt, ›, Pfeiltaste oder Presenter zeigt den nächsten Schritt, groß beschriftet. ✕ beendet.',
+    helpPdf: '„Teilen“ oben (Pfeil aus dem Kasten) → „Als PDF“ erzeugt ein A4-PDF – in Originalgröße, wenn die Zeichnung passt. Karopapier, Zeile für Name und Datum und die Konstruktionsbeschreibung sind wählbar; bei Laboraufgaben auch ein Arbeitsblatt ohne Lösung.',
     helpLabT: 'Labor: Aufgaben mit Prüfung',
     helpLab: 'Über das Dreieck-Symbol oben: Kongruenzsätze (SSS, SWS, WSW, SsW) oder Grundkonstruktionen (Mittelsenkrechte, Winkelhalbierende, Lot, Parallele, Umkreis, Inkreis, Thaleskreis). „Vorführen" zeigt die Konstruktion als Animation, „Selbst konstruieren" stellt die Aufgabe. Die Glühbirne gibt Hilfe in vier Stufen, „Prüfen" sagt nicht nur ob, sondern warum etwas nicht stimmt.',
     d_plan: 'Fertige eine Planfigur an und markiere die gegebenen Größen.', s_plan: 'Planfigur',
@@ -1330,7 +1395,7 @@ const i18n = {
     scaleCalibrated: 'Calibrated by you. At 100 %, 1 cm on screen is 1 cm in reality.',
     device_ipad: 'iPad', device_ipadmini: 'iPad mini', device_iphone: 'iPhone', device_android: 'Android device', device_desktop: 'computer',
     setFull: 'Full version', btnBuy: 'Unlock full version', btnBuyPrice: 'Unlock full version – {price}', btnRestore: 'Restore purchases',
-    fullInfo: 'The full version permanently unlocks: unlimited sheets, the written construction description, the lab (congruence theorems, basic constructions, solids & nets), PDF and video export, tasks via QR code and submissions. One purchase, no subscription, shareable with Family Sharing.',
+    fullInfo: 'The full version permanently unlocks: unlimited sheets, the written construction description, the lab (congruence theorems, basic constructions, solids & nets), PDF and video export, tasks via QR code, submissions and presentation mode for projectors and whiteboards. One purchase, no subscription, shareable with Family Sharing.',
     fullOwned: 'The full version is unlocked. Thank you!',
     setAbout: 'About', aboutLine: 'Compasswork {version} · Wisdompeak Apps – Simon Mählmann',
     btnImprint: 'Legal notice', btnPrivacy: 'Privacy',
@@ -1462,7 +1527,7 @@ const i18n = {
     bodyDesc_cone: 'Radius r of the base – height h', bodyDesc_sphere: 'Radius r – n gores (8 to 16) for the approximate net',
     bodySphereNote: 'A sphere cannot be unfolded. The net of gores is only an approximation – like a globe.',
     bodyNetHintSphere: 'Approximate: a sphere cannot be unfolded exactly. Cut out the gores and glue them together along their edges.',
-    bodyNetPick: 'Cube net', bodyNetPickHint: 'Eleven different cube nets – tap one to fold it:', bodyColors: 'Colours', ariaBodyBig: 'Large view',
+    bodyNetPick: 'Cube net', bodyNetPickHint: 'Eleven different cube nets – tap one to fold it:', bodyColors: 'Colours', bodyColors1: 'Colours: opposite faces', bodyColors2: 'Colours: congruent', ariaBodyBig: 'Large view',
     btnCubeQuiz: 'Is this a cube net?', quizAsk: 'Is this a cube net?', btnYes: 'Yes', btnNo: 'No', quizRight: 'Correct!', quizWrong: 'Not quite.',
     quizIsNet: 'It is a cube net: every face is covered exactly once.', quizNotNet: 'Not a cube net: red faces overlap, left open (dashed): {n}.',
     quizScore: '{ok} of {n} correct', btnQuizNext: 'Next', btnQuizEnd: 'Finish',
@@ -1475,7 +1540,7 @@ const i18n = {
     bodySheetNet: 'Net {body} ({vals})', bodySheetObl: 'Oblique view {body} ({vals})',
     bodyNetHint: 'Cut along the solid lines, fold along the dashed lines, glue the grey tabs.',
     helpBodyT: 'Solids and nets',
-    helpBody: 'In the lab under “Solids & nets”: choose cube, cuboid, prisms, pyramids, tetrahedron, octahedron, cylinder, cone or sphere, enter measures, rotate and fold with your finger. For the cube, all eleven cube nets are available, plus the quiz “Is this a cube net?”. The large view fills the screen, optionally with coloured faces. Put the net with glue tabs or an oblique view on a sheet – print the net as a PDF at original size for crafting.',
+    helpBody: 'In the lab under “Solids & nets”: choose cube, cuboid, prisms, pyramids, tetrahedron, octahedron, cylinder, cone or sphere, enter measures, rotate and fold with your finger. For the cube, all eleven cube nets are available, plus the quiz “Is this a cube net?”. The large view fills the screen, optionally with coloured faces: “Colours” switches between opposite faces alike and congruent faces alike. Put the net with glue tabs or an oblique view on a sheet – print the net as a PDF at original size for crafting.',
     geo_msk: 'Perpendicular bisector', geo_wh: 'Angle bisector', geo_lot: 'Perpendicular from a point', geo_senk: 'Perpendicular at a point', geo_par: 'Parallel', geo_umk: 'Circumcircle', geo_ink: 'Incircle', geo_thal: 'Thales circle',
     geo_sheetTask: 'Task: {name}', geo_sheetDemo: '{name}', geo_sheetSolution: 'Solution: {name}',
     task_msk: 'Construct the perpendicular bisector of the segment AB.',
@@ -1516,6 +1581,11 @@ const i18n = {
     paywall_pdf: 'PDF export is part of the full version.',
     paywall_qr: 'Creating tasks as QR codes is part of the full version. Anyone can open them.',
     paywall_results: 'Collecting and analysing submissions is part of the full version. Anyone can show a result.',
+    paywall_present: 'Presentation mode for showing constructions on a projector or interactive whiteboard is part of the full version.',
+    ariaPresent: 'Present', ariaPresTools: 'Tools', ariaPresLaser: 'Laser pointer', ariaPresBold: 'Bold display',
+    ariaPresSteps: 'Show step by step', ariaPresExit: 'End presentation',
+    msgPresentOn: 'Presentation: the pencil at the top opens the tools, ✕ ends it.',
+    presCapStart: 'Tap the sheet or › to show the first step.',
     btnResult: 'Send result (QR)', resNameTitle: 'Result for your teacher',
     resNameMsg: 'Your first name or initials will be shown to your teacher. It stays on this device and on your teacher\'s.',
     resNamePh: 'First name or initials', resTitle: 'Result', resHint: 'Show this code to your teacher. They scan it with the camera app.',
@@ -1536,14 +1606,17 @@ const i18n = {
     btnQr: 'QR code', qrTitle: 'Task as QR code', btnQrSheet: 'As QR code', btnQrTask: 'QR code for the class',
     qrHint: 'Scan with the camera app. If Compasswork is installed, the task opens as a new sheet.',
     qrTooBigTitle: 'Too large for a QR code',
-    qrTooBig: 'This sheet contains too much for a QR code. Share it with “Export as file” instead (AirDrop, mail, learning platform).',
+    qrTooBig: 'This sheet contains too much for a QR code. Share it as a file instead (AirDrop, mail, learning platform).',
+    qrTooBigAll: 'This sheet contains too much for a QR code – even without the freehand strokes ({n}). Share it as a file instead (AirDrop, mail, learning platform).',
+    qrTooBigStrokes: 'The freehand strokes ({n}) take up most of the space. Without them the sheet fits into a code – construction, points and texts stay complete.',
+    btnQrNoStrokes: 'Share without freehand strokes',
     qrEmpty: 'The sheet is empty – there is nothing to share.',
     msgQrInvalid: 'This code does not contain a valid Compasswork task.',
     msgQrNewer: 'This task comes from a newer version of Compasswork. Please update the app.',
     msgQrOpened: 'Task opened: {name}', msgQrAgain: 'You already have this task – it is open again.',
     helpQrT: 'Tasks as QR codes',
-    helpQr: 'Show a QR code from the lab, the task menu (⋯) or “⋯” in the sheet list. The class scans it with the camera app and gets the task as their own sheet. It works the other way too: after checking, students show “Send result (QR)”, you scan – under “My sheets → Submissions” you see who has finished and the most common errors.',
-    ariaPdf: 'Export as PDF', btnPdf: 'As PDF', pdf_title: 'As PDF (A4)', pdf_create: 'Create PDF',
+    helpQr: 'Tap “Share” at the top → “QR code for the class” (also in the lab, the task menu ⋯ and the sheet list). The class scans it with the camera app and gets the task as their own sheet. It works the other way too: after checking, students show “Send result (QR)”, you scan – under “My sheets → Submissions” you see who has finished and the most common errors. Lots of freehand takes a lot of space; if a sheet doesn’t fit, the app offers to share it without the freehand strokes.',
+    ariaShare: 'Share', shareTitle: 'Share', btnPdf: 'As PDF', pdf_title: 'As PDF (A4)', pdf_create: 'Create PDF',
     pdf_grid: 'Squared paper', pdf_head: 'Line for name and date',
     pdf_desc: 'Construction description', pdf_descHint: 'Below the drawing or on the next page.',
     pdf_taskOnly: 'Task only', pdf_taskOnlyHint: 'Worksheet without the solution: plan figure and given parts, with space below for the construction.',
@@ -1552,7 +1625,9 @@ const i18n = {
     pdf_scaled: 'Reduced to {p} % – do not measure lengths.', pdf_fileTask: 'task',
     msgPdfFailed: 'The PDF could not be created.', msgPdfEmpty: 'The sheet is empty.',
     helpPdfT: 'Print as PDF',
-    helpPdf: 'The sheet button with the arrow creates an A4 PDF – at original size if the drawing fits. Squared paper, a line for name and date and the construction description are optional; for lab tasks also a worksheet without the solution.',
+    helpPresentT: 'Present (projector, whiteboard)',
+    helpPresent: 'The screen button at the top hides everything the class doesn’t need to see. Lines and labels get bolder (can be switched off). The pencil in the floating bar opens the tools, the laser pointer points without leaving marks. “Step by step” shows the construction: tap the sheet, ›, an arrow key or a presenter to show the next step, with a large caption. ✕ ends it.',
+    helpPdf: '“Share” at the top (arrow out of the box) → “As PDF” creates an A4 PDF – at original size if the drawing fits. Squared paper, a line for name and date and the construction description are optional; for lab tasks also a worksheet without the solution.',
     helpLabT: 'Lab: tasks with checking',
     helpLab: 'Use the triangle button at the top: congruence (SSS, SAS, ASA, SSA) or basic constructions (perpendicular bisector, angle bisector, perpendiculars, parallel, circumcircle, incircle, Thales circle). “Demonstrate” shows the construction as an animation, “Construct myself” sets the task. The light bulb gives help in four levels, “Check” says not only whether but why something is wrong.',
     d_plan: 'Sketch a plan figure and mark the given parts.', s_plan: 'Plan figure',
@@ -1652,6 +1727,26 @@ function nearestOnSeg(px, py, ax, ay, bx, by) {
 function distToSeg(px, py, ax, ay, bx, by) {
   const n = nearestOnSeg(px, py, ax, ay, bx, by);
   return dist(px, py, n.x, n.y);
+}
+/* Douglas-Peucker: spart Speicher, ohne dass man den Unterschied sieht.
+   (Im Kern, weil auch der QR-Link Freihand vereinfacht.) */
+function simplify(pts, tol) {
+  const n = pts.length / 2;
+  if (n < 3) return pts.slice();
+  const keep = new Uint8Array(n); keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    let md = -1, mi = -1;
+    for (let k = i + 1; k < j; k++) {
+      const d = distToSeg(pts[k * 2], pts[k * 2 + 1], pts[i * 2], pts[i * 2 + 1], pts[j * 2], pts[j * 2 + 1]);
+      if (d > md) { md = d; mi = k; }
+    }
+    if (md > tol) { keep[mi] = 1; stack.push([i, mi], [mi, j]); }
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
+  return out;
 }
 
 function isFullCircle(arc) { return Math.abs(arc.sweep) >= TAU - 1e-7; }
@@ -3835,6 +3930,49 @@ function outwardNormal(f, C) {
   for (let i = 2; vLen(n) < 0.5 && i + 1 < f.length; i++) n = vNorm(vCross(vSub(f[i], f[0]), vSub(f[i + 1], f[0])));
   return vDot(n, vSub(polyCentroid3(f), C)) < 0 ? vMul(n, -1) : n;
 }
+/* Kongruente Flächen (1.0.2): Zwei ebene Vielecke sind kongruent, wenn die
+   Folge (Seitenlänge, Innenwinkel) bis auf Drehung des Startpunkts und
+   Umlaufsinn (Spiegelbild) übereinstimmt. Gekrümmte Flächen (smooth[i] ≥ 0)
+   bilden je Gruppe eine eigene Klasse. → Klassennummer je Fläche, 0, 1, 2 … in
+   der Reihenfolge des ersten Auftretens. */
+function faceSignature(f) {
+  const n = f.length, L = [], A = [];
+  for (let i = 0; i < n; i++) {
+    const p = f[(i + n - 1) % n], q = f[i], r = f[(i + 1) % n];
+    L.push(vLen(vSub(r, q)));
+    const u = vSub(p, q), w = vSub(r, q), d = vLen(u) * vLen(w);
+    A.push(d > 0 ? Math.acos(clamp(vDot(u, w) / d, -1, 1)) : 0);
+  }
+  return { L, A };
+}
+function sigMatch(a, b, tolL) {
+  const n = a.L.length;
+  if (b.L.length !== n) return false;
+  for (let r = 0; r < n; r++) {
+    for (const dir of [1, -1]) {
+      let ok = true;
+      for (let i = 0; i < n && ok; i++) {
+        /* Umlaufsinn rückwärts: Ecke j, Seite zur vorigen Ecke */
+        const j = ((r + dir * i) % n + n) % n, jl = dir === 1 ? j : (j + n - 1) % n;
+        if (Math.abs(a.A[i] - b.A[j]) > 1e-6 || Math.abs(a.L[i] - b.L[jl]) > tolL) ok = false;
+      }
+      if (ok) return true;
+    }
+  }
+  return false;
+}
+function faceCongruenceGroups(faces, smooth) {
+  const sig = faces.map(f => faceSignature(f));
+  const scale = Math.max(1e-9, ...sig.map(s => Math.max(0, ...s.L)));
+  const reps = [], cls = [];
+  faces.forEach((f, i) => {
+    const key = smooth && smooth[i] >= 0 ? 's' + smooth[i] : null;
+    let k = reps.findIndex(r => key ? r.key === key : (!r.key && sigMatch(sig[i], sig[r.i], scale * 1e-6)));
+    if (k < 0) { reps.push({ key, i }); k = reps.length - 1; }
+    cls.push(k);
+  });
+  return cls;
+}
 function sharedEdge(f, g) {
   const same = (p, q) => vLen(vSub(p, q)) < 1e-6;
   for (let i = 0; i < f.length; i++) {
@@ -4849,9 +4987,12 @@ function utf8Decode(bytes) {
 /* ---------- Aufgaben-Links (zirkelwerk://) ---------- */
 /* Laboraufgabe:  zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50   (mm, Grad)
    Blatt:         zirkelwerk://s?v=1&d=<Base64url von kompaktem JSON>
+   Blatt, dicht:  zirkelwerk://s?v=2&z=<Base64url von Deflate(Kopf, JSON, Freihand binär)>  (ab 1.0.2)
    Alles, was ankommt, ist fremd: Laboraufgaben laufen durch sanitizeTask,
-   Blätter durch sanitizeDoc – genau wie importierte Dateien. */
-const LINK_SCHEME = 'zirkelwerk', LINK_V = 1, LINK_MAX = 4000;
+   Blätter durch sanitizeDoc – genau wie importierte Dateien.
+   LINK_V = höchste Fassung, die diese App LIEST. Geschrieben wird v1, wo es
+   passt (ältere Apps lesen den Code dann auch), v2 nur für volle Blätter. */
+const LINK_SCHEME = 'zirkelwerk', LINK_V = 2, LINK_MAX = 4000;
 const QS_TYPES = ['point', 'segment', 'arc', 'stroke', 'text'];
 const QS_FIELDS = { point: ['x', 'y', 'label', 'ld', 'c'], segment: ['x1', 'y1', 'x2', 'y2', 'c', 'w', 'al', 'd'],
   arc: ['cx', 'cy', 'r', 'a0', 'sweep', 'c', 'w', 'al'], stroke: ['pts', 'c', 'w', 'al'], text: ['x', 'y', 'text', 'size', 'c'] };
@@ -4883,9 +5024,11 @@ const qsRound = (v, d) => { const f = Math.pow(10, d); const r = Math.round(v * 
 function linkForTask(task) {
   const g = task.given;
   const keys = GEO_KINDS.includes(task.kind) ? GEO_TASKS[task.kind].keys : LAB_GIVEN[task.kind];
-  return LINK_SCHEME + '://a?v=' + LINK_V + '&k=' + task.kind + keys.map(k => '&' + k + '=' + qsRound(g[k], 2)).join('');
+  return LINK_SCHEME + '://a?v=1&k=' + task.kind + keys.map(k => '&' + k + '=' + qsRound(g[k], 2)).join('');
 }
-function encodeObjs(objects) {
+/* bin: nur für v2 – Freihand landet dann als Binärdaten in bin, in der
+   Zeile steht 0 als Platzhalter (Reihenfolge der Striche = Reihenfolge in bin). */
+function encodeObjs(objects, bin) {
   const list = objects.filter(o => QS_TYPES.includes(o.type));
   const idx = new Map();
   list.forEach((o, i) => idx.set(o.id, i));   /* Verweise als Position in der Liste */
@@ -4894,7 +5037,8 @@ function encodeObjs(objects) {
     const row = [QS_TYPES.indexOf(o.type)];
     for (const f of QS_FIELDS[o.type]) {
       let v = o[f];
-      if (f === 'pts') {
+      if (f === 'pts' && bin) { packStroke(bin, v); v = 0; }
+      else if (f === 'pts') {
         /* Freihand: Zehntelmillimeter, erster Punkt absolut, dann Differenzen */
         const q = v.map(n => Math.round(n * 10));
         v = q.map((n, i) => i < 2 ? n : n - q[i - 2]);
@@ -4914,33 +5058,239 @@ function encodeObjs(objects) {
   }
   return objs;
 }
-function linkForSheet(d) {
-  const payload = { n: d.name || '', o: encodeObjs(d.objects) };
+/* compact: Fassung 2 (dicht, siehe packLink). Liefert dann null, wenn das Blatt
+   schon ungepackt viel zu groß für jeden QR-Code ist. */
+function linkForSheet(d, compact) {
+  const payload = { n: d.name || '' };
   if (d.task) payload.t = d.task;
-  return LINK_SCHEME + '://s?v=' + LINK_V + '&d=' + b64uEncode(utf8Bytes(JSON.stringify(payload)));
+  if (compact) { const z = packLink(payload, d.objects); return z && LINK_SCHEME + '://s?v=2&z=' + z; }
+  payload.o = encodeObjs(d.objects);
+  return LINK_SCHEME + '://s?v=1&d=' + b64uEncode(utf8Bytes(JSON.stringify(payload)));
 }
 /* Rückmeldung eines Schülers: Aufgabe, Ergebnis, Befunde, Hilfestufe, Name
    und (falls der Code es zulässt) die eigene Zeichnung ohne Ausgangsfigur. */
 const RESULT_MAX_CODES = 8;
-function linkForResult(r, withDrawing) {
+function linkForResult(r, withDrawing, compact) {
   const p = { t: r.task, n: r.name || '', ok: r.ok ? 1 : 0, h: r.help || 0, w: (r.codes || []).slice(0, RESULT_MAX_CODES) };
-  if (withDrawing) p.o = encodeObjs(r.objects.filter(o => !(o.m && (o.m.plan || o.m.giv))));
-  return LINK_SCHEME + '://r?v=' + LINK_V + '&d=' + b64uEncode(utf8Bytes(JSON.stringify(p)));
+  const objs = withDrawing ? r.objects.filter(o => !(o.m && (o.m.plan || o.m.giv))) : null;
+  if (compact) { const z = packLink(p, objs); return z && LINK_SCHEME + '://r?v=2&z=' + z; }
+  if (objs) p.o = encodeObjs(objs);
+  return LINK_SCHEME + '://r?v=1&d=' + b64uEncode(utf8Bytes(JSON.stringify(p)));
+}
+
+/* ---------- Dichtes Linkformat v2 (1.0.2) ----------
+   In v1 kostet Freihand am meisten: jede Koordinate als Dezimalzahl im JSON,
+   dann Base64 – schon zwei, drei geschriebene Wörter sprengten den Code.
+   v2: Freihand für den Code gröber vereinfacht (QS_STROKE_TOL statt 0,08 mm),
+   Punkte als Differenzen in Zehntel-mm, ZigZag-Varint, binär hinter dem JSON;
+   das Ganze mit Deflate gepackt (feste Huffman-Codes, eigener Packer – synchron
+   und auf jedem Gerät gleich). Entpackt wird mit eigenem Inflate: so lesen auch
+   Geräte ohne DecompressionStream (iOS 15 bis 16.3) jeden Code.
+   Aufbau vor dem Packen: [1 (Kennung)] [Varint Länge JSON] [JSON] [Freihand]. */
+const QS_STROKE_TOL = 0.25, QS_PACK_MAX = 65536, QS_INFLATE_MAX = 1 << 20, QS_STROKES_MAX = 200000;
+/* Mehr gespeicherte Freihandpunkte passen in keinen Code (auch vereinfacht und
+   gepackt nicht) – vorher aufhören: Douglas-Peucker ist bei zittrigen Strichen
+   quadratisch, sonst hinge die App beim Antippen von „QR-Code“. */
+const QS_PACK_PTS = 12000;
+function putVar(out, n) { while (n >= 128) { out.push((n % 128) + 128); n = Math.floor(n / 128); } out.push(n); }
+function putZig(out, n) { putVar(out, n < 0 ? -2 * n - 1 : 2 * n); }
+function packStroke(out, pts) {
+  const p = simplify(pts, QS_STROKE_TOL), q = [];
+  for (let i = 0; i + 1 < p.length; i += 2) {
+    const x = Math.round(p[i] * 10), y = Math.round(p[i + 1] * 10);
+    if (q.length && q[q.length - 2] === x && q[q.length - 1] === y) continue;   /* auf 0,1 mm gleich */
+    q.push(x, y);
+  }
+  if (q.length === 2) q.push(q[0], q[1]);   /* Tupfer bleibt ein Strich aus zwei Punkten */
+  putVar(out, q.length / 2);
+  for (let i = 0; i < q.length; i++) putZig(out, i < 2 ? q[i] : q[i] - q[i - 2]);
+}
+/* Leser über einem Byte-Feld; wirft bei jedem Fehler (abgeschnitten, zu groß) */
+function byteReader(b, i) {
+  return {
+    i,
+    left() { return b.length - this.i; },
+    u8() { if (this.i >= b.length) throw new Error('short'); return b[this.i++]; },
+    v() { let n = 0, f = 1; for (let k = 0; k < 7; k++) { const x = this.u8(); n += (x & 127) * f; if (x < 128) return n; f *= 128; } throw new Error('varint'); },
+    z() { const n = this.v(); return n % 2 ? -(n + 1) / 2 : n / 2; }
+  };
+}
+function packLink(payload, objects) {
+  let np = 0;
+  for (const o of objects || []) if (o.type === 'stroke' && Array.isArray(o.pts)) np += o.pts.length / 2;
+  if (np > QS_PACK_PTS) return null;
+  const bin = [];
+  if (objects) payload = Object.assign({}, payload, { o: encodeObjs(objects, bin) });
+  const json = utf8Bytes(JSON.stringify(payload));
+  if (json.length + bin.length > QS_PACK_MAX) return null;   /* passt ohnehin in keinen Code */
+  const raw = [1]; putVar(raw, json.length);
+  for (const x of json) raw.push(x);
+  for (const x of bin) raw.push(x);
+  return b64uEncode(deflateRaw(raw));
+}
+/* → { p: Payload, r: Leser für die Freihand } – wirft bei kaputten Daten */
+function unpackLink(z) {
+  const raw = inflateRaw(b64uDecode(z), QS_INFLATE_MAX), rd = byteReader(raw, 0);
+  if (rd.u8() !== 1) throw new Error('format');
+  const n = rd.v();
+  if (n > rd.left()) throw new Error('short');
+  const p = JSON.parse(utf8Decode(raw.slice(rd.i, rd.i + n)));
+  rd.i += n;
+  return { p, r: rd };
+}
+
+/* Deflate (RFC 1951), ein Block mit festen Huffman-Codes. LZ77 mit Hash-Ketten.
+   Für die kleinen Mengen eines QR-Codes ist das fast so gut wie dynamische
+   Codes und viel einfacher. Gegenprobe mit zlib in coretest. */
+const DF_LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+const DF_LEXT = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+const DF_DBASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+const DF_DEXT = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+function deflateRaw(data) {
+  const out = [];
+  let acc = 0, nb = 0;
+  const bits = (v, n) => { for (let k = 0; k < n; k++) { acc |= ((v >> k) & 1) << nb; if (++nb === 8) { out.push(acc); acc = 0; nb = 0; } } };
+  const huff = (code, len) => { for (let k = len - 1; k >= 0; k--) bits((code >> k) & 1, 1); };   /* Huffman-Codes höchstwertiges Bit zuerst */
+  const lit = s => {
+    if (s < 144) huff(0x30 + s, 8); else if (s < 256) huff(0x190 + s - 144, 9);
+    else if (s < 280) huff(s - 256, 7); else huff(0xc0 + s - 280, 8);
+  };
+  const find = (tab, v) => { let i = tab.length - 1; while (tab[i] > v) i--; return i; };
+  bits(1, 1); bits(1, 2);   /* letzter Block, feste Codes */
+  const n = data.length, WIN = 32768, head = new Map(), prev = new Int32Array(Math.max(1, n));
+  const key = i => data[i] * 65536 + data[i + 1] * 256 + data[i + 2];
+  const insert = i => { if (i + 2 < n) { const k = key(i); prev[i] = head.has(k) ? head.get(k) : -1; head.set(k, i); } };
+  let i = 0;
+  while (i < n) {
+    let bestLen = 0, bestDist = 0;
+    if (i + 2 < n) {
+      let j = head.has(key(i)) ? head.get(key(i)) : -1, chain = 0;
+      const maxLen = Math.min(258, n - i);
+      while (j >= 0 && i - j <= WIN && chain++ < 128) {
+        let l = 0;
+        while (l < maxLen && data[j + l] === data[i + l]) l++;
+        if (l > bestLen) { bestLen = l; bestDist = i - j; if (l === maxLen) break; }
+        j = prev[j];
+      }
+    }
+    if (bestLen >= 3) {
+      const li = find(DF_LBASE, bestLen); lit(257 + li); bits(bestLen - DF_LBASE[li], DF_LEXT[li]);
+      const di = find(DF_DBASE, bestDist); huff(di, 5); bits(bestDist - DF_DBASE[di], DF_DEXT[di]);
+      for (let k = 0; k < bestLen; k++) insert(i + k);
+      i += bestLen;
+    } else { lit(data[i]); insert(i); i++; }
+  }
+  lit(256);
+  if (nb) out.push(acc);
+  return out;
+}
+/* Inflate (RFC 1951): gespeicherte, feste und dynamische Blöcke. Wirft bei
+   kaputten Daten und bricht ab, sobald mehr als max Bytes entstehen würden. */
+function inflateRaw(data, max) {
+  let pos = 0, acc = 0, nb = 0;
+  const out = [];
+  const bit = () => { if (!nb) { if (pos >= data.length) throw new Error('short'); acc = data[pos++]; nb = 8; } const b = acc & 1; acc >>= 1; nb--; return b; };
+  const bits = n => { let v = 0; for (let k = 0; k < n; k++) v |= bit() << k; return v; };
+  /* Kanonische Codes → Tabelle: Zähler je Länge und Symbole nach Code sortiert */
+  const table = lens => {
+    const count = new Array(16).fill(0), offs = new Array(16).fill(0);
+    for (const l of lens) count[l]++;
+    count[0] = 0;
+    for (let l = 1; l < 16; l++) offs[l] = offs[l - 1] + count[l - 1];
+    const sym = [];
+    lens.forEach((l, s) => { if (l) sym[offs[l]++] = s; });
+    return { count, sym };
+  };
+  const decode = t => {
+    let code = 0, first = 0, index = 0;
+    for (let l = 1; l < 16; l++) {
+      code |= bit();
+      const c = t.count[l];
+      if (code - c < first) { const v = t.sym[index + (code - first)]; if (v === undefined) throw new Error('code'); return v; }
+      index += c; first = (first + c) << 1; code <<= 1;
+    }
+    throw new Error('code');
+  };
+  const fixedL = table(Array.from({ length: 288 }, (_, s) => s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8));
+  const fixedD = table(new Array(30).fill(5));
+  let last = 0;
+  while (!last) {
+    last = bit();
+    const type = bits(2);
+    if (type === 0) {
+      nb = 0;   /* auf Bytegrenze */
+      if (pos + 4 > data.length) throw new Error('short');
+      const len = data[pos] | data[pos + 1] << 8, nlen = data[pos + 2] | data[pos + 3] << 8;
+      pos += 4;
+      if ((len ^ 0xffff) !== nlen || pos + len > data.length) throw new Error('stored');
+      if (out.length + len > max) throw new Error('big');
+      for (let k = 0; k < len; k++) out.push(data[pos++]);
+      continue;
+    }
+    let L, D;
+    if (type === 1) { L = fixedL; D = fixedD; }
+    else if (type === 2) {
+      const hl = bits(5) + 257, hd = bits(5) + 1, hc = bits(4) + 4;
+      const ord = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15], cl = new Array(19).fill(0);
+      for (let k = 0; k < hc; k++) cl[ord[k]] = bits(3);
+      const C = table(cl), lens = [];
+      while (lens.length < hl + hd) {
+        const s = decode(C);
+        if (s < 16) lens.push(s);
+        else if (s === 16) { if (!lens.length) throw new Error('rep'); const p = lens[lens.length - 1]; for (let r = 3 + bits(2); r > 0; r--) lens.push(p); }
+        else if (s === 17) for (let r = 3 + bits(3); r > 0; r--) lens.push(0);
+        else for (let r = 11 + bits(7); r > 0; r--) lens.push(0);
+      }
+      if (lens.length > hl + hd) throw new Error('lens');
+      L = table(lens.slice(0, hl)); D = table(lens.slice(hl));
+    } else throw new Error('type');
+    for (;;) {
+      const s = decode(L);
+      if (s < 256) { if (out.length >= max) throw new Error('big'); out.push(s); continue; }
+      if (s === 256) break;
+      const li = s - 257;
+      if (li >= 29) throw new Error('len');
+      const len = DF_LBASE[li] + bits(DF_LEXT[li]);
+      const di = decode(D);
+      if (di >= 30) throw new Error('dist');
+      const d = DF_DBASE[di] + bits(DF_DEXT[di]);
+      if (d > out.length) throw new Error('dist');
+      if (out.length + len > max) throw new Error('big');
+      for (let k = 0; k < len; k++) out.push(out[out.length - d]);
+    }
+  }
+  return out;
 }
 /* Befunde einer Prüfung → kurze Codes (Diagnose vor Art) */
 function resultCodes(res) {
   if (!res || res.ok) return [];
   return [...new Set(res.issues.map(i => i.why || i.k))].slice(0, RESULT_MAX_CODES);
 }
-function decodeObjs(rows) {
+/* rd: Leser für die Freihand aus v2 (unpackLink). Striche mit Platzhalter 0
+   holen ihre Punkte dort – in derselben Reihenfolge, in der sie gepackt wurden.
+   Ist der Binärteil kaputt, fallen dieser und alle folgenden Striche weg. */
+function decodeObjs(rows, rd) {
   const objects = [];
+  let budget = QS_STROKES_MAX, broken = false;
   rows.forEach((row, i) => {
     if (!Array.isArray(row) || !Number.isInteger(row[0]) || row[0] < 0 || row[0] >= QS_TYPES.length) return;
     const type = QS_TYPES[row[0]], fields = QS_FIELDS[type], o = { id: 'q' + i, type };
     fields.forEach((f, j) => { const v = row[j + 1]; o[f] = (v === null || v === undefined) ? QS_DEF[f] : v; });
     /* Vollkreis: 2π ist auf 6 Stellen gerundet – wieder exakt machen */
     if (type === 'arc' && typeof o.sweep === 'number' && Math.abs(Math.abs(o.sweep) - TAU) < 1e-5) o.sweep = Math.sign(o.sweep) * TAU;
-    if (Array.isArray(o.pts)) {
+    if (type === 'stroke' && o.pts === 0) {
+      if (!rd || broken) return;
+      try {
+        const n = rd.v();
+        if (n < 1 || n > LIMITS.strokePts / 2 || n > budget) throw new Error('n');
+        budget -= n;
+        const pts = [];
+        let x = 0, y = 0;
+        for (let k = 0; k < n; k++) { x += rd.z(); y += rd.z(); pts.push(x / 10, y / 10); }
+        o.pts = pts;
+      } catch (e) { broken = true; return; }
+    }
+    else if (Array.isArray(o.pts)) {
       if (!o.pts.every(n => typeof n === 'number' && Number.isFinite(n))) return;
       const abs = [];
       o.pts.forEach((n, k) => abs.push(k < 2 ? n : abs[k - 2] + n));
@@ -4980,8 +5330,11 @@ function parseLink(url) {
     const task = sanitizeTask({ kind: q.k, given });
     return task ? { ok: true, kind: 'task', task, url: u } : { ok: false, err: 'invalid' };
   }
-  let p;
-  try { p = JSON.parse(utf8Decode(b64uDecode(q.d || ''))); } catch (e) { return { ok: false, err: 'invalid' }; }
+  let p, rd = null;
+  try {
+    if (q.z !== undefined) { if (v < 2) throw new Error('v'); const u = unpackLink(q.z); p = u.p; rd = u.r; }
+    else p = JSON.parse(utf8Decode(b64uDecode(q.d || '')));
+  } catch (e) { return { ok: false, err: 'invalid' }; }
   if (!p || typeof p !== 'object') return { ok: false, err: 'invalid' };
   if (m[1].toLowerCase() === 'r') {
     const task = sanitizeTask(p.t);
@@ -4989,13 +5342,13 @@ function parseLink(url) {
     const codes = Array.isArray(p.w) ? p.w.filter(c => typeof c === 'string' && /^[a-z_A-Z]{1,16}$/.test(c)).slice(0, RESULT_MAX_CODES) : [];
     /* Zeichnung der Abgabe wie jede fremde Eingabe bereinigen – sonst
        scheitert später das Ablegen an einem kaputten Objekt. */
-    const objects = (Array.isArray(p.o) && p.o.length <= 2000 ? decodeObjs(p.o) : [])
+    const objects = (Array.isArray(p.o) && p.o.length <= 2000 ? decodeObjs(p.o, rd) : [])
       .map((o, i) => { try { return sanitizeObject(o, 'r' + i); } catch (e) { return null; } }).filter(Boolean);
     return { ok: true, kind: 'result', url: u, res: {
       task, name: cleanStr(typeof p.n === 'string' ? p.n : '', 30).trim(), ok: p.ok === 1, help: Math.round(cleanNum(p.h, 0, 4, 0)), codes, objects } };
   }
   if (!Array.isArray(p.o) || p.o.length > LIMITS.objects) return { ok: false, err: 'invalid' };
-  const objects = decodeObjs(p.o);
+  const objects = decodeObjs(p.o, rd);
   return { ok: true, kind: 'sheet', url: u, raw: { format: DOC_FORMAT, v: DOC_VERSION, name: typeof p.n === 'string' ? p.n : '', task: p.t, objects } };
 }
 /* Auswertung einer Aufgabe über alle Abgaben: Anzahl, richtig, Hilfestufen,
@@ -5023,7 +5376,7 @@ function linkKey(url) {
 /* =========================================================
    APP – Oberfläche, Eingabe, Speicher
    ========================================================= */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const BUNDLE_ID = 'de.zirkelwerk.app';
 const PRODUCT_FULL = 'de.zirkelwerk.app.vollversion';
 const SUPPORT_MAIL = 'smaehlmann.appdev@gmail.com';
@@ -5055,7 +5408,8 @@ const DEFAULTS = {
   lang: null, theme: 'auto', paper: 'grid', pointStyle: 'cross', snap: true,
   penOnly: 'auto', penSeen: false, toolbarSide: 'left', ppm: null,
   tool: 'pencil', pencilC: '#3b3f45', pencilW: 0.5, markerC: '#ffd400',
-  lastDoc: null, helpSeen: false, calibHint: false, studentName: '', speakSteps: false, fingerHint: false, lastBackup: 0
+  lastDoc: null, helpSeen: false, calibHint: false, studentName: '', speakSteps: false, fingerHint: false, lastBackup: 0,
+  presentBold: true, rateFirst: 0, rateWins: 0, rateAsked: 0
 };
 const ENUMS = {
   theme: ['auto', 'light', 'dark'], paper: ['grid', 'blank'], pointStyle: ['cross', 'dot'],
@@ -5078,7 +5432,8 @@ function loadSettings() {
     else if (k === 'pencilW') s[k] = PENCIL_WIDTHS.includes(v) ? v : DEFAULTS.pencilW;
     else if (k === 'lastDoc') s[k] = typeof v === 'string' ? v : null;
     else if (k === 'studentName') s[k] = cleanStr(v, 30);
-    else if (k === 'lastBackup') s[k] = cleanNum(v, 0, 1e14, 0);
+    else if (k === 'lastBackup' || k === 'rateFirst' || k === 'rateAsked') s[k] = cleanNum(v, 0, 1e14, 0);
+    else if (k === 'rateWins') s[k] = Math.round(cleanNum(v, 0, 1e6, 0));
   }
   return s;
 }
@@ -5166,7 +5521,10 @@ const ICONS = {
   cube: '<path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
   qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/>',
   pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/>',
-  share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'
+  share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+  present: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20.5h8"/><path d="m10.2 7.8 4.3 2.2-4.3 2.2z" fill="currentColor"/>',
+  laser: '<circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2.1 2.1M15.9 15.9 18 18M6 18l2.1-2.1M15.9 8.1 18 6"/>',
+  bold: '<path d="M4.5 17.5C8 10 12 7 19.5 6.5" stroke-width="4.2"/>'
 };
 function iconSvg(name) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
@@ -5426,8 +5784,9 @@ function drawGrid(ctx) {
   const alpha = clamp((px - 5) / 10, 0, 1);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.strokeStyle = 'rgba(139, 170, 205,' + (0.75 * alpha + 0.15).toFixed(3) + ')';
-  ctx.lineWidth = Math.max(1, 0.12 * k * dpr);
+  const bold = boostFor(ctx) > 1;   /* am Beamer verschwindet das blasse Karo sonst */
+  ctx.strokeStyle = bold ? 'rgba(105, 140, 185,' + (0.8 * alpha + 0.2).toFixed(3) + ')' : 'rgba(139, 170, 205,' + (0.75 * alpha + 0.15).toFixed(3) + ')';
+  ctx.lineWidth = Math.max(bold ? 1.5 : 1, 0.12 * k * dpr);
   ctx.beginPath();
   const x0 = Math.floor(view.ox / step) * step, x1 = view.ox + stageW / k;
   const y0 = Math.floor(view.oy / step) * step, y1 = view.oy + stageH / k;
@@ -5466,11 +5825,15 @@ function drawObjects(ctx, objects, k, highlightIds) {
 function drawObject(ctx, o, k, minW, hl) {
   ctx.globalAlpha = o.al || 1;
   ctx.globalCompositeOperation = (o.al || 1) < 1 ? 'multiply' : 'source-over';
-  const col = hl ? '#e0a800' : o.c;
+  /* Präsentation, kräftig: deckende Linien dicker (mindestens 2 Pixel), das
+     Standardgrau tiefer – Marker bleiben, wie sie sind. */
+  const B = (o.al || 1) < 1 ? 1 : boostFor(ctx);
+  const col = hl ? '#e0a800' : (B > 1 && o.c === '#3b3f45' ? '#15181c' : o.c);
+  const lw = B > 1 ? Math.max(o.w * B, minW * B, 2 / k) : Math.max(o.w, minW);
   ctx.strokeStyle = col; ctx.fillStyle = col;
   switch (o.type) {
     case 'segment':
-      ctx.lineWidth = Math.max(o.w, minW);
+      ctx.lineWidth = lw;
       ctx.lineCap = o.al < 1 || o.d ? 'butt' : 'round';
       /* Gestrichelt: Faltlinien im Netz, verdeckte Kanten im Schrägbild */
       if (o.d) ctx.setLineDash([2, 1.4]);
@@ -5479,21 +5842,21 @@ function drawObject(ctx, o, k, minW, hl) {
       ctx.lineCap = 'round';
       break;
     case 'arc':
-      ctx.lineWidth = Math.max(o.w, minW);
+      ctx.lineWidth = lw;
       ctx.beginPath();
       if (isFullCircle(o)) ctx.arc(o.cx, o.cy, o.r, 0, TAU);
       else ctx.arc(o.cx, o.cy, o.r, o.a0, o.a0 + o.sweep, o.sweep < 0);
       ctx.stroke();
       break;
     case 'stroke':
-      ctx.lineWidth = Math.max(o.w, minW);
+      ctx.lineWidth = lw;
       strokePath(ctx, o.pts);
       break;
     case 'point':
       drawPoint(ctx, o, k, col);
       break;
     case 'text':
-      ctx.font = Math.max(o.size, 9 / k) + 'px system-ui, -apple-system, sans-serif';
+      ctx.font = (B > 1 ? '600 ' : '') + Math.max(o.size, 9 / k) + 'px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText(o.text, o.x, o.y);
       break;
@@ -5532,21 +5895,22 @@ function strokePath(ctx, pts) {
 }
 
 function drawPoint(ctx, o, k, col) {
-  const lw = Math.max(0.3, 1.2 / k);
+  const B = boostFor(ctx), G2 = 1 + (B - 1) * 0.6;   /* Kreuz etwas, Beschriftung voll größer */
+  const lw = Math.max(0.3, 1.2 / k) * B;
   ctx.lineWidth = lw;
   if (S.pointStyle === 'dot') {
-    ctx.beginPath(); ctx.arc(o.x, o.y, Math.max(0.75, 2.6 / k), 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(o.x, o.y, Math.max(0.75, 2.6 / k) * G2, 0, TAU); ctx.fill();
   } else {
-    const a = Math.max(1.3, 4 / k);
+    const a = Math.max(1.3, 4 / k) * G2;
     ctx.beginPath();
     ctx.moveTo(o.x - a, o.y - a); ctx.lineTo(o.x + a, o.y + a);
     ctx.moveTo(o.x - a, o.y + a); ctx.lineTo(o.x + a, o.y - a);
     ctx.stroke();
   }
   if (!o.label) return;
-  const fs = Math.max(4.2, 11 / k);
+  const fs = Math.max(4.2, 11 / k) * B;
   const [dx, dy] = LABEL_DIRS[o.ld == null ? 7 : o.ld];
-  const off = Math.max(2.4, 7 / k), f = (dx && dy) ? 0.7071 : 1;
+  const off = Math.max(2.4, 7 / k) * G2, f = (dx && dy) ? 0.7071 : 1;
   ctx.font = '600 ' + fs + 'px system-ui, -apple-system, sans-serif';
   ctx.textAlign = dx > 0 ? 'left' : dx < 0 ? 'right' : 'center';
   ctx.textBaseline = dy > 0 ? 'top' : dy < 0 ? 'bottom' : 'middle';
@@ -5561,7 +5925,7 @@ function renderOver() {
   if (!doc) return;
   worldTransform(ctx);
   const k = sc();
-  if (PB.on) { drawPlayback(ctx, k); return; }
+  if (PB.on) { drawPlayback(ctx, k); drawLaser(ctx); return; }
   /* Vorschau unter den Geräten, so wie der Strich auf dem Papier liegt. */
   drawGesturePreview(ctx, k);
   for (const kind of doc.inst.order) {
@@ -5576,6 +5940,7 @@ function renderOver() {
   if (G && G.ptype === 'touch' && G.kind === 'tmove' && G.moved) drawLoupe(ctx, G.cur);
   const si = selImage();
   if (si) drawImageFrame(ctx, si, k);
+  drawLaser(ctx);
 }
 
 /* Lupe beim Setzen und Verschieben mit dem Finger: Der Finger verdeckt genau
@@ -5984,6 +6349,8 @@ function startGesture(e, p) {
   const base = { ptype, pid: e.pointerId, start: p, moved: false };
 
   if (ptype === 'mouse' && (e.button === 1 || e.button === 2)) return beginPan(base, p);
+  /* Präsentation: Der Zeigestift zeigt nur – auch während der Wiedergabe. */
+  if (PRESENT.on && PRESENT.laser) return beginLaser(base, p);
   /* Wiedergabe: nur verschieben und zoomen, nichts verändern. */
   if (PB.on) return beginPan(base, p);
 
@@ -6142,6 +6509,7 @@ function moveGesture(p) {
     case 'cneedle': moveNeedle(w); break;
     case 'clead': moveLead(w); break;
     case 'carc': moveArc(w); break;
+    case 'laser': laserAdd(p); break;
   }
 }
 
@@ -6158,8 +6526,11 @@ function endGesture(p) {
     case 'tmove': finishTextMove(g); break;
     case 'pan':
       if (!g.moved && g.tapTool) fingerTap(g);
+      /* Präsentation: Tippen aufs Blatt = nächster Schritt */
+      else if (!g.moved && PB.on && PRESENT.on) pbNext();
       else if (!g.moved && S.tool === 'hand' && !PB.on) { const im = imageAt(s2w(g.start.x, g.start.y)); if (im) selectImage(im.id); }
       break;
+    case 'laser': laserEnd(); break;
     case 'img': finishImgEdit(g); break;
     case 'label': finishLabel(g); break;
     case 'move': case 'rot1': lastTouched[g.inst] = performance.now(); scheduleSave(false); break;
@@ -6357,9 +6728,10 @@ function finishTextMove(g) {
 /* Gleiche Maße wie drawPoint – getroffen wird, was man sieht. */
 let labelMeasure = null;
 function labelBox(o, k) {
-  const fs = Math.max(4.2, 11 / k);
+  const B = boostFor(ctxBase), G2 = 1 + (B - 1) * 0.6;   /* Präsentation: wie drawPoint */
+  const fs = Math.max(4.2, 11 / k) * B;
   const [dx, dy] = LABEL_DIRS[o.ld == null ? 7 : o.ld];
-  const off = Math.max(2.4, 7 / k), f = (dx && dy) ? 0.7071 : 1;
+  const off = Math.max(2.4, 7 / k) * G2, f = (dx && dy) ? 0.7071 : 1;
   if (!labelMeasure) labelMeasure = document.createElement('canvas').getContext('2d');
   labelMeasure.font = '600 ' + fs + 'px system-ui, -apple-system, sans-serif';
   const wd = labelMeasure.measureText(o.label).width;
@@ -6433,25 +6805,6 @@ function finishDraw(g) {
   const parts = [], max = LIMITS.strokePts - (LIMITS.strokePts % 2);
   for (let i = 0; i < pts.length; i += max - 2) { parts.push(pts.slice(i, i + max)); if (i + max >= pts.length) break; }
   addObjects(parts.filter(p => p.length >= 4).map(p => ({ type: 'stroke', pts: p, c: g.style.c, w: g.style.w, al: g.style.al })));
-}
-/* Douglas-Peucker: spart Speicher, ohne dass man den Unterschied sieht. */
-function simplify(pts, tol) {
-  const n = pts.length / 2;
-  if (n < 3) return pts.slice();
-  const keep = new Uint8Array(n); keep[0] = keep[n - 1] = 1;
-  const stack = [[0, n - 1]];
-  while (stack.length) {
-    const [i, j] = stack.pop();
-    let md = -1, mi = -1;
-    for (let k = i + 1; k < j; k++) {
-      const d = distToSeg(pts[k * 2], pts[k * 2 + 1], pts[i * 2], pts[i * 2 + 1], pts[j * 2], pts[j * 2 + 1]);
-      if (d > md) { md = d; mi = k; }
-    }
-    if (md > tol) { keep[mi] = 1; stack.push([i, mi], [mi, j]); }
-  }
-  const out = [];
-  for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
-  return out;
 }
 
 /* ---------- Strich an der Gerätekante ---------- */
@@ -6971,6 +7324,7 @@ function contentChanged() {
 function updateUndoButtons() {
   document.getElementById('btnUndo').disabled = !hist.canUndo();
   document.getElementById('btnRedo').disabled = !hist.canRedo();
+  document.getElementById('presUndo').disabled = !hist.canUndo() || PB.on;
 }
 
 /* ---------------------------------------------------------
@@ -7471,9 +7825,11 @@ function selectTool(tool) {
   });
   updateSwatch();
   closeStylePop();
+  if (PRESENT.laser) presentToggleLaser(false);
 }
 function toggleInstrument(kind) {
   if (!doc) return;
+  if (PRESENT.laser) presentToggleLaser(false);
   const inst = doc.inst[kind];
   inst.on = !inst.on;
   if (inst.on) {
@@ -7772,8 +8128,8 @@ function refreshHelpUI() {
 /* Handy, iPad in Split View/Slide Over: Was nicht in die Leiste passt, wandert
    der Reihe nach ins „⋯"-Menü. Gemessen statt geraten – Titel und Sprache
    ändern die Breiten. */
-const TOP_OVERFLOW = [['btnHelp', 'ariaHelp', 'help', () => openHelp()], ['btnSettings', 'ariaSettings', 'gear', () => openSettings()],
-  ['btnPdf', 'ariaPdf', 'pdf', () => openPdfExport()], ['btnImage', 'ariaImage', 'image', () => insertImage()], ['zoomPM', null], ['btnProto', 'ariaProto', 'steps', () => toggleProto()],
+const TOP_OVERFLOW = [['btnPresent', 'ariaPresent', 'present', () => presentEnter()], ['btnHelp', 'ariaHelp', 'help', () => openHelp()], ['btnSettings', 'ariaSettings', 'gear', () => openSettings()],
+  ['btnShare', 'ariaShare', 'share', () => openShareMenu()], ['btnImage', 'ariaImage', 'image', () => insertImage()], ['zoomPM', null], ['btnProto', 'ariaProto', 'steps', () => toggleProto()],
   ['btnLab', 'ariaLab', 'lab', () => openLab()]];
 let topHidden = [];
 function topEls(id) { return id === 'zoomPM' ? ['btnZoomOut', 'btnZoomIn'].map(x => document.getElementById(x)) : [document.getElementById(id)]; }
@@ -7803,6 +8159,32 @@ async function openMoreMenu() {
   });
   const it = items.find(x => x[0] === a);
   if (it) it[3]();
+}
+/* Teilen (seit 1.0.2 an der Stelle des PDF-Symbols): alles, was das offene
+   Blatt verlässt, an einer Stelle – vorher lag der QR-Code nur im Labor, im
+   Aufgabenmenü und in der Blattliste. Sperren (Vollversion) prüfen die
+   einzelnen Funktionen selbst. */
+async function openShareMenu() {
+  if (!doc) return;
+  if (G) cancelGesture();
+  closeStylePop();
+  const a = await openDialog({
+    title: t('shareTitle'), menu: true,
+    buttons: [
+      { label: t('btnQrTask'), value: 'qr', icon: 'qr' },
+      { label: t('btnPdf'), value: 'pdf', icon: 'pdf' },
+      { label: t('btnExport'), value: 'file', icon: 'exportI' },
+      { label: t('btnVideo'), value: 'video', icon: 'video' },
+      { label: t('btnResults'), value: 'results', icon: 'inbox' },
+      { label: t('btnCancel'), value: null }
+    ]
+  });
+  if (!doc) return;
+  if (a === 'qr') await showSheetQr(doc);
+  else if (a === 'pdf') await openPdfExport();
+  else if (a === 'file') { await saveNow(); exportSheet(doc); }
+  else if (a === 'video') await exportVideo();
+  else if (a === 'results') openResults(doc.task ? taskKey(doc.task) : null);
 }
 
 /* ---------------------------------------------------------
@@ -8049,6 +8431,34 @@ async function showPaywall(reason) {
   }
 }
 
+/* ---------- Bitte um Bewertung (1.0.2) ----------
+   Nur der Dialog der Stores selbst (Apple: SKStoreReviewController, Google:
+   In-App-Review über cordova-launch-review) – eigene Bewertungsfenster verbietet
+   Apple. Die Stores begrenzen selbst, wie oft er wirklich erscheint (Apple: 3× im
+   Jahr). Wir fragen nur nach einem Erfolg (Aufgabe richtig, Konstruktion ganz
+   vorgeführt), frühestens 3 Tage nach dem ersten Start, nach mindestens 3 Erfolgen
+   und höchstens alle 120 Tage – und nie mitten im Vorführen (Präsentation,
+   Wiedergabe, Video) oder über einem offenen Fenster: Am Beamer hätte der Dialog
+   nichts zu suchen. Schul-Edition: aus (Schüler-iPads, verwaltete Geräte). */
+const RATE_ENABLED = true;
+const RATE = { minWins: 3, minDays: 3, gapDays: 120 };
+function rateWin() {
+  if (!RATE_ENABLED) return;
+  S.rateWins = Math.min(1e6, (S.rateWins || 0) + 1); saveSettings();
+  setTimeout(rateMaybe, 1200);
+}
+function rateDue(now) {
+  return RATE_ENABLED && S.rateWins >= RATE.minWins && S.rateFirst > 0 && now - S.rateFirst >= RATE.minDays * 864e5 &&
+    (!S.rateAsked || now - S.rateAsked >= RATE.gapDays * 864e5);
+}
+function rateMaybe() {
+  const LR = window.LaunchReview;
+  if (!LR || typeof LR.rating !== 'function' || !rateDue(Date.now())) return;
+  if (PRESENT.on || PB.on || REC.on || G || topPanel() || !document.getElementById('dialog').hidden || document.hidden) return;
+  S.rateAsked = Date.now(); saveSettings();
+  try { LR.rating(() => {}, () => {}); } catch (e) { /* kein Dialog – nicht schlimm */ }
+}
+
 /* ---------------------------------------------------------
    Konstruktion: Schritte, Wiedergabe, Beschreibung
    --------------------------------------------------------- */
@@ -8122,6 +8532,7 @@ function updatePbControls() {
   document.getElementById('pbSpeed').textContent = fmtNum(PB.speed, PB.speed % 1 ? 1 : 0, lang) + '×';
   document.getElementById('pbPill').hidden = !PB.on;
   document.body.classList.toggle('playing', PB.on);
+  presentUpdate();
   updateTaskBar();
 }
 
@@ -8134,7 +8545,7 @@ function pbEnter() {
   closeStylePop();
   const c = viewCenter();
   PB.prevView = { cx: c.x, cy: c.y, zoom: view.zoom };
-  Object.assign(PB, { on: true, steps, cur: 0, anim: null, playing: false, inst: { ruler: null, geo: null, compass: null } });
+  Object.assign(PB, { on: true, steps, cur: 0, anim: null, playing: false, won: false, inst: { ruler: null, geo: null, compass: null } });
   fitForPlayback();
   requestRender(true);
   renderProto();
@@ -8201,6 +8612,7 @@ function pbExit() {
   pbStop();
   if (S.speakSteps) speakStop();
   PB.on = false; PB.playing = false;
+  if (PB.won) { PB.won = false; setTimeout(rateMaybe, 1200); }
   if (PB.prevView) setViewCenter(PB.prevView.cx, PB.prevView.cy, PB.prevView.zoom);
   viewChanged();
   renderProto();
@@ -8245,6 +8657,96 @@ function pbSpeed() {
   updatePbControls();
 }
 
+/* ---------- Präsentationsmodus (1.0.2, Vollversion) ---------- */
+/* Vorführen am Beamer/Smartboard, z. B. in Räumen ohne Tafel: ruhige
+   Oberfläche (schwebende Leiste, Werkzeuge nur auf Wunsch), kräftige
+   Darstellung (dickere Linien, größere Beschriftung – nur am Bildschirm, nie im
+   Blatt, PDF oder Vorschaubild), Schritt für Schritt per Tippen/Presenter mit
+   dem aktuellen Schritt groß eingeblendet, Zeigestift ohne Spuren.
+   Bewusst kein eigenes Bild für einen zweiten Bildschirm: läuft mit normaler
+   Bildschirmspiegelung (AirPlay, HDMI). */
+const PRESENT = { on: false, tools: false, laser: false };
+const PRESENT_BOOST = 1.7;
+function canPresent() { return !LIMITS_ACTIVE || Purchase.owned; }
+function presentEnter() {
+  if (!doc || PRESENT.on) return;
+  if (!canPresent()) return showPaywall('present');
+  if (G) cancelGesture();
+  closeStylePop();
+  if (imgSel) deselectImage();
+  if (protoOpen()) closeProto();
+  Object.assign(PRESENT, { on: true, tools: false, laser: false });
+  presentUpdate();
+  requestRender(true);
+  notify(t('msgPresentOn'));
+}
+function presentExit() {
+  if (!PRESENT.on) return;
+  if (G && G.kind === 'laser') G = null;
+  Object.assign(PRESENT, { on: false, tools: false, laser: false });
+  LASER.pts = [];
+  presentUpdate();
+  layoutTopbar();
+  requestRender(true);
+}
+function presentToggleTools() { PRESENT.tools = !PRESENT.tools; if (PRESENT.tools && PRESENT.laser) PRESENT.laser = false; presentUpdate(); }
+function presentToggleLaser(on) {
+  PRESENT.laser = typeof on === 'boolean' ? on : !PRESENT.laser;
+  if (!PRESENT.laser) LASER.pts = [];
+  presentUpdate();
+  requestRender(false);
+}
+function presentToggleBold() { S.presentBold = !S.presentBold; saveSettings(); presentUpdate(); requestRender(true); }
+function presentSteps() { if (PB.on) pbExit(); else pbFirst(); }
+/* Faktor für Linien und Beschriftung – nur auf den beiden Zeichenflächen */
+function boostFor(ctx) { return PRESENT.on && S.presentBold && (ctx === ctxBase || ctx === ctxOver) ? PRESENT_BOOST : 1; }
+function presentUpdate() {
+  const on = PRESENT.on;
+  document.body.classList.toggle('present', on);
+  document.body.classList.toggle('present-tools', on && PRESENT.tools);
+  document.getElementById('presentBar').hidden = !on;
+  sel('presTools', PRESENT.tools); sel('presLaser', PRESENT.laser); sel('presBold', !!S.presentBold); sel('presSteps', PB.on);
+  document.getElementById('presUndo').disabled = !(doc && hist.canUndo()) || PB.on;
+  /* Aktueller Schritt groß: während er entsteht und danach, bis der nächste kommt */
+  const cap = document.getElementById('presentCap');
+  const k = PB.on ? (PB.anim ? PB.anim.k : PB.cur - 1) : -1;
+  cap.hidden = !(on && PB.on);
+  if (!cap.hidden) {
+    const st = PB.steps[k];
+    document.getElementById('presentCapN').textContent = st ? (k + 1) + '/' + PB.steps.length : '';
+    document.getElementById('presentCapText').textContent = st ? st.text : t('presCapStart');
+  }
+}
+
+/* Zeigestift: roter Punkt mit kurzer, verblassender Spur (Bildschirmkoordinaten) */
+const LASER = { pts: [], fade: 700 };
+function beginLaser(base, p) { G = Object.assign(base, { kind: 'laser' }); laserAdd(p); }
+function laserAdd(p) { LASER.pts.push({ x: p.x, y: p.y, t: performance.now() }); if (LASER.pts.length > 400) LASER.pts.splice(0, LASER.pts.length - 400); requestRender(false); }
+function laserEnd() { requestRender(false); }
+function drawLaser(ctx) {
+  if (!LASER.pts.length) return;
+  const now = performance.now(), live = G && G.kind === 'laser';
+  /* Beim Halten bleibt der Punkt stehen; die Spur verblasst immer */
+  LASER.pts = LASER.pts.filter((q, i) => now - q.t < LASER.fade || (live && i === LASER.pts.length - 1));
+  if (!LASER.pts.length) return;
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 1; i < LASER.pts.length; i++) {
+    const a = LASER.pts[i - 1], b = LASER.pts[i], f = Math.max(0, 1 - (now - b.t) / LASER.fade);
+    ctx.strokeStyle = 'rgba(235, 40, 40,' + (0.55 * f).toFixed(3) + ')';
+    ctx.lineWidth = 3 + 5 * f;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  const h = LASER.pts[LASER.pts.length - 1], f = live ? 1 : Math.max(0, 1 - (now - h.t) / LASER.fade);
+  ctx.fillStyle = 'rgba(255, 60, 60,' + (0.28 * f).toFixed(3) + ')';
+  ctx.beginPath(); ctx.arc(h.x, h.y, 18, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(230, 20, 20,' + (0.95 * f).toFixed(3) + ')';
+  ctx.beginPath(); ctx.arc(h.x, h.y, 7, 0, TAU); ctx.fill();
+  ctx.restore();
+  requestRender(false);   /* weiter verblassen lassen */
+}
+
 function pbVisibleIds() {
   const ids = new Set();
   for (let i = 0; i < PB.cur && i < PB.steps.length; i++) for (const id of PB.steps[i].ids) ids.add(id);
@@ -8282,6 +8784,7 @@ function pbStepDone() {
   const k = PB.anim.k;
   PB.anim = null;
   PB.cur = k + 1;
+  if (PB.cur === PB.steps.length && !PB.won && !REC.on) { PB.won = true; rateWin(); }   /* ganz vorgeführt */
   requestRender(true);
   renderProto();
   if (!PB.playing) return;
@@ -8653,7 +9156,7 @@ function m3Ortho(M) {
   const a = vNorm(v3(...M[0])), b0 = v3(...M[1]), b = vNorm(vSub(b0, vMul(a, vDot(a, b0)))), c = vCross(a, b);
   return [[a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z]];
 }
-const bodyState = { kind: 'cube', values: {}, fold: 1, view: bodyViewHome(), anim: 0, variant: 0, colors: false, zoom: 1, quiz: null };
+const bodyState = { kind: 'cube', values: {}, fold: 1, view: bodyViewHome(), anim: 0, variant: 0, colors: 0, zoom: 1, quiz: null };
 for (const k of BODY_KINDS) bodyState.values[k] = {};
 function bodyRead() {
   const kind = bodyState.kind, g = {}, ints = BODY_INT[kind] || {};
@@ -8671,6 +9174,7 @@ function bodyVals(kind, g) {
 function bodyVariant() { return bodyState.kind === 'cube' ? bodyState.variant : 0; }
 function bodySelect(kind) { if (BODY_KINDS.includes(kind)) { bodyStop(); bodyState.kind = kind; bodyState.quiz = null; bodyState.fold = 1; bodyRenderPanel(); } }
 function bodyRenderPanel() {
+  bodyColorsUI();
   const box = document.getElementById('labBodyKinds');
   if (!box.childElementCount) {
     for (const k of BODY_KINDS) {
@@ -8833,6 +9337,9 @@ function bodyFaceInfo(net, kind, cells, g) {
     if (gi < 0) { groups.push(N[i]); gi = groups.length - 1; }
     color[i] = BODY_PALETTE[gi % BODY_PALETTE.length];
   });
+  /* Kongruente Flächen gleich: gekrümmte Flächen je Gruppe eine Farbe, ebene nach
+     Form (faceCongruenceGroups im Kern). Farben der Reihe nach vergeben. */
+  const cg = faceCongruenceGroups(F1, smooth), congColor = cg.map(k => BODY_PALETTE[k % BODY_PALETTE.length]);
   let overlap = null, ghosts = [];
   if (cells) {
     const chk = cubeFoldCheck(cells, g.a);
@@ -8851,7 +9358,7 @@ function bodyFaceInfo(net, kind, cells, g) {
       ghosts = sides.filter(sd => { const c = polyCentroid3(sd); return !have.some(h => vLen(vSub(h, c)) < a * 0.1); });
     }
   }
-  return { color, smooth, overlap, ghosts };
+  return { color, congColor, smooth, overlap, ghosts };
 }
 function bodyDraw() {
   const small = document.getElementById('bodyView');
@@ -8895,7 +9402,7 @@ function bodyRenderTo(cv, big) {
     c.closePath();
     let rgb;
     if (done && info.overlap && info.overlap[f.i]) rgb = [224, 72, 72];
-    else if (showColors) { const h = info.color[f.i]; rgb = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+    else if (showColors) { const h = (bodyState.colors === 2 && !q ? info.congColor : info.color)[f.i]; rgb = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
     else rgb = [204, 224, 255];
     const sh = f.shade;
     const col = 'rgba(' + rgb.map(v => Math.round(v * (0.62 + 0.38 * sh))).join(',') + ',0.93)';
@@ -8959,13 +9466,24 @@ function bodyFullOpen() {
   if (!bodyScene()) return;
   bodyState.zoom = 1;
   document.getElementById('bodyFullName').textContent = bodyState.quiz ? t('quizAsk') : t('body_' + bodyState.kind) + (bodyVariant() ? ' · ' + t('bodyNetPick') + ' ' + (bodyVariant() + 1) : '');
-  sel('bodyColorsBtn', bodyState.colors);
+  bodyColorsUI();
   openPanel('bodyFull');
   bodyDraw();
   requestAnimationFrame(bodyDraw);   /* Größe steht erst nach dem Layout fest */
 }
 function bodyFullClose() { closePanel('bodyFull'); bodyDraw(); }
-function bodyToggleColors() { bodyState.colors = !bodyState.colors; sel('bodyColorsBtn', bodyState.colors); sel('bodyColorsSmall', bodyState.colors); bodyDraw(); }
+/* Farben in drei Stufen: aus → Gegenseiten gleich → kongruente Flächen gleich (1.0.2).
+   Die Beschriftung nennt die Stufe; data-i18n wandert mit, damit ein
+   Sprachwechsel die richtige Stufe zeigt. */
+function bodyToggleColors() { bodyState.colors = (bodyState.colors + 1) % 3; bodyColorsUI(); bodyDraw(); }
+function bodyColorsUI() {
+  const key = 'bodyColors' + (bodyState.colors || '');
+  for (const id of ['bodyColorsBtn', 'bodyColorsSmall']) {
+    const b = document.getElementById(id);
+    b.dataset.i18n = key; b.textContent = t(key);
+    sel(id, bodyState.colors > 0);
+  }
+}
 function bodyStop() { bodyState.anim++; }
 function bodyAnimate() {
   const token = ++bodyState.anim, t0 = performance.now(), from = bodyState.fold >= 0.999 ? 0 : bodyState.fold, dur = 2400 * (1 - from) + 400;
@@ -9219,17 +9737,30 @@ async function labSelf() {
 /* ---------- Aufgaben per QR-Code ---------- */
 /* Erstellen: Vollversion. Öffnen: immer, ohne Blattgrenze. Der Code enthält
    einen zirkelwerk://-Link; die Kamera-App bietet „In Zirkelwerk öffnen" an.
-   Version bis 22 (M) bzw. 27 (L) – groß genug, um vom Beamer gelesen zu werden. */
+   Stufe M bis Version 22, sonst L bis 32 (seit 1.0.2, vorher 27) – darüber wird
+   das Scannen vom Beamer unzuverlässig. */
+const QR_M_MAX = 22, QR_L_MAX = 32;
 function canCreateQr() { return !LIMITS_ACTIVE || Purchase.owned; }
-function qrFor(url) {
-  const bytes = utf8Bytes(url);
-  return qrEncode(bytes, 'M', 22) || qrEncode(bytes, 'L', 27);
+/* Kandidaten in Vorzugsreihenfolge: [v1, v2]. Ein v1-Link, der klein bleibt
+   (Stufe M), gewinnt – den lesen auch Geräte, die noch Zirkelwerk 1.0.1 haben.
+   Sonst gewinnt der kleinste Code. → { url, q } oder null */
+function qrBest(cands) {
+  const list = cands.filter(Boolean).map(url => ({ url, b: utf8Bytes(url) }));
+  for (const c of list) { const q = qrEncode(c.b, 'M', QR_M_MAX); if (q) return { url: c.url, q }; }
+  list.sort((a, b) => a.b.length - b.b.length);
+  for (const c of list) { const q = qrEncode(c.b, 'L', QR_L_MAX); if (q) return { url: c.url, q }; }
+  return null;
+}
+function sheetQrLinks(src, objects) {
+  const d = { name: src.name, task: src.task, objects };
+  return [linkForSheet(d), linkForSheet(d, true)];
 }
 function labQr() {
   const task = labCurrent();
   if (task) showQr(linkForTask(task), taskText(task));
 }
 async function showSheetQr(d) {
+  if (!canCreateQr()) return showPaywall('qr');
   let src = d;
   if (doc && d.id === doc.id) src = doc;
   else { try { src = prepareLoaded(clone(d)); } catch (e) { notify(t('msgQrInvalid'), true); return; } }
@@ -9238,28 +9769,46 @@ async function showSheetQr(d) {
   if (!objs.length) { notify(t(hadImages ? 'msgQrNoImages' : 'qrEmpty')); return; }
   /* Reine Laboraufgabe (nur Planfigur) → kurzer Aufgaben-Link; sonst das Blatt */
   const onlyPlan = src.task && objs.every(o => o.m && (o.m.plan || o.m.giv));
-  const url = onlyPlan ? linkForTask(src.task) : linkForSheet(src);
   const text = onlyPlan ? taskText(src.task) : sheetName(src);
-  await showQr(url, text);
+  let pick = onlyPlan ? qrBest([linkForTask(src.task)]) : qrBest(sheetQrLinks(src, objs));
+  if (!pick) {
+    /* Zu groß: sagen, was den Platz kostet. Fast immer sind es Freihandstriche –
+       passt die Konstruktion ohne sie, das gleich anbieten. */
+    const nStrokes = objs.filter(o => o.type === 'stroke').length, rest = objs.filter(o => o.type !== 'stroke');
+    const without = nStrokes && rest.length ? qrBest(sheetQrLinks(src, rest)) : null;
+    const buttons = [{ label: t('btnCancel'), value: null }, { label: t('btnExport'), value: 'exp', kind: without ? null : 'primary' }];
+    if (without) buttons.push({ label: t('btnQrNoStrokes'), value: 'nostrokes', kind: 'primary' });
+    const a = await openDialog({ title: t('qrTooBigTitle'), message: t(without ? 'qrTooBigStrokes' : nStrokes ? 'qrTooBigAll' : 'qrTooBig', { n: nStrokes }), buttons });
+    if (a === 'exp') { exportSheet(d); return; }
+    if (a !== 'nostrokes') return;
+    pick = without;
+  }
+  await showQr(pick, text);
   if (hadImages) notify(t('msgQrNoImages'));
 }
-async function showQr(url, text, opts) {
+/* link: Adresse oder schon gewählter Code ({ url, q } aus qrBest) */
+async function showQr(link, text, opts) {
   opts = opts || {};
   /* Aufgaben erstellen: Vollversion. Eigene Rückmeldung zeigen: für alle. */
   if (!opts.free && !canCreateQr()) return showPaywall('qr');
-  const q = qrFor(url);
-  if (!q) {
+  const pick = typeof link === 'string' ? qrBest([link]) : link;
+  if (!pick) {
     await openDialog({ title: t('qrTooBigTitle'), message: t('qrTooBig') });
     return;
   }
+  const q = pick.q, url = pick.url;
   document.getElementById('qrText').textContent = text || '';
   document.getElementById('qrTitle').textContent = t(opts.title || 'qrTitle');
   document.querySelector('#qrPanel .qr-hint').textContent = t(opts.hint || 'qrHint');
   const cv = document.getElementById('qrCanvas');
-  /* Ganze Gerätepixel je Modul, 4 Module Ruhezone – scharf auch am Beamer. */
+  /* Ganze Gerätepixel je Modul, 4 Module Ruhezone – scharf auch am Beamer.
+     Die Anzeigegröße folgt den ganzen Pixeln (sonst skaliert der Browser
+     ungleichmäßig, und bei großen Codes werden Module verschieden breit). */
   const n = q.size + 8, css = Math.min(window.innerHeight * 0.64, window.innerWidth * 0.8, 620);   /* wie im CSS */
-  const scale = Math.max(2, Math.ceil(css * (window.devicePixelRatio || 1) / n));
+  const pr = window.devicePixelRatio || 1;
+  const scale = Math.max(1, Math.floor(css * pr / n));
   cv.width = cv.height = n * scale;
+  cv.style.width = cv.style.height = (n * scale / pr) + 'px';
   const c = cv.getContext('2d');
   c.fillStyle = '#ffffff'; c.fillRect(0, 0, cv.width, cv.height);
   c.fillStyle = '#000000';
@@ -9375,10 +9924,10 @@ async function showResultQr() {
   S.studentName = cleanStr(v, 30).trim(); saveSettings();
   const chk = checkTask(doc.task, doc.objects);
   const r = { task: doc.task, name: S.studentName, ok: !!chk.ok, help: doc.help || 0, codes: resultCodes(chk), objects: doc.objects };
-  let url = linkForResult(r, true);
-  if (!qrFor(url)) url = linkForResult(r, false);    /* Zeichnung zu groß → nur das Ergebnis */
+  /* Zeichnung zu groß → nur das Ergebnis (das passt immer) */
+  const pick = qrBest([linkForResult(r, true), linkForResult(r, true, true)]) || qrBest([linkForResult(r, false)]);
   const text = (S.studentName ? S.studentName + ' · ' : '') + (chk.ok ? '✓ ' + t('resOk') : '✗ ' + t('resNotOk'));
-  await showQr(url, text, { free: true, title: 'resTitle', hint: 'resHint' });
+  await showQr(pick, text, { free: true, title: 'resTitle', hint: 'resHint' });
 }
 const RESULTS_KEY = 'zw.results', RESULTS_MAX = 600;
 function loadResults() {
@@ -9605,6 +10154,7 @@ async function checkCurrentTask() {
   });
   if (a === 'sol') showTaskSolution();
   else if (a === 'res') showResultQr();
+  else if (a === 'ok' && res.ok) rateWin();
 }
 async function showTaskSolution() {
   if (!doc || !doc.task) return;
@@ -9674,6 +10224,12 @@ function onKey(e) {
   const top = topPanel();
   if (top) { if (e.key === 'Escape') { e.preventDefault(); top === 'calibPanel' ? closeCalibration(false) : closePanel(top); } return; }
   const mod = e.metaKey || e.ctrlKey;
+  /* Präsentation: Weiter-Taste eines Presenters (Bild ab / Pfeil) startet die
+     schrittweise Vorführung; Escape beendet die Präsentation. */
+  if (PRESENT.on && !PB.on && !mod) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pbNext(); return; }
+    if (e.key === 'Escape' && !G) { e.preventDefault(); presentExit(); return; }
+  }
   if (PB.on && !mod) {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pbNext(); return; }
     if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pbPrev(); return; }
@@ -9695,6 +10251,7 @@ function onBackButton() {
   if (!document.getElementById('stylePop').hidden) return closeStylePop();
   if (PB.on) return pbExit();
   if (protoOpen()) return closeProto();
+  if (PRESENT.on) return presentExit();
   saveNow().finally(() => { if (navigator.app && navigator.app.exitApp) navigator.app.exitApp(); });
 }
 
@@ -9734,6 +10291,7 @@ function onFieldFocus(e) {
 
 async function init() {
   Purchase.load();
+  if (!S.rateFirst) { S.rateFirst = Date.now(); saveSettings(); }
   applyIcons();
   cvBase = document.getElementById('cvBase');
   cvOver = document.getElementById('cvOver');

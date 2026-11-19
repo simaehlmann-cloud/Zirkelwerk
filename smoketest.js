@@ -45,6 +45,8 @@ async function installHelpers(page) {
   });
 }
 const stroke = (page, type, pts, id) => page.evaluate(([t, p, i]) => window.__stroke(t, p, i), [type, pts, id]);
+/* PDF liegt seit 1.0.2 im Teilen-Menü */
+const openPdf = async page => { await page.click('#btnShare'); await page.click('#dialogButtons .btn >> text=Als PDF'); };
 const objs = page => page.evaluate(() => JSON.parse(JSON.stringify(window.__zw.doc.objects)));
 const inst = page => page.evaluate(() => JSON.parse(JSON.stringify(window.__zw.doc.inst)));
 function line(a, b, n) { const out = []; for (let i = 0; i <= n; i++) out.push([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n]); return out; }
@@ -915,7 +917,7 @@ async function main() {
         const file = await dl.path();
         return { name: dl.suggestedFilename(), file, pdf: fsx.readFileSync(file).toString('latin1') };
       };
-      await page.click('#btnPdf');
+      await openPdf(page);
       ok((await page.textContent('#dialogTitle')) === 'Als PDF (A4)' && await page.isVisible('#pdfOpt_taskOnly'), 'PDF-Dialog mit Schalter „Nur die Aufgabe"');
       if ((await page.textContent('#pdfOpt_desc')) === 'Aus') await page.click('#pdfOpt_desc');
       await page.click('#pdfOpt_taskOnly');
@@ -923,7 +925,7 @@ async function main() {
       const w1 = await grab();
       ok(w1.name.endsWith(' Aufgabe.pdf') && w1.pdf.startsWith('%PDF-1.4') && w1.pdf.includes('(Konstruiere das Dreieck ABC mit c') && !w1.pdf.includes('(Konstruktionsbeschreibung)'), 'Arbeitsblatt-PDF ohne Lösung', w1.name);
       const nPts = (w1.pdf.match(/ Tj /g) || []).length;
-      await page.click('#btnPdf');
+      await openPdf(page);
       ok((await page.textContent('#pdfOpt_taskOnly')) === 'Ein', 'PDF-Dialog merkt sich die Wahl');
       await page.click('#pdfOpt_taskOnly');
       ok(!(await page.isDisabled('#pdfOpt_desc')) && (await page.textContent('#pdfOpt_desc')) === 'Ein', 'Beschreibung wieder wählbar');
@@ -1088,7 +1090,7 @@ async function main() {
       if (await page.isVisible('#qrPanel')) sheetLink = await page.getAttribute('#qrCanvas', 'data-link');
       else { ok((await page.textContent('#dialogTitle')) === 'Zu groß für einen QR-Code', 'Zu großes Blatt: verständlicher Hinweis'); await page.click('#dialogButtons .btn'); }
       if (sheetLink) {
-        ok(sheetLink.startsWith('zirkelwerk://s?v=1&d='), 'Blatt-Link erzeugt', sheetLink.length);
+        ok(/^zirkelwerk:\/\/s\?v=(1&d=|2&z=)/.test(sheetLink) && await page.evaluate(l => parseLink(l).ok, sheetLink), 'Blatt-Link erzeugt (v1 oder dichtes v2) und lesbar', sheetLink.length);
         await page.click('#qrPanel header .tb');
       }
       // ein kleines, selbst gezeichnetes Blatt
@@ -1101,6 +1103,109 @@ async function main() {
       ok(so2.length === 3 && so2.filter(o => o.type === 'point').map(o => o.label).join() === 'A,B' && !(await page.evaluate(() => window.__zw.doc.task)), 'Gescanntes Blatt mit Punkten und Strecke');
       const st3 = await page.evaluate(() => window.__zw.steps().map(s => s.text));
       ok(st3.join(' | ') === 'Zeichne einen Punkt A. | Zeichne einen Punkt B. | Verbinde A mit B.', 'Beschreibung des gescannten Blatts stimmt', st3);
+    }
+    /* ---------- 1.0.2: Teilen-Menü, dichter QR-Code, Präsentation, Bewertung ---------- */
+    {
+      /* Ein Blatt mit Konstruktion und Handschrift (drei Wörter) – in v1 zu groß */
+      await page.evaluate(() => newSheet());
+      await page.waitForFunction(() => window.__zw.doc && window.__zw.doc.objects.length === 0, null, { timeout: 3000 });
+      await page.evaluate(() => {
+        const word = (x0, y0, s) => { const p = []; let x = x0; for (let l = 0; l < 5; l++) { const h = 4 + ((s * 7 + l * 3) % 5), w = 2.5 + ((s + l) % 3); for (let t = 0; t <= 1.0001; t += 0.004) { const a = t * 2 * Math.PI; p.push(x + w * t + 0.8 * Math.sin(2 * a) + 0.03 * Math.sin(37 * a + s), y0 - h * Math.abs(Math.sin(a)) + 0.03 * Math.cos(29 * a)); } x += w; } return simplify(p, 0.08); };
+        addObjects([
+          { type: 'point', x: 0, y: 0, label: 'A', ld: 5, c: '#3b3f45' }, { type: 'point', x: 50, y: 0, label: 'B', ld: 7, c: '#3b3f45' },
+          { type: 'segment', x1: 0, y1: 0, x2: 50, y2: 0, c: '#3b3f45', w: 0.5, al: 1, m: { via: 'ruler' } }
+        ].concat([0, 1, 2].map(i => ({ type: 'stroke', pts: word(0, 30 + 12 * i, i), c: '#3b3f45', w: 0.5, al: 1 }))));
+      });
+      ok(await page.evaluate(() => { const d = window.__zw.doc; return !qrEncode(utf8Bytes(linkForSheet(d)), 'L', 27); }), 'Testblatt: in v1 zu groß für den alten Code (wie gemeldet)');
+      await page.click('#btnShare');
+      ok((await page.textContent('#dialogTitle')) === 'Teilen' && (await page.locator('#dialogButtons .btn').count()) === 6, 'Teilen-Menü: QR, PDF, Datei, Video, Abgaben, Abbrechen');
+      await page.click('#dialogButtons .btn >> text=QR-Code für die Klasse');
+      await page.waitForSelector('#qrPanel:not([hidden])', { timeout: 3000 });
+      const zl = await page.getAttribute('#qrCanvas', 'data-link');
+      ok(zl.startsWith('zirkelwerk://s?v=2&z='), 'Handschrift passt jetzt: dichter Link (v2)', zl.length);
+      ok(await page.evaluate(() => { const c = document.getElementById('qrCanvas'), pr = window.devicePixelRatio || 1, q = qrBest([c.dataset.link]).q; return Math.abs(parseFloat(c.style.width) * pr - c.width) < 0.01 && c.width % (q.size + 8) === 0 && q.version <= 32; }), 'QR: ganze Gerätepixel je Modul');
+      await page.click('#qrPanel header .tb');
+      await page.evaluate(l => window.handleOpenURL(l), zl);
+      await page.waitForFunction(() => window.__zw.doc.objects.length === 6 && window.__zw.doc.src, null, { timeout: 5000 });
+      ok(await page.evaluate(() => window.__zw.doc.objects.filter(o => o.type === 'stroke').length === 3 && window.__zw.steps().some(s => /Verbinde A mit B/.test(s.text))), 'v2-Code geöffnet: Handschrift und Konstruktion da');
+      /* Zu viel Handschrift: Angebot „Ohne Freihandstriche teilen" */
+      await page.evaluate(() => {
+        const list = [];
+        let sd = 11; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647;   /* zittrige Striche: lassen sich kaum vereinfachen */
+        for (let i = 0; i < 40; i++) { const p = []; for (let t = 0; t < 300; t++) p.push(t * 0.4, 100 + i * 6 + 3 * R()); list.push({ type: 'stroke', pts: p, c: '#d0342c', w: 0.5, al: 1 }); }
+        addObjects(list);
+      });
+      await page.click('#btnShare');
+      await page.click('#dialogButtons .btn >> text=QR-Code für die Klasse');
+      await page.waitForSelector('#dialog:not([hidden])');
+      ok((await page.textContent('#dialogTitle')) === 'Zu groß für einen QR-Code' && /Freihandstriche \(43\)/.test(await page.textContent('#dialogMessage')) && await page.isVisible('#dialogButtons .btn >> text=Ohne Freihandstriche teilen'), 'Zu groß: sagt, was Platz kostet, und bietet „Ohne Freihandstriche" an', await page.textContent('#dialogMessage'));
+      await page.click('#dialogButtons .btn >> text=Ohne Freihandstriche teilen');
+      await page.waitForSelector('#qrPanel:not([hidden])', { timeout: 3000 });
+      const nl = await page.getAttribute('#qrCanvas', 'data-link');
+      ok(await page.evaluate(l => { const r = parseLink(l); return r.ok && r.raw.objects.length === 3 && r.raw.objects.every(o => o.type !== 'stroke'); }, nl) && nl.startsWith('zirkelwerk://s?v=1&d='), 'Ohne Freihand: kleiner v1-Code, Konstruktion vollständig', nl);
+      await page.click('#qrPanel header .tb');
+
+      /* Präsentationsmodus */
+      await page.click('#btnPresent');
+      const pres = await page.evaluate(() => ({ body: document.body.classList.contains('present'), top: getComputedStyle(document.getElementById('topbar')).display, tools: getComputedStyle(document.getElementById('toolbar')).display, bar: !document.getElementById('presentBar').hidden, left: document.getElementById('stage').getBoundingClientRect().left, topY: document.getElementById('stage').getBoundingClientRect().top, boost: boostFor(ctxBase), pdf: boostFor(document.createElement('canvas').getContext('2d')) }));
+      ok(pres.body && pres.top === 'none' && pres.tools === 'none' && pres.bar && pres.left === 0 && pres.topY === 0, 'Präsentation: Kopf- und Werkzeugleiste weg, Blatt bildschirmfüllend', pres);
+      ok(pres.boost > 1 && pres.pdf === 1, 'Präsentation: kräftig nur auf den Zeichenflächen, nie für PDF/Vorschaubilder', pres);
+      await page.click('#presTools');
+      ok(await page.isVisible('#toolbar') && (await page.evaluate(() => document.getElementById('stage').getBoundingClientRect().left)) === 0, 'Werkzeuge klappen auf, ohne die Zeichenfläche zu verschieben');
+      await page.click('[data-tool="pencil"]');
+      const nBefore = (await objs(page)).length;
+      await stroke(page, 'pen', [[-20, -20], [-10, -25], [0, -20]]);
+      const drawn = (await objs(page)).slice(-1)[0];
+      ok((await objs(page)).length === nBefore + 1 && drawn.w === 0.5, 'Präsentation: Zeichnen geht, Strichstärke im Blatt unverändert', drawn.w);
+      await page.click('#presLaser');
+      ok(await page.evaluate(() => PRESENT.laser && document.getElementById('presLaser').classList.contains('sel')), 'Zeigestift an');
+      const vBefore = await page.evaluate(() => JSON.stringify([window.__zw.view.ox, window.__zw.view.oy]));
+      await page.evaluate(() => { window.__ptr('touch', 31, 'down', 10, 10); window.__ptr('touch', 31, 'move', 30, 20); });
+      ok(await page.evaluate(() => window.__zw.G && window.__zw.G.kind === 'laser' && LASER.pts.length >= 2), 'Zeigestift: Finger zeigt (Spur)');
+      await page.evaluate(() => window.__ptr('touch', 31, 'up', 30, 20));
+      ok((await objs(page)).length === nBefore + 1 && (await page.evaluate(() => JSON.stringify([window.__zw.view.ox, window.__zw.view.oy]))) === vBefore, 'Zeigestift: hinterlässt nichts, verschiebt nichts');
+      await page.waitForTimeout(900);
+      ok(await page.evaluate(() => LASER.pts.length === 0), 'Zeigestift: Spur verblasst');
+      await page.click('[data-tool="hand"]');
+      ok(await page.evaluate(() => !PRESENT.laser), 'Werkzeug wählen schaltet den Zeigestift aus');
+      await page.click('#presBold');
+      ok(await page.evaluate(() => !S.presentBold && boostFor(ctxBase) === 1), 'Kräftig abschaltbar');
+      await page.click('#presBold');
+      /* Schritt für Schritt: Taste eines Presenters, Tippen, großer Schritttext */
+      await page.click('#presTools');
+      await page.keyboard.press('PageDown');
+      await page.waitForFunction(() => window.__zw.PB.on, null, { timeout: 2000 });
+      ok(await page.isVisible('#presentCap') && /^1\//.test(await page.textContent('#presentCapN')), 'Presenter-Taste startet die Vorführung, Schritt 1 groß', await page.textContent('#presentCap'));
+      await page.evaluate(() => pbStepDone());
+      const k1 = await page.evaluate(() => window.__zw.PB.cur);
+      await page.evaluate(() => { window.__ptr('touch', 32, 'down', 60, 60); window.__ptr('touch', 32, 'up', 60, 60); });
+      ok(await page.evaluate(k => window.__zw.PB.anim && window.__zw.PB.anim.k === k, k1), 'Tippen aufs Blatt zeigt den nächsten Schritt', k1);
+      ok((await page.textContent('#presentCapN')) === (k1 + 1) + '/' + (await page.evaluate(() => window.__zw.PB.steps.length)), 'Schritttext folgt');
+      await page.keyboard.press('Escape');
+      ok(!(await page.evaluate(() => window.__zw.PB.on)) && await page.evaluate(() => PRESENT.on) && !(await page.isVisible('#presentCap')), 'Escape beendet erst die Vorführung');
+      await page.keyboard.press('Escape');
+      ok(await page.evaluate(() => !PRESENT.on && !document.body.classList.contains('present')) && await page.isVisible('#topbar') && await page.isVisible('#toolbar'), 'Escape beendet die Präsentation, alles wieder da');
+
+      /* Bitte um Bewertung: nur nach Erfolgen, nicht beim Vorführen, nur einmal je Abstand */
+      const rate = await page.evaluate(async () => {
+        let calls = 0;
+        window.LaunchReview = { rating: () => { calls++; } };
+        const wait = () => new Promise(r => setTimeout(r, 1400));
+        Object.assign(S, { rateFirst: Date.now() - 4 * 864e5, rateWins: 1, rateAsked: 0 });
+        rateWin(); await wait();
+        const early = calls;
+        PRESENT.on = true; rateWin(); await wait(); PRESENT.on = false;
+        const inPres = calls;
+        rateWin(); await wait();
+        const now = calls, asked = S.rateAsked > 0;
+        rateWin(); await wait();
+        const again = calls;
+        S.rateFirst = Date.now(); S.rateAsked = 0; rateWin(); await wait();
+        const fresh = calls;
+        delete window.LaunchReview; Object.assign(S, { rateWins: 0, rateAsked: 0 }); saveSettings();
+        return { early, inPres, now, asked, again, fresh };
+      });
+      ok(rate.early === 0 && rate.inPres === 0 && rate.now === 1 && rate.asked && rate.again === 1 && rate.fresh === 1, 'Bewertung: erst ab dem 3. Erfolg, nie beim Präsentieren, dann 120 Tage Ruhe, nicht in den ersten Tagen', rate);
     }
     /* Englische Satznamen */
     await page.click('[aria-label="Einstellungen"]'); await page.click('#choiceLangEn'); await page.click('#settingsPanel header .tb');
@@ -1254,6 +1359,13 @@ async function main() {
       await page.click('#bodyColorsBtn');
       const colors = await page.evaluate(() => { const c = document.getElementById('bodyBig'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; const set = new Set(); for (let i = 0; i < d.length; i += 4 * 37) if (d[i] + d[i + 1] + d[i + 2] < 700) set.add((d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5)); return set.size; });
       ok(await page.evaluate(() => bodyState.colors) && colors >= 6, 'Farben: Flächen farbig (Gegenseiten gleich)', colors);
+      ok((await page.textContent('#bodyColorsBtn')) === 'Farben: Gegenseiten', 'Farben: Stufe steht auf dem Knopf');
+      await page.click('#bodyColorsBtn');
+      const cg = await page.evaluate(() => { const sc = bodyScene(); return { mode: bodyState.colors, par: new Set(sc.info.color).size, cong: new Set(sc.info.congColor).size, kind: bodyState.kind, label: document.getElementById('bodyColorsSmall').textContent }; });
+      ok(cg.mode === 2 && cg.label === 'Farben: kongruent' && cg.cong <= cg.par, 'Farben: kongruente Flächen gleich (zweite Stufe, beide Knöpfe)', cg);
+      await page.click('#bodyColorsBtn');
+      ok((await page.evaluate(() => bodyState.colors)) === 0 && (await page.textContent('#bodyColorsBtn')) === 'Farben' && !(await page.evaluate(() => document.getElementById('bodyColorsBtn').classList.contains('sel'))), 'Farben: dritter Tipp schaltet aus');
+      await page.click('#bodyColorsBtn');
       await page.click('#bodyPlayBig');
       ok(await page.evaluate(() => bodyState.fold < 0.5), 'Großansicht: Falten startet von vorn');
       await page.waitForFunction(() => bodyState.fold > 0.999, null, { timeout: 6000 });
@@ -1283,13 +1395,13 @@ async function main() {
       }
       await page.keyboard.press('Escape');
       const fsx = require('fs');
-      await page.click('#btnPdf');
+      await openPdf(page);
       if ((await page.textContent('#pdfOpt_desc')) === 'Aus') await page.click('#pdfOpt_desc');
       if ((await page.textContent('#pdfOpt_cloze')) === 'Aus') await page.click('#pdfOpt_cloze');
       const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('#dialogButtons .btn.primary')]);
       const pdf = fsx.readFileSync(await dl.path()).toString('latin1');
       ok(pdf.includes('(Wortspeicher:) Tj') && pdf.includes('__________') && !pdf.includes('(Zeichne die Strecke AB'), 'PDF mit Lückentext und Wortspeicher');
-      await page.click('#btnPdf');
+      await openPdf(page);
       await page.click('#pdfOpt_desc');
       ok(await page.isDisabled('#pdfOpt_cloze'), 'Lückentext nur zusammen mit der Beschreibung');
       await page.click('#pdfOpt_desc');
@@ -1329,11 +1441,11 @@ async function main() {
       let d = await dlg();
       ok(await fp.isVisible('#dialog') && d.title === 'Vollversion' && /Labor/.test(d.msg) && !(await fp.isVisible('#labPanel')), 'Kostenlos: Labor zeigt den Hinweis auf die Vollversion', d);
       await later();
-      await fp.click('#btnPdf');
+      await fp.click('#btnShare'); await fp.click('#dialogButtons .btn >> text=Als PDF');
       d = await dlg();
       ok(d.title === 'Vollversion' && /PDF/.test(d.msg), 'Kostenlos: PDF-Export gesperrt', d);
       await later();
-      for (const [fn, re, name] of [['exportVideo()', /Video/, 'Video-Export'], ["showQr('zirkelwerk://a?v=1', 'x')", /QR/, 'QR-Aufgabe erstellen'], ['openResults()', /Abgaben/, 'Abgaben']]) {
+      for (const [fn, re, name] of [['exportVideo()', /Video/, 'Video-Export'], ["showQr('zirkelwerk://a?v=1', 'x')", /QR/, 'QR-Aufgabe erstellen'], ['openResults()', /Abgaben/, 'Abgaben'], ['presentEnter()', /Präsentationsmodus/, 'Präsentationsmodus']]) {
         await fp.evaluate(f => { (0, eval)(f); }, fn);
         await fp.waitForSelector('#dialog:not([hidden])');
         d = await dlg();
@@ -1386,7 +1498,7 @@ async function main() {
       ok(lay.more && lay.outside.length === 0, 'Handy: Kopfleiste passt, Rest im „⋯"-Menü', lay);
       ok(lay.zoom === 0.5 && Math.abs(lay.ppm - 153.33) < 0.01, 'Handy: Start mit 50 %, iPhone-Maß erkannt', lay);
       await pp.click('#btnMore');
-      ok((await pp.textContent('#dialogTitle')) === 'Mehr' && (await pp.locator('#dialogButtons .btn').count()) === 7, 'Handy: Menü mit sechs Einträgen (mit „Bild einfügen") und Abbrechen');
+      ok((await pp.textContent('#dialogTitle')) === 'Mehr' && (await pp.locator('#dialogButtons .btn').count()) === 8, 'Handy: Menü mit sieben Einträgen (mit „Bild einfügen" und „Präsentieren") und Abbrechen');
       await pp.click('#dialogButtons .btn >> text=Einstellungen');
       ok(await pp.isVisible('#settingsPanel'), 'Handy: Einstellungen über das Menü erreichbar');
       await pp.click('#settingsPanel .btn >> text=Kurzanleitung');

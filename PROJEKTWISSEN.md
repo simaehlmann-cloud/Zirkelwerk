@@ -1,4 +1,4 @@
-# Zirkelwerk – Projektwissen, Stand 1.0.1 (Store-Start mit In-App-Kauf)
+# Zirkelwerk – Projektwissen, Stand 1.0.2 (Präsentieren, Teilen, dichte QR-Codes)
 
 ## Entscheidungen
 
@@ -99,7 +99,7 @@
   Android-Plugin liefert teils prozentkodiert → wird erkannt.
 - Doppeltes Scannen: `doc.src = linkKey(url)` (FNV-1a), `sanitizeDoc` behält `src`.
 - QR: `qrEncode(bytes, level, maxVer)` Byte-Modus; App nutzt M bis Version 22,
-  sonst L bis 27, sonst „zu groß". Bitgleich mit Python-`qrcode` geprüft, Bekannte-
+  sonst L bis 32 (seit 1.0.2, vorher 27), sonst „zu groß" (`qrBest`, siehe 1.0.2). Bitgleich mit Python-`qrcode` geprüft, Bekannte-
   Antwort-Tests in coretest (Hash der Matrix).
 - Einstieg: `window.handleOpenURL` (iOS: Cordova selbst, CDVHandleOpenURL;
   Android: cordova-plugin-customurlscheme 5.0.2). Kaltstart: Link wird gemerkt und
@@ -174,7 +174,7 @@
 - Zahlen auf Lineal und Geodreieck stehen nie kopf: ab 90° Drehung wird jede Zahl um
   ihre Mitte gedreht (`textFlip`, `uprightText`).
 - Kopfleiste: Was nicht passt, wandert ins „⋯"-Menü (`layoutTopbar`, gemessen;
-  Reihenfolge Hilfe, Einstellungen, PDF, Zoom ±, Konstruktion, Labor).
+  Reihenfolge Präsentieren, Hilfe, Einstellungen, Teilen, Bild, Zoom ±, Konstruktion, Labor).
 - Hilfe & Über in einem Fenster: Kurzanleitung, Über, Sprache, Impressum, Datenschutz;
   Sprachwahl zusätzlich oben beim ersten Start.
 - Geodreieck 16 cm Hypotenuse, mm-Skala ±7 cm, Gradskala an den Katheten (zwei Reihen).
@@ -302,7 +302,8 @@
   (Welt → x rechts, y Tiefe, z oben), Wischen = `m3RotZ(dx)`/`m3RotX(dy)` von links, `m3Ortho`
   gegen Drift, Doppeltippen → `bodyViewReset` (`bodyViewHome`).
 - Großansicht `#bodyFull` (Panel, Escape/Zurück schließt), Zoom `bodyState.zoom`, Farben
-  `bodyState.colors` (Gegenseiten gleich, gekrümmte Flächen einfarbig, `BODY_PALETTE`).
+  `bodyState.colors` (seit 1.0.2: 0 aus, 1 Gegenseiten gleich, 2 kongruente Flächen gleich;
+  gekrümmte Flächen einfarbig, `BODY_PALETTE`).
 - Auf Gerät prüfen: Kamera beim Bild einfügen (iOS/Android), Großansicht iPhone, Faltleistung
   der Kugel mit 16 Schalen auf älteren iPads.
 
@@ -345,6 +346,47 @@ CI: Node 22, Playwright 1.63.0 für den Ablauftest.
   3 Blätter, QR-Aufgaben öffnen und prüfen, Rückmeldung zeigen.
 - Entschieden: Wiederherstellen aus einer Sicherung prüft die Blattgrenze nicht (Datenrettung).
 - Ablauftest: Hauptteil als Besitzer (`zw.full = 1`), eigener Abschnitt für die kostenlose Fassung.
+
+## 1.0.2 – Präsentieren, Teilen, dichte QR-Codes
+
+- **Linkformat v2** (`zirkelwerk://s?v=2&z=…`, ebenso `r`): `packLink` = Deflate von
+  [1][Varint Länge][JSON][Freihand]. Striche im JSON mit Platzhalter 0, Punkte binär
+  (`packStroke`: `simplify` mit `QS_STROKE_TOL` 0,25 mm, Zehntel-mm, Differenzen, ZigZag-Varint).
+  Eigenes `deflateRaw` (feste Huffman-Codes, LZ77 mit Hash-Ketten) und `inflateRaw` (alle
+  Blocktypen, Grenze `QS_INFLATE_MAX` 1 MB) – synchron, ohne CompressionStream (iOS 15–16.3).
+  `decodeObjs(rows, rd)`: kaputter Binärteil → dieser und alle folgenden Striche fallen weg.
+  `LINK_V` = höchste lesbare Fassung (2). Aufgaben-Links bleiben `v=1`.
+- **Auswahl** (`qrBest`): v1, wenn es mit Stufe M ≤ 22 passt (lesbar für 1.0.1), sonst der
+  kleinste Code mit L ≤ 32. `showQr` nimmt Adresse oder fertige Wahl. Zu groß (`showSheetQr`):
+  Meldung mit Zahl der Freihandstriche, „Ohne Freihandstriche teilen", „Als Datei exportieren".
+  Rückmeldungen genauso (mit Zeichnung v1/v2, sonst ohne Zeichnung).
+- QR-Anzeige: ganze Gerätepixel je Modul, CSS-Größe daraus (`cv.style.width`).
+- **Teilen** (`openShareMenu`, `#btnShare` statt `#btnPdf`): QR, PDF, Datei, Video, Abgaben
+  (der Aufgabe, falls das Blatt eine hat). Sperren prüfen die Funktionen selbst.
+- **Präsentation** (`PRESENT`, `presentEnter/Exit`, Vollversion `canPresent`): `body.present`
+  (`--top-h: 0`, Kopfleiste weg, Werkzeugleiste nur mit `present-tools`, überlagert das Blatt),
+  `#presentBar`, `#presentCap` (Schritt groß, aus `presentUpdate` über `updatePbControls`).
+  `boostFor(ctx)` = 1,7 nur für `ctxBase`/`ctxOver` (nie PDF/Vorschaubild; coretest setzt 1):
+  Linien ≥ 2 px, Grau → fast Schwarz, Beschriftung/Kreuz größer, Text fett, Karo kräftiger;
+  `labelBox` rechnet gleich. Deckende Linien nur – Marker bleiben. `S.presentBold` (Einstellung).
+  Tippen ohne Bewegung in der Wiedergabe = `pbNext`; Bild ab/Pfeil rechts startet sie;
+  Escape: erst Wiedergabe, dann Präsentation; Zurück-Taste beendet die Präsentation.
+  Zeigestift: Geste `laser` vor allem anderen (auch in der Wiedergabe), Spur `LASER` in
+  Bildschirmkoordinaten, 700 ms; Werkzeugwahl schaltet ihn aus.
+- **Kongruente Flächen** (Kern `faceCongruenceGroups`): Folge (Seitenlänge, Innenwinkel) bis auf
+  Startpunkt und Umlaufsinn, Längen relativ 1e-6; gekrümmte Gruppen je eine Klasse.
+  `bodyFaceInfo` liefert `color` (Gegenseiten) und `congColor`; Quiz nutzt immer Gegenseiten.
+  Knopfbeschriftung `bodyColors`, `bodyColors1`, `bodyColors2` (data-i18n wandert mit).
+- **Bewertung** (`rateWin`, `rateMaybe`, `RATE_ENABLED`): `cordova-launch-review` 4.2.0
+  (+ `cordova-plugin-device` 3.0.0, eigenes Privacy-Manifest), `LaunchReview.rating()`.
+  Erfolge: Aufgabe richtig (Dialog mit OK geschlossen), Wiedergabe bis zum Ende (nicht beim
+  Video). Fällig ab 3 Erfolgen, 3 Tage nach `S.rateFirst`, Abstand 120 Tage (`S.rateAsked`); nie
+  bei Präsentation, Wiedergabe, Video, Geste, offenem Fenster. Validator: Schalter ↔ Plugin.
+  Schul-Edition: `make-schule.js` setzt `RATE_ENABLED = false` und nimmt beide Plugins heraus
+  (sonst StoreKit im Projekt → iOS-Workflow bricht ab).
+- Auf Gerät prüfen: Bewertungsdialog (TestFlight zeigt ihn nie – erst im Store), Android
+  In-App-Review (nur bei Installation aus Play), Lesbarkeit am Beamer, Zeigestift mit Pencil,
+  Scannen von Version-32-Codes vom Beamer, CI-Build mit den zwei neuen Plugins.
 
 ## Offen
 

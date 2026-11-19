@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="de.zirkelwerk.app"
-        version="1.0.1"
-        android-versionCode="10001"
-        ios-CFBundleVersion="10001"
+        version="1.0.2"
+        android-versionCode="10002"
+        ios-CFBundleVersion="10002"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android">
@@ -167,4 +167,12 @@
          IAP_ENABLED in der index.html – der Validator prüft beides.
          Version fest, damit TestFlight- und Store-Build gleich bauen. -->
     <plugin name="cordova-plugin-purchase" spec="13.19.1" />
+
+    <!-- Bitte um Bewertung (1.0.2): der Dialog der Stores selbst – iOS
+         SKStoreReviewController, Android Play-In-App-Review. Gehört zu
+         RATE_ENABLED in der index.html (Validator prüft). Das Plugin zieht
+         cordova-plugin-device nach; beide fest, damit jeder Build gleich baut.
+         Schul-Edition: make-schule.js nimmt beide heraus. -->
+    <plugin name="cordova-plugin-device" spec="3.0.0" />
+    <plugin name="cordova-launch-review" spec="4.2.0" />
 </widget>

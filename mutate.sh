@@ -34,9 +34,9 @@ PY
 
 pruefe "Übersetzung fehlt"          validate.js index.html "toolEraser: 'Eraser'," ""
 pruefe "Platzhalter verschieden"    validate.js index.html "defaultSheetName: 'Sheet {n}'" "defaultSheetName: 'Sheet'"
-pruefe "Version auseinander"        validate.js config.xml 'version="1.0.1"' 'version="1.0.2"'
-pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="10001"' 'android-versionCode="10002"'
-pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-1.0.1" "zirkelwerk-1.0.0"
+pruefe "Version auseinander"        validate.js config.xml 'version="1.0.2"' 'version="1.0.3"'
+pruefe "versionCode falsch"         validate.js config.xml 'android-versionCode="10002"' 'android-versionCode="10003"'
+pruefe "Cache-Name veraltet"        validate.js sw.js "zirkelwerk-1.0.2" "zirkelwerk-1.0.1"
 pruefe "Rechtstext ohne docs/"      validate.js datenschutz.html "Stand: Oktober 2026" "Stand: November 2026"
 pruefe "Unbekanntes Symbol"         validate.js index.html 'data-icon="ruler"' 'data-icon="lineal"'
 pruefe "Handler fehlt"              validate.js index.html "onclick=\"openHelp()\"" "onclick=\"openHilfe()\""
@@ -95,7 +95,7 @@ pruefe "Herkunft ungeprüft"          coretest.js index.html "/^[0-9a-z]{1,13}$/
 pruefe "Zahlen stehen kopf"          coretest.js index.html "function textFlip(rot) { return Math.cos(rot) < -1e-9; }" "function textFlip(rot) { return false; }"
 pruefe "iPhone-Maß falsch"           coretest.js index.html "'390x844': 460 / 3, '393x852': 460 / 3," "'390x844': 460 / 3, '393x852': 326 / 2,"
 pruefe "XR und XS Max verwechselt"   coretest.js index.html "dpr >= 3 ? 458 / 3 : 326 / 2" "458 / 3"
-pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 1.0.1" "Stand 1.0.0"
+pruefe "Projektwissen veraltet"     validate.js PROJEKTWISSEN.md "Stand 1.0.2" "Stand 1.0.1"
 pruefe "Diagnose: Skala übersehen"  coretest.js index.html "if (near(got, 180 - want, T) && Math.abs(want - 90) > 4) return { why: 'scale' };" ""
 pruefe "Diagnose: Tausch übersehen"  coretest.js index.html "if (near(got, g[o], T) && near(meas[o], want, T)) return { why: 'swap', other: o };" ""
 pruefe "Hilfe: Spiegelung ignoriert" coretest.js index.html "for (const flip of [1, -1])" "for (const flip of [1])"
@@ -156,6 +156,18 @@ pruefe "Kegel-Formel falsch"              coretest.js index.html "case 'cone': r
 pruefe "Eckenzahl ohne Grenze"            coretest.js index.html "if (!Number.isInteger(g[k]) || g[k] < ints[k][0] || g[k] > ints[k][1]) return false;" ""
 pruefe "Kamera-Begründung fehlt"          validate.js res/ios/de.lproj/InfoPlist.strings '"NSCameraUsageDescription"' '"NSCameraUsageDescriptionX"' 
 pruefe "Körper hängen kopfüber"           smoketest.js index.html "function bodyFlip(net) { const all = [].concat(...foldNet(net, 1)); return all.reduce((s, p) => s + p.z, 0) / all.length < 0; }" "function bodyFlip(net) { return false; }"
+# 1.0.2: dichter QR-Link, kongruente Flächen, Bewertung, Präsentation
+pruefe "Deflate: Abstand falsch"          coretest.js index.html "bits(bestDist - DF_DBASE[di], DF_DEXT[di]);" "bits(bestDist - DF_DBASE[di] + 1, DF_DEXT[di]);"
+pruefe "Inflate: dynamische Codes falsch" coretest.js index.html "const ord = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]" "const ord = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 15, 1]"
+pruefe "Inflate: Packbombe ohne Grenze"   coretest.js index.html "      if (out.length + len > max) throw new Error('big');
+      for (let k = 0; k < len; k++) out.push(out[out.length - d]);" "      for (let k = 0; k < len; k++) out.push(out[out.length - d]);"
+pruefe "v2: Freihand ohne Differenzen"    coretest.js index.html "putZig(out, i < 2 ? q[i] : q[i] - q[i - 2]);" "putZig(out, q[i]);"
+pruefe "v2: Daten mit v=1 gelesen"        coretest.js index.html "if (q.z !== undefined) { if (v < 2) throw new Error('v');" "if (q.z !== undefined) {"
+pruefe "v2: Tupfer verschwindet"          coretest.js index.html "if (q.length === 2) q.push(q[0], q[1]);" ""
+pruefe "Kongruent ohne Spiegelbild"       coretest.js index.html "for (const dir of [1, -1])" "for (const dir of [1])"
+pruefe "Kongruent ohne Winkel"            coretest.js index.html "if (Math.abs(a.A[i] - b.A[j]) > 1e-6 || Math.abs(a.L[i] - b.L[jl]) > tolL) ok = false;" "if (Math.abs(a.L[i] - b.L[jl]) > tolL) ok = false;"
+pruefe "Bewertung ohne Plugin"            validate.js config.xml '<plugin name="cordova-launch-review" spec="4.2.0" />' ""
+pruefe "Präsentation verstärkt auch PDF"  smoketest.js index.html "(ctx === ctxBase || ctx === ctxOver) ? PRESENT_BOOST : 1;" "true ? PRESENT_BOOST : 1;"
 echo ""
 echo "Gegenprobe: $erkannt von $gesamt Mutationen erkannt."
 if [ ${#blind[@]} -gt 0 ]; then printf '  blind: %s\n' "${blind[@]}"; exit 1; fi

@@ -22,6 +22,7 @@ this.K = { TAU, DEG, normAng, angDiff, onArc, segSeg, lineCircleT, segArc, circl
   rulerEdges, geoEdges, rulerContains, geoContains, edgeHit, snapOnScale, geoDegPoint, worldToLoc, locToWorld,
   compassParts, detectScale, sanitizeDoc, newDoc, boundsOf, RULER, GEO, distToArc, nearestOnArc, describe, fmtCm, solveTriangle, labRandom, labConstruction, labPlan, checkTask, sanitizeTask, labGivenText, labValid, LAB_GIVEN,
   textFlip, GEO_KINDS, GEO_TASKS, geoStart, geoSolution, geoSolutionSteps, checkGeoTask, sanitizeInst, normAng, diagnose, taskProgress, labSolutionSteps, mapObject, BODY_KINDS, BODY_DEFAULTS, bodyValid, bodyNet, foldNet, bodyFaces, bodyMeasures, netDrawing, obliqueDrawing, bodySheetObjects, clozeSteps, intersectionsAdded, linkForResult, resultCodes, summarizeResults, taskKey, encodeObjs, decodeObjs, qrEncode, qrPenalty, utf8Bytes, utf8Decode, b64uEncode, b64uDecode, linkForTask, linkForSheet, parseLink, linkKey,
+  deflateRaw, inflateRaw, packLink, unpackLink, simplify, LINK_V, QS_STROKE_TOL, faceCongruenceGroups, BODY_DEFAULTS,
   eraseTarget, cutObject, CUT_MIN, labelDirFor, pointMovable, pointMoveEntry,
   IMG, b64Bytes, jpegInfo, jpegFromDataUrl, imgRect, sanitizeObject, encodeObjs,
   hexominos, cubeNets, cubeNonNets, cubeFoldCheck, gridNet, unfoldFaces, bodySolid, BODY_INT,
@@ -650,7 +651,8 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   const pt = K.parseLink(lt);
   ok(pt.ok && pt.kind === 'task' && JSON.stringify(pt.task) === JSON.stringify(task), 'Link: Aufgabe hin und zurück', pt);
   ok(K.parseLink(encodeURIComponent(lt)).ok, 'Link: prozentkodiert (Android-Plugin) wird verstanden');
-  ok(K.parseLink(lt.replace('v=1', 'v=2')).err === 'newer', 'Link: neuere Version erkannt');
+  ok(K.parseLink(lt.replace('v=1', 'v=' + (K.LINK_V + 1))).err === 'newer', 'Link: neuere Version erkannt');
+  ok(K.parseLink(lt.replace('v=1', 'v=2')).ok, 'Link: Aufgabe mit v=2 wird gelesen');
   for (const bad of ['https://evil.example/a?v=1&k=sws', 'zirkelwerk://a?v=1&k=evil&c=1', 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=500',
     'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=1e3', 'zirkelwerk://a?k=sws&c=60&b=45&alpha=50', 'zirkelwerk://s?v=1&d=%%%', 'zirkelwerk://s?v=1&d=e30',
     'zirkelwerk://s?v=1&d=' + K.b64uEncode(K.utf8Bytes('[1,2]')), 'zirkelwerk://a?v=1&k=sws&c=60&b=45&alpha=50&x=' + 'a'.repeat(5000)]) {
@@ -684,6 +686,90 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   ok(pe.ok && de2.objects.length === 1 && de2.objects[0].c === '#3b3f45', 'Link: falsche Farbe, kaputte Striche und unbekannte Typen fallen weg', de2.objects);
 }
 
+/* ---------- Dichtes Linkformat v2 (1.0.2) ---------- */
+{
+  const zlib = require('zlib');
+  let seed = 3; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  /* Deflate/Inflate gegen zlib – in beide Richtungen, auch dynamische und gespeicherte Blöcke */
+  let dOk = true, iOk = true;
+  for (let t = 0; t < 150; t++) {
+    const n = Math.floor(rnd() * (t < 100 ? 400 : 6000)), alpha = 1 + Math.floor(rnd() * (t % 3 ? 10 : 256));
+    const d = Array.from({ length: n }, (_, k) => t % 4 === 0 ? k % 7 : Math.floor(rnd() * alpha));
+    if ([...zlib.inflateRawSync(Buffer.from(K.deflateRaw(d)))].join() !== d.join()) dOk = false;
+    for (const o of [{ level: 9 }, { level: 0 }, { level: 1 }, { strategy: zlib.constants.Z_FIXED }, { strategy: zlib.constants.Z_HUFFMAN_ONLY }]) {
+      if (K.inflateRaw([...zlib.deflateRawSync(Buffer.from(d), o)], 1 << 22).join() !== d.join()) iOk = false;
+    }
+  }
+  ok(dOk, 'Deflate: zlib entpackt alles, was die App packt');
+  ok(iOk, 'Inflate: entpackt zlib (dynamisch, fest, gespeichert)');
+  let lim = null; try { K.inflateRaw([...zlib.deflateRawSync(Buffer.alloc(3e6))], 1 << 20); } catch (e) { lim = e.message; }
+  ok(lim === 'big', 'Inflate: Packbombe bricht an der Grenze ab', lim);
+  let crash = false;
+  for (let t = 0; t < 3000; t++) { try { K.inflateRaw(Array.from({ length: 1 + Math.floor(rnd() * 80) }, () => Math.floor(rnd() * 256)), 1 << 16); } catch (e) { if (!(e instanceof Error) || !/^(short|code|stored|big|len|dist|type|rep|lens)$/.test(e.message)) crash = true; } }
+  ok(!crash, 'Inflate: Zufallsdaten → nur eigene Fehler, kein Absturz');
+
+  /* Handschrift: drei Wörter mit dicht abgetasteten Strichen (wie mit dem Stift) */
+  const word = (x0, y0, s) => {
+    const pts = []; let x = x0;
+    for (let l = 0; l < 5; l++) {
+      const h = 4 + ((s * 7 + l * 3) % 5), w = 2.5 + ((s + l) % 3);
+      for (let t = 0; t <= 1.0001; t += 0.004) { const a = t * 2 * Math.PI; pts.push(x + w * t + 0.8 * Math.sin(2 * a) + 0.03 * Math.sin(37 * a + s), y0 - h * Math.abs(Math.sin(a)) + 0.03 * Math.cos(29 * a)); }
+      x += w;
+    }
+    return K.simplify(pts, 0.08);   /* so speichert die App einen Strich */
+  };
+  const strokes = [0, 1, 2].map(i => ({ id: 'w' + i, type: 'stroke', pts: word(10, 20 + 12 * i, i), c: '#3b3f45', w: 0.5, al: 1 }));
+  const g = { c: 60, b: 45, alpha: 50 }, con = K.labConstruction('sws', g).objects.map((o, i) => Object.assign({ id: 'L' + i }, o));
+  const dot = { id: 'dot', type: 'stroke', pts: [5, 5, 5, 5], c: '#d0342c', w: 1, al: 1 };
+  const mk = { id: 'mk', type: 'stroke', pts: [0, 0, 10.04, 0.02, 20, 0], c: '#e0b400', w: 4, al: 0.4, m: { plan: true } };
+  const sheet = { name: 'Übung „ä“', task: { kind: 'sws', given: g }, objects: con.concat(strokes, [dot, mk]) };
+  const l1 = K.linkForSheet(sheet), l2 = K.linkForSheet(sheet, true);
+  ok(/^zirkelwerk:\/\/s\?v=2&z=[A-Za-z0-9_-]+$/.test(l2), 'v2: Linkform', l2.slice(0, 40));
+  ok(l2.length * 3 < l1.length, 'v2: mit Freihand mindestens dreimal kleiner als v1', [l1.length, l2.length]);
+  const fw = K.linkForSheet({ name: '', objects: strokes }), fw2 = K.linkForSheet({ name: '', objects: strokes }, true);
+  ok(fw2.length * 4 < fw.length, 'v2: reine Freihand mindestens viermal kleiner', [fw.length, fw2.length]);
+  const p2 = K.parseLink(l2), d2 = p2.ok && K.sanitizeDoc(p2.raw, 'n', 1);
+  ok(p2.ok && p2.kind === 'sheet' && d2.objects.length === sheet.objects.length && d2.name === sheet.name && d2.task && d2.task.kind === 'sws', 'v2: Blatt mit Aufgabe, Name und allen Objekten zurück', p2.ok && d2.objects.length);
+  ok(JSON.stringify(K.describe(d2.objects, 'de', I18N.de).map(x => x.text)) === JSON.stringify(K.describe(sheet.objects, 'de', I18N.de).map(x => x.text)), 'v2: Beschreibung identisch');
+  /* Freihand: Abweichung höchstens Vereinfachung + Rundung */
+  const devOk = strokes.every((s, i) => {
+    const back = d2.objects.find(o => o.type === 'stroke' && o === d2.objects.filter(x => x.type === 'stroke')[i]);
+    for (let k = 0; k < s.pts.length; k += 2) {
+      let best = Infinity;
+      for (let j = 0; j + 3 < back.pts.length; j += 2) best = Math.min(best, Math.hypot(...(() => { const ax = back.pts[j], ay = back.pts[j + 1], bx = back.pts[j + 2], by = back.pts[j + 3]; const L = (bx - ax) ** 2 + (by - ay) ** 2; let u = L ? ((s.pts[k] - ax) * (bx - ax) + (s.pts[k + 1] - ay) * (by - ay)) / L : 0; u = Math.max(0, Math.min(1, u)); return [s.pts[k] - ax - u * (bx - ax), s.pts[k + 1] - ay - u * (by - ay)]; })()));
+      if (best > K.QS_STROKE_TOL + 0.08) return false;
+    }
+    return near(back.pts[0], s.pts[0], 0.051) && near(back.pts[back.pts.length - 1], s.pts[s.pts.length - 1], 0.051);
+  });
+  ok(devOk, 'v2: Freihand weicht höchstens 0,33 mm ab, Enden auf 0,05 mm');
+  const dot2 = d2.objects.filter(o => o.type === 'stroke')[3], mk2 = d2.objects.filter(o => o.type === 'stroke')[4];
+  ok(dot2 && dot2.pts.length === 4 && dot2.pts[0] === 5 && dot2.pts[2] === 5 && dot2.c === '#d0342c' && dot2.w === 1, 'v2: Tupfer bleibt Tupfer mit Farbe und Stärke', dot2);
+  ok(mk2 && mk2.al === 0.4 && mk2.m && mk2.m.plan === true && mk2.pts.length === 4, 'v2: Marker durchscheinend, Planfigur-Markierung bleibt', mk2);
+  ok(K.parseLink(l2.replace('v=2', 'v=1')).ok === false, 'v2-Daten mit v=1 abgelehnt');
+  ok(K.parseLink(l2.replace('v=2', 'v=3')).err === 'newer', 'v=3 → „neuere Version“');
+  ok(K.parseLink(l2.slice(0, -6)).ok === false, 'v2: abgeschnittener Link abgelehnt');
+  {
+    const big = { name: '', objects: Array.from({ length: 30 }, (_, j) => ({ id: 'h' + j, type: 'stroke', pts: Array.from({ length: 20000 }, (_, k) => k % 2 ? Math.sin(k) * 50 + j : k / 10), c: '#3b3f45', w: 0.5, al: 1 })) };
+    const lb = K.linkForSheet(big, true);
+    const t0 = Date.now(), lb2 = K.linkForSheet(big, true);
+    ok(lb === null && lb2 === null && Date.now() - t0 < 500, 'v2: riesiges Blatt → sofort null (passt in keinen Code, kein Hänger)', [lb && lb.length, Date.now() - t0]);
+  }
+  /* Kaputter Binärteil: Striche ab der Stelle fallen weg, der Rest bleibt */
+  const pack = (payload, extra) => { const json = K.utf8Bytes(JSON.stringify(payload)), raw = [1]; let n = json.length; while (n >= 128) { raw.push((n % 128) + 128); n = Math.floor(n / 128); } raw.push(n); return 'zirkelwerk://s?v=2&z=' + K.b64uEncode(K.deflateRaw(raw.concat(json, extra))); };
+  const ev = K.parseLink(pack({ n: 'x', o: [[0, 1, 2], [3, 0], [3, 0], [4, 1, 1, 'Hallo']] }, [2, 4, 4, 2, 2, 127]));
+  ok(ev.ok && ev.raw.objects.length === 3 && ev.raw.objects[1].pts.join() === '0.2,0.2,0.3,0.3', 'v2: abgeschnittene Freihand → nur kaputte Striche fallen weg', ev.raw.objects);
+  ok(K.parseLink(pack({ n: 'x', o: [[3, 0]] }, [255, 255, 255, 255, 255, 255, 255, 255])).raw.objects.length === 0, 'v2: überlange Zahl im Binärteil abgelehnt');
+  ok(K.parseLink(pack({ n: 'x', o: [[3, [1, 2, 3, 4]]] }, [])).raw.objects.length === 1, 'v2: Strich als Zahlenliste (wie v1) geht auch');
+  ok(K.parseLink('zirkelwerk://s?v=2&z=' + K.b64uEncode(K.deflateRaw([2, 2, 123, 125]))).ok === false, 'v2: unbekannte Kennung abgelehnt');
+  ok(K.parseLink('zirkelwerk://s?v=2&z=' + K.b64uEncode(K.deflateRaw([1, 9, 123, 125]))).ok === false, 'v2: JSON-Länge über das Ende abgelehnt');
+  /* Rückmeldung in v2 */
+  const task = { kind: 'sws', given: g };
+  const r2 = K.parseLink(K.linkForResult({ task, name: 'Ben', ok: false, help: 1, codes: ['scale'], objects: con.concat(strokes) }, true, true));
+  ok(r2.ok && r2.kind === 'result' && r2.res.name === 'Ben' && r2.res.objects.length === con.length + strokes.length && r2.res.objects.filter(o => o.type === 'stroke').length === 3, 'v2: Rückmeldung mit Zeichnung und Freihand', r2.ok && r2.res.objects.length);
+  const r3 = K.parseLink(K.linkForResult({ task, name: 'Ben', ok: true, help: 0, codes: [], objects: con }, false, true));
+  ok(r3.ok && r3.res.objects.length === 0 && r3.res.ok, 'v2: Rückmeldung ohne Zeichnung');
+}
+
 /* ---------- Rückmeldung per QR ---------- */
 {
   const task = { kind: 'sws', given: { c: 60, b: 45, alpha: 50 } };
@@ -711,6 +797,28 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   ok(sum.n === 3 && sum.ok === 1 && sum.help[2] === 1 && sum.codes[0][0] === 'scale' && sum.codes[0][1] === 2, 'Auswertung: Anzahl, richtig, häufigster Befund', sum);
   const rows = K.encodeObjs(objs), back = K.decodeObjs(rows);
   ok(back.length === objs.length && back.every((o, i) => o.type === objs[i].type), 'Objekte kodieren und dekodieren');
+}
+
+/* ---------- Kongruente Flächen (Farben, 1.0.2) ---------- */
+{
+  const cls = kind => { const g = K.BODY_DEFAULTS[kind], net = K.bodyNet(kind, g, 0); return Array.from(K.faceCongruenceGroups(K.foldNet(net, 1), net.smooth || null)); };
+  const nCls = c => new Set(c).size;
+  ok(nCls(cls('cube')) === 1 && nCls(cls('tetra')) === 1 && nCls(cls('octa')) === 1, 'Kongruent: Würfel, Tetraeder, Oktaeder einfarbig');
+  const cu = cls('cuboid');
+  ok(nCls(cu) === 3 && [0, 1, 2].every(k => cu.filter(x => x === k).length === 2), 'Kongruent: Quader drei Paare', cu);
+  const p3 = cls('prism3');
+  ok(nCls(p3) === 4 && p3.filter(x => x === p3[p3.length - 1]).length === 2, 'Kongruent: Dreiecksprisma – Grundflächen (gespiegelt) gleich, Seiten verschieden', p3);
+  const pn = cls('prismn'), py = cls('pyramid4'), pr = cls('pyramidrect');
+  ok(nCls(pn) === 2 && nCls(py) === 2 && py.filter(x => x === 1).length === 4 && nCls(pr) === 3, 'Kongruent: Prisma, quadratische und rechteckige Pyramide', [pn, py, pr]);
+  const cy = cls('cylinder');
+  ok(nCls(cy) === 2 && nCls(cls('cone')) === 2, 'Kongruent: Zylinder (Mantel, beide Deckel), Kegel', cy.length);
+  const V = (x, y) => ({ x, y, z: 0 });
+  const sq = [V(0, 0), V(10, 0), V(10, 10), V(0, 10)], h3 = 5 * Math.sqrt(3), rh = [V(0, 0), V(10, 0), V(15, h3), V(5, h3)];   /* Raute: alle Seiten genau 10 */
+  const kite = [V(0, 0), V(4, -3), V(10, 0), V(4, 3)], kite2 = [V(0, 0), V(6, -3), V(10, 0), V(6, 3)];
+  const tri = [V(0, 0), V(7, 0), V(2, 5)], triM = [V(0, 0), V(-7, 0), V(-2, 5)];
+  const c2 = K.faceCongruenceGroups([sq, rh, sq.slice().reverse(), kite, kite2, tri, triM, tri.slice().reverse()], null);
+  ok(c2[0] !== c2[1] && c2[2] === c2[0] && c2[3] === c2[4] && c2[5] === c2[6] && c2[3] !== c2[0], 'Kongruent: Raute ≠ Quadrat (gleiche Seiten), Drachen gedreht und Dreieck gespiegelt gleich', c2);
+  ok(c2[7] === c2[5], 'Kongruent: Ecken in umgekehrter Reihenfolge (Umlaufsinn) gleich', c2);
 }
 
 /* ---------- Körper und Netze ---------- */
@@ -818,7 +926,8 @@ ok(near(bb2.y0, -10) && bb2.x0 > -7.2 && bb2.x1 < 7.2, 'Bogen über die Spitze: 
   /* Die echte Zeichenroutine der App, damit das PDF genau das zeigt, was
      auch auf dem Bildschirm steht. */
   const ds = html.indexOf('/* k = Pixel je Millimeter'), de = html.indexOf('/* ---------- Deckschicht');
-  vm.runInContext('var S = { pointStyle: "cross" };\n' + html.slice(ds, de) + '\nthis.drawObjects = drawObjects;', ctx);
+  /* boostFor: Präsentation verstärkt nur die Zeichenflächen am Bildschirm, nie das PDF */
+  vm.runInContext('var S = { pointStyle: "cross" }; var boostFor = () => 1;\n' + html.slice(ds, de) + '\nthis.drawObjects = drawObjects;', ctx);
   const draw = (c, objs, k) => ctx.drawObjects(c, objs, k, null);
   const R = K.pdfRuns('Ä–α C₁ 😀', false);
   ok(R[0].f === 'F1' && R[0].codes[0] === 0xC4 && R[0].codes[1] === 0x96, 'PDF: Umlaut und Gedankenstrich in WinAnsi', R[0].codes);

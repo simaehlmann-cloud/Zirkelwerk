@@ -34,6 +34,8 @@ ersetzen('index.html', [
   ["const BUNDLE_ID = 'de.zirkelwerk.app';", `const BUNDLE_ID = '${SCHUL_ID}';`, 'Bundle-ID'],
   ['const LIMITS_ACTIVE = true;', 'const LIMITS_ACTIVE = false;', 'alle Funktionen frei'],
   ['const IAP_ENABLED = true;', 'const IAP_ENABLED = false;', 'Kaufbereich aus'],
+  // Schüler-iPads: keine Bitte um Bewertung (und kein StoreKit, siehe unten).
+  ['const RATE_ENABLED = true;', 'const RATE_ENABLED = false;', 'Bitte um Bewertung aus'],
   // In „Über“ und in der Hilfe erkennbar, welche Edition läuft (Support-Mails).
   ["aboutLine: 'Zirkelwerk {version} · ", "aboutLine: 'Zirkelwerk Schule {version} · ", 'Über-Zeile DE'],
   ["aboutLine: 'Compasswork {version} · ", "aboutLine: 'Compasswork School {version} · ", 'Über-Zeile EN'],
@@ -44,6 +46,10 @@ ersetzen('config.xml', [
   // Ohne Plugin kein StoreKit im Projekt: Die App-Prüfung findet dann auch
   // keinen Kaufcode, der in einer App ohne In-App-Käufe nichts zu suchen hat.
   ['<plugin name="cordova-plugin-purchase" spec="13.19.1" />', '', 'Kauf-Plugin entfernt'],
+  // Das Bewertungs-Plugin bindet ebenfalls StoreKit ein – der iOS-Workflow
+  // verlangt für die Schul-Edition ein Projekt ganz ohne StoreKit.
+  ['<plugin name="cordova-launch-review" spec="4.2.0" />', '', 'Bewertungs-Plugin entfernt'],
+  ['<plugin name="cordova-plugin-device" spec="3.0.0" />', '', 'Geräte-Plugin entfernt'],
 ]);
 
 /* Gegenprobe auf dem Ergebnis */
@@ -53,9 +59,11 @@ const fehler = [];
 if (/const IAP_ENABLED = true/.test(html)) fehler.push('IAP_ENABLED ist noch true');
 if (/const LIMITS_ACTIVE = true/.test(html)) fehler.push('LIMITS_ACTIVE ist noch true');
 if (/cordova-plugin-purchase/.test(cfg)) fehler.push('Kauf-Plugin steht noch in config.xml');
+if (/const RATE_ENABLED = true/.test(html)) fehler.push('RATE_ENABLED ist noch true');
+if (/cordova-launch-review/.test(cfg)) fehler.push('Bewertungs-Plugin steht noch in config.xml');
 if (!cfg.includes(`<widget id="${SCHUL_ID}"`)) fehler.push('Bundle-ID in config.xml nicht gesetzt');
 if (fehler.length) {
   fehler.forEach(f => console.error('::error::' + f));
   process.exit(1);
 }
-console.log(`Schul-Edition vorbereitet: ${SCHUL_ID}, alle Funktionen frei, ohne In-App-Kauf.`);
+console.log(`Schul-Edition vorbereitet: ${SCHUL_ID}, alle Funktionen frei, ohne In-App-Kauf und ohne Bitte um Bewertung.`);

@@ -66,6 +66,7 @@ if (packs) {
   for (const m of js.matchAll(/\bt\('([A-Za-z0-9_]+)'\s*[,)]/g)) used.add(m[1]);
   /* Zusammengesetzte Schlüssel */
   for (const d of ['ipad', 'ipadmini', 'iphone', 'android', 'desktop']) used.add('device_' + d);
+  used.add('bodyColors1'); used.add('bodyColors2');   /* Farbstufen der Körper: 'bodyColors' + Stufe */
   used.add('paywall_sheets'); used.add('paywall_describe'); used.add('paywall_lab'); used.add('paywall_pdf'); used.add('paywall_qr'); used.add('msgQrNewer');
   /* Schalter im PDF-Dialog: Schlüssel stehen als Daten in rows */
   for (const k of ['pdf_grid', 'pdf_head', 'pdf_desc', 'pdf_descHint', 'pdf_taskOnly', 'pdf_taskOnlyHint']) used.add(k);
@@ -213,6 +214,10 @@ const pluginOn = /<plugin name="cordova-plugin-purchase"/.test(cfg);
 if (iapOn !== pluginOn) E(`IAP_ENABLED (${iapOn}) passt nicht zum Kauf-Plugin in config.xml (${pluginOn})`);
 if (limitsOn && !iapOn) E('LIMITS_ACTIVE ohne IAP_ENABLED: Nutzer könnten gesperrt werden, ohne kaufen zu können');
 if (!iapOn) W('In-App-Kauf noch abgeschaltet (vorbereitet)');
+/* Bewertung (1.0.2): Schalter und Plugin gehören zusammen */
+const rateOn = /const RATE_ENABLED = true/.test(js), ratePlugin = /<plugin name="cordova-launch-review"/.test(cfg);
+if (rateOn !== ratePlugin) E(`RATE_ENABLED (${rateOn}) passt nicht zum Bewertungs-Plugin in config.xml (${ratePlugin})`);
+else O('Bitte um Bewertung: Schalter und Plugin passen');
 
 /* ---------- 6. Bilder ---------- */
 function pngSize(f) {
